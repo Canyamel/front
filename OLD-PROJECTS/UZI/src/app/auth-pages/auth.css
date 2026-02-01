@@ -1,0 +1,64 @@
+.auth_pages {
+    padding-top: 30px;
+    align-items: center;
+    .auth_container {
+        width: 350px;
+
+        .register_form {
+            height: 1000px;
+        }
+        .enter_form {
+            height: calc(100vh - 100px);
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+    }
+}
+
+.title_first {
+    line-height: 1;
+    color: #222831;
+    font-size: 55px;
+    font-weight: bold;
+}
+
+.title_second {
+    line-height: 1.5;
+    color: #818181;
+    font-size: 20px;
+}
+
+.title_auth {
+    width: 100%;
+    font-size: 35px;
+    font-weight: bold;
+}
+
+.text_strong {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.link_strong {
+    color: #0047e0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.link_strong:visited {
+    color: #0047e0;
+}
+
+.link_strong:hover {
+    color: #3867df;
+}
+
+.link_strong:active {
+    color: #0236a5;
+}
+
+.condition_password {
+    font-weight: 600;
+}

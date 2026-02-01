@@ -1,0 +1,17 @@
+.dialogs_page {
+    padding: 30px;
+    height: auto;
+    min-height: calc(100vh - 50px);
+}
+
+.filter_dialogs_icon {
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.filter_box {
+    border: 1px solid #1677ff;
+    border-radius: 3px;
+    width: 30px;
+    height: 30px;
+}

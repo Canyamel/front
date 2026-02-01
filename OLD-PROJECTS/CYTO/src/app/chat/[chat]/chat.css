@@ -1,0 +1,89 @@
+
+.chat_page {
+    height: calc(100% - 200px);
+    padding-top:calc(50px + 15px);
+
+    .viewing_diagnostics_button{
+
+        position:fixed;
+        top:calc(50px + 15px);
+        right:calc(30px + 30px);
+        cursor:pointer;
+        background: blue;
+        font-family: Arial, serif;
+    }
+
+    .message_list_container{
+        overflow-y: scroll;
+        height:calc(100% - 140px);
+
+        &::-webkit-scrollbar {
+            width: 12px;               /* ширина scrollbar */
+        }
+        &::-webkit-scrollbar-track {
+            background: white;        /* цвет дорожки */
+        }
+        &::-webkit-scrollbar-thumb {
+            background-color: #e3e4e4;    /* цвет плашки */
+            border-radius: 20px;       /* закругления плашки */
+            border: 3px solid #e3e4e4;  /* padding вокруг плашки */
+        }
+
+        .message_list {
+            padding: 50px 20px;
+
+            .message {
+            width: 50%;
+
+
+            .text_content {
+                padding: 10px;
+                background: #f0f0f0;
+                border-radius: 10px;
+                width: 100%;
+            }
+
+
+            .datetime {
+                color: #e3e4e4;
+            }
+
+
+            &.own_message {
+                margin-left: auto;
+                .text_content {
+                    background: #e2ebf3;
+
+                }
+            }
+        }
+
+
+    }
+
+    }
+
+    .input_content{
+        bottom:0;
+        height:140px;
+        padding: 10px 20px;
+
+        .textarea_item {
+            width:100%;
+            .textarea {
+                height:120px;
+                resize: none;
+            }
+        }
+
+        .send_button{
+
+            font-size:30px;
+            color:#039;
+            cursor:pointer;
+
+
+        }
+    }
+}
+

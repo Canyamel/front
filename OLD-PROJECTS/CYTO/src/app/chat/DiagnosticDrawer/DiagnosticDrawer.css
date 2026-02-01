@@ -1,0 +1,30 @@
+.diagnostics_drawer{
+    .yearDiagnostics{
+        cursor:pointer;
+
+        .year{
+            color: gray;
+            margin-bottom:10px;
+        }
+
+        .diagnosticsBlock{
+
+            background: #f0f0f0;
+            margin-bottom:20px;
+            padding:15px;
+            border-radius: 10px;
+
+            .border{
+                font-weight:bold;
+            }
+
+
+            &:hover{
+
+                box-shadow: 0 0 21px 1px rgba(34, 60, 80, 0.17)
+            }
+
+
+        }
+    }
+}

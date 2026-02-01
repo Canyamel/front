@@ -1,0 +1,60 @@
+@import "@medml/ui/styles/mixins";
+
+$auth-card-bg: #FFFFFF;
+$auth-card-border: #E5E7EB;
+$auth-card-shadow: 0px 25px 50px rgba(219, 234, 254, 0.5);
+$auth-card-error-border: #EF4444;
+$auth-card-error-shadow: 0px 0px 43px rgba(255, 0, 0, 0.45), 0px 25px 50px rgba(219, 234, 254, 0.5);
+
+.auth-card {
+  background: $auth-card-bg;
+  border: 1px solid $auth-card-border;
+  box-shadow: $auth-card-shadow;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+
+  .ant-card-body {
+    padding: 40px 48px !important;
+  }
+
+  &-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+  }
+
+  &-form {
+    width: 100%;
+  }
+
+  &-footer-container {
+    width: 100%;
+  }
+
+  &-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  &-footer-divider {
+    @include text-secondary;
+    font-weight: 500 !important;
+
+    :global(.ant-divider-inner-text) {
+      font-family: inherit;
+      font-style: inherit;
+      font-weight: inherit;
+      font-size: inherit;
+      line-height: inherit;
+      color: inherit;
+    }
+  }
+
+  &.auth-card-error {
+    border: 1px solid $auth-card-error-border !important;
+    box-shadow: $auth-card-error-shadow !important;
+  }
+}

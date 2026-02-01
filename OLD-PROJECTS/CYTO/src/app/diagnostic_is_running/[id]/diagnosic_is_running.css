@@ -1,0 +1,13 @@
+.title {
+    text-align: center;
+    font-family: Arial, serif;
+    font-weight: bold;
+}
+
+.description {
+    font-size: 16px;
+    font-family: Arial, serif;
+    width: 500px;
+    text-align: center;
+    line-height: 30px;
+}

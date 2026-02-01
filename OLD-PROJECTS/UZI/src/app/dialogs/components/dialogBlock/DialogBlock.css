@@ -1,0 +1,124 @@
+.card {
+    display: flex;
+    margin-bottom: 20px;
+    width: 100%;
+    height: auto;
+    border: 1px solid lightgray;
+    border-radius: 10px;
+    /*padding-left: 20px;*/
+    padding: 20px;
+}
+
+.column {
+    justify-content: space-between;
+    margin-right: 50px;
+    width: max-content;
+}
+
+.switch_button {
+    color: #687ffc;
+    cursor: pointer;
+}
+
+.new_message {
+    width: max-content;
+    margin-left: -5px;
+    padding: 5px 9px;
+    color: #1677ff;
+    background-color: #eff3fc;
+    border: 1px solid;
+    border-radius: 12px;
+    top: 10px;
+    position: relative;
+}
+
+.column_name {
+    color: gray;
+    margin: 5px 5px;
+}
+
+.theme_name {
+    font-weight: bold;
+    font-size: 16px;
+    margin: 5px;
+}
+
+.date {
+    margin: 10px 5px;
+    font-size: 14px;
+}
+
+.birthday_date {
+    font-weight: bold;
+    margin: 10px 5px;
+    font-size: 14px;
+}
+
+.expert_card {
+    background-color: #f5f5f5;
+    border-radius: 3px;
+    width: max-content;
+    display: inline-flex;
+    padding: 7px 9px;
+    margin-top: 10px;
+    margin-right: 15px;
+    color: black;
+}
+
+@media (max-width: 1060px) {
+    .expert_card {
+        display: flex;
+    }
+}
+
+details {
+    color: #1677ff;
+    cursor: pointer;
+    user-select: none;
+    max-width: 500px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+div.content {
+    max-width: 500px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    max-height: 0;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition:
+        max-height 400ms ease-out,
+        border 0ms 400ms linear;
+}
+
+summary {
+    display: block; /* This hides the summary's ::marker pseudo-element */
+}
+summary::-webkit-details-marker {
+    display: none;
+}
+div.content {
+    max-width: 500px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    max-height: 0;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition:
+        max-height 400ms ease-out,
+        border 0ms 400ms linear;
+}
+
+details[open] + div.content {
+    max-height: 800px; /* Set a max-height value enough to show all the content */
+    border-color: #888;
+    transition:
+        max-height 400ms ease-out,
+        border 0ms linear;
+}
+
+details[open] span::before {
+    rotate: 90deg;
+    transition: rotate 200ms ease-out;
+}

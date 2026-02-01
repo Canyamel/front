@@ -1,0 +1,36 @@
+.upload-photo-form {
+    margin-bottom: 50px;
+}
+
+.upload-photo-form .title {
+    text-align: center;
+    font-size: 30px;
+    font-weight: bold;
+}
+
+.upload-photo-form .flex {
+    width: 400px;
+}
+
+.upload-photo-form .button {
+    margin-left: auto;
+    margin-right: auto;
+    width: 200px !important;
+    display: block;
+    font-size: 15px;
+}
+
+.upload-photo-form .button {
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    font-size: 15px;
+}
+
+.upload-photo-form .button-upload {
+    width: 200px !important;
+}
+
+.upload-photo-form .button-new-card {
+    width: 250px !important;
+}

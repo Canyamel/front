@@ -1,0 +1,29 @@
+.uzi-icons {
+    font-size: 30px;
+}
+
+.uzi-toolbox {
+    width: 50%;
+}
+
+.uzi-viewer {
+    height: 100%;
+}
+
+.uzi-viewer-wrapper {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.viewer {
+    width: 200px;
+}
+
+.left {
+    margin-right: auto;
+}
+
+.right {
+    margin-left: auto;
+}

@@ -1,0 +1,52 @@
+.page_patients {
+    height: unset;
+    padding: 30px 40px 0 40px;
+}
+
+.table_button {
+    color: #0047e0;
+    cursor: pointer;
+    text-align: center;
+}
+
+.table_button:visited {
+    color: #0047e0;
+    cursor: pointer;
+    text-align: center;
+}
+
+.medical_organization_title {
+    color: gray;
+}
+
+.medical_organization_edit_icon {
+    cursor: pointer;
+    font-size: 20px;
+    color: #0047e0 !important;
+}
+
+.table_patient .ant-table-thead > tr > th {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.table_patient .ant-table-tbody > tr > td {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.title_support {
+    font-size: 20px;
+    color: grey;
+}
+
+.title_error {
+    font-size: 40px;
+    font-weight: 600;
+    text-align: center;
+}

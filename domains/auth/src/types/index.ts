@@ -1,0 +1,52 @@
+export interface RegisterPayload {
+  email: string;
+  last_name: string;
+  first_name: string;
+  fathers_name?: string;
+  med_organization?: string;
+  password1: string;
+  password2: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access: string;
+  refresh: string;
+}
+
+export interface RefreshTokenPayload {
+  token: string;
+}
+
+export interface RefreshTokenResponse {
+  access_token: string;
+  refresh_token: string;
+}
+
+export interface NextAuthToken {
+  name: string;
+  email: string;
+  sub: string;
+  accessToken: string;
+  accessTokenExpiry: string;
+  refreshToken: string;
+  iat: number;
+  exp: number;
+  jti: string;
+}
+
+export interface NextAuthUser {
+  name: string;
+  email: string;
+  image: undefined;
+  data: {
+    accessToken: string;
+    accessTokenExpiry: string;
+    refreshToken: string;
+  };
+}
+

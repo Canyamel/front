@@ -1,0 +1,11 @@
+@import "@medml/ui/styles/fonts";
+
+// Spacing Tokens
+$spacing-md: 30px;
+
+.auth_pages {
+  padding-top: $spacing-md;
+  font-family: $font-family-sf-pro;
+  padding-left: 30%;
+  padding-right: 30%;
+}

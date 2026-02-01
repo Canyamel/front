@@ -1,0 +1,14 @@
+.uzi-view {
+    padding: 50px;
+    height: 100% !important;
+}
+
+.uzi-diagnosis {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column;
+}
+
+.text-inherit {
+    color: inherit !important;
+}

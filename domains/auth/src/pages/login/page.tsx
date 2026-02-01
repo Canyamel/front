@@ -1,0 +1,158 @@
+"use client";
+
+import "./page.scss";
+
+import { useCallback, useState } from "react";
+import { Button, Form, Flex, Input } from "antd";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+
+import { EmailIcon, PasswordIcon } from "@medml/ui";
+import { validateEmail } from "../../utils/validateEmail";
+import AuthFormWrapper from "../../components/AuthFormWrapper";
+import { useAuthError } from "../../contexts/AuthErrorContext";
+
+const { Password } = Input;
+
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+interface LoginPageProps {
+  onSuccess?: () => void;
+  onError?: (error: string) => void;
+}
+
+const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
+  const router = useRouter();
+  const [form] = Form.useForm<LoginFormData>();
+  const [disabledButton, setDisabledButton] = useState(true);
+  const { hasError, setHasError, setErrorMessage } = useAuthError();
+
+  const handleSubmit = useCallback(
+    async (values: LoginFormData) => {
+      try {
+        setHasError(false);
+        setErrorMessage(null);
+
+        const result = await signIn("credentials", {
+          username: values.email,
+          password: values.password,
+          redirect: false,
+        });
+
+        if (result?.ok) {
+          setHasError(false);
+          setErrorMessage(null);
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push("/patients");
+          }
+        } else {
+          const errorMsg = result?.error || "Неверные данные";
+          setHasError(true);
+          setErrorMessage(errorMsg);
+          if (onError) {
+            onError(errorMsg);
+          }
+        }
+      } catch (error: any) {
+        const errorMsg = error?.message || "Неверные данные";
+        setHasError(true);
+        setErrorMessage(errorMsg);
+        if (onError) {
+          onError(errorMsg);
+        }
+      }
+    },
+    [router, onSuccess, onError, setHasError, setErrorMessage]
+  );
+
+  const checkFormValidity = useCallback(() => {
+    form
+      .validateFields()
+      .then(() => {
+        setDisabledButton(false);
+        setHasError(false);
+        setErrorMessage(null);
+      })
+      .catch((err: { errorFields?: Array<{ errors: string[] }> }) => {
+        setDisabledButton(true);
+        setHasError(true);
+        const firstMessage = err?.errorFields?.[0]?.errors?.[0];
+        setErrorMessage(firstMessage ?? null);
+      });
+  }, [form, setHasError, setErrorMessage]);
+
+  const handleValuesChange = useCallback(() => {
+    setTimeout(() => checkFormValidity(), 0);
+  }, [checkFormValidity]);
+
+  const handleFinishFailed = useCallback(
+    ({ errorFields }: { errorFields?: Array<{ errors: string[] }> }) => {
+      setHasError(true);
+      const firstMessage = errorFields?.[0]?.errors?.[0];
+      setErrorMessage(firstMessage ?? "Заполните поля корректно");
+    },
+    [setHasError, setErrorMessage]
+  );
+
+  return (
+    <AuthFormWrapper>
+      <Form
+        className="login-form"
+        initialValues={{ email: '', password: '' }}
+        form={form}
+        onFinish={handleSubmit}
+        onFinishFailed={handleFinishFailed}
+        onValuesChange={handleValuesChange}
+        layout="vertical"
+      >
+        <Form.Item
+          label="Email"
+          name="email"
+          rules={[
+            { required: true, message: "Введите электронную почту пользователя" },
+            {
+              validator: (_, value) => {
+                if (!value || validateEmail(value)) {
+                  return Promise.resolve();
+                }
+                return Promise.reject(
+                  new Error("Неверный формат почты")
+                );
+              },
+            },
+          ]}
+        >
+          <Input prefix={<EmailIcon />} type="email" size="large" placeholder="Email" />
+        </Form.Item>
+
+        <Form.Item
+          label="Пароль"
+          name="password"
+          rules={[{ required: true, message: "Введите пароль пользователя" }]}
+        >
+          <Password prefix={<PasswordIcon />} size="large" placeholder="Пароль" />
+        </Form.Item>
+        <Form.Item>
+          <Button
+            className="login-submit"
+            type="primary"
+            htmlType="submit"
+            size="large"
+            block
+            disabled={disabledButton}
+          >
+            {hasError ? "Неверные данные" : "Войти"}
+          </Button>
+        </Form.Item>
+      </Form>
+      <Button type="link" className="login-forgot-password">Забыли пароль?</Button>
+    </AuthFormWrapper>
+  );
+};
+
+export default LoginPage;

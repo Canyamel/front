@@ -1,0 +1,112 @@
+.table_button {
+    color: blue;
+    cursor: pointer;
+    text-align: center;
+}
+
+.patient_profile_page {
+    padding-left: 30px;
+    padding-right: 30px;
+    padding-top: 40px;
+
+    .link {
+        color: #0047e0;
+        font-size: 14px;
+    }
+
+    .patient_name {
+        font-size: 20px;
+        font-family: Arial, serif;
+        font-weight: 600;
+    }
+
+    .patient_common_information {
+        font-family: Arial, serif;
+        font-size: 16px;
+        border-style: solid;
+        border-width: 1px;
+        height: 630px;
+        border-color: rgba(0, 0, 0, 0.08);
+
+        .data_string {
+            height: 50px;
+
+            .propertyName {
+                width: 50%;
+                height: 50px;
+                padding-left: 10px;
+                border-color: rgba(0, 0, 0, 0.08);
+                border-style: solid;
+                border-bottom-width: 1px;
+                background: #fafafa;
+                display: flex;
+                align-items: center;
+            }
+
+            .propertyValue {
+                width: 50%;
+                height: 50px;
+                padding-left: 10px;
+                border-color: rgba(0, 0, 0, 0.08);
+                border-style: solid;
+                border-bottom-width: 1px;
+                display: flex;
+                align-items: center;
+            }
+
+            .patient_is_active {
+                &::before {
+                    content: '';
+                    display: inline-block;
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 20px;
+                    margin-right: 5px;
+                    background-color: #1890ff;
+                }
+            }
+
+            .diagnosis_field {
+                align-items: start;
+                height: calc(430px - 1px);
+                padding-top: 15px;
+            }
+        }
+    }
+
+    .manage_panel {
+        height: 90px;
+        .title {
+            font-size: 20px;
+            font-family: Arial, serif;
+            font-weight: 600;
+            padding-bottom: 20px;
+        }
+        .button_container {
+            .control_buttons {
+                & > * {
+                    cursor: pointer;
+                    font-size: 18px;
+                    border-color: blue;
+                    border-style: solid;
+                    border-width: 2px;
+                    height: 30px;
+                    width: 30px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: blue;
+                }
+
+                .delete_icon {
+                    border-color: red;
+                    color: red;
+                }
+            }
+        }
+    }
+
+    .diagnostic_table_container {
+        height: 300px;
+    }
+}

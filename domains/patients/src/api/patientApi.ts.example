@@ -1,0 +1,61 @@
+// Пример использования RTK Query API в домене patients
+// Переименуйте в patientApi.ts и реализуйте endpoints
+
+import { baseApi } from '@medml/store';
+import type { Patient } from '../types';
+
+// Используем baseApi.injectEndpoints для добавления endpoints этого домена
+export const patientApi = baseApi.injectEndpoints({
+  endpoints: (build) => ({
+    // Получить список пациентов
+    getPatients: build.query<Patient[], void>({
+      query: () => 'patients',
+      providesTags: ['Patient'], // Тег для инвалидации кэша
+    }),
+    
+    // Получить одного пациента
+    getPatient: build.query<Patient, string>({
+      query: (id) => `patients/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Patient', id }],
+    }),
+    
+    // Создать пациента
+    createPatient: build.mutation<Patient, Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>>({
+      query: (patient) => ({
+        url: 'patients',
+        method: 'POST',
+        body: patient,
+      }),
+      invalidatesTags: ['Patient'],
+    }),
+    
+    // Обновить пациента
+    updatePatient: build.mutation<Patient, { id: string; data: Partial<Patient> }>({
+      query: ({ id, data }) => ({
+        url: `patients/${id}`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Patient', id }],
+    }),
+    
+    // Удалить пациента
+    deletePatient: build.mutation<void, string>({
+      query: (id) => ({
+        url: `patients/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Patient'],
+    }),
+  }),
+});
+
+// Экспорт хуков для использования в компонентах
+export const {
+  useGetPatientsQuery,
+  useGetPatientQuery,
+  useCreatePatientMutation,
+  useUpdatePatientMutation,
+  useDeletePatientMutation,
+} = patientApi;
+

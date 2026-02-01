@@ -1,0 +1,21 @@
+.login-form {
+    width: 100%;
+}
+
+.login-submit {
+    height: auto !important;
+    padding: 14px 20px !important;
+}
+
+.login-forgot-password {
+    margin-top: 16px;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    line-height: 17px !important;
+    text-align: center !important;
+    color: #0055BB !important;
+    
+    &:hover {
+        color: #0055BB !important;
+    }
+}

@@ -1,0 +1,84 @@
+@import "@medml/ui/styles/fonts";
+
+// Color Tokens
+$color-accent: #FF6B35;
+$color-text-white: #ffffff;
+
+// Font Tokens
+$font-size-medium: 16px;
+$font-weight-semibold: 510;
+
+// Spacing Tokens
+$spacing-sm: 20px;
+$spacing-gap-large: 36px;
+$button-padding-x: 50px;
+$button-padding-y: 8px;
+
+// Mixins
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+}
+
+@mixin header-hover-effect {
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+@mixin header-font-base {
+  font-family: $font-family-sf-pro !important;
+  font-size: $font-size-medium;
+}
+
+@mixin accent-button {
+  padding: $button-padding-y $button-padding-x !important;
+  font-size: $font-size-medium !important;
+  background-color: $color-accent !important;
+  border: 0 !important;
+
+  @include header-hover-effect;
+
+  * {
+    font-weight: $font-weight-semibold !important;
+    color: $color-text-white !important;
+  }
+}
+
+.header {
+  &-card {
+    :global(.ant-card-body) {
+      padding: 0;
+    }
+  }
+
+  &-content {
+    @include flex-center;
+    width: 100%;
+    padding-left: $spacing-sm;
+    padding-right: $spacing-sm;
+    gap: $spacing-gap-large;
+  
+    * {
+      @include header-font-base;
+    }
+  }
+
+  &-icon {
+    display: flex;
+  }
+
+  &-links {
+    @include flex-center;
+    gap: $spacing-sm;
+    flex: 1;
+
+    a {
+      @include header-hover-effect;
+    }
+  }
+
+  &-button {
+    @include accent-button;
+  }
+}
