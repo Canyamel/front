@@ -20,10 +20,6 @@ const Header = () => {
   //   signOut({ callbackUrl: "/auth/login" });
   // }, []);
 
-  useEffect(() => {
-    console.log(pathname, session, !session && pathname !== "/auth/login", !session && pathname === "/auth/login");
-  }, [pathname, session])
-
   return (
     <Card className="header-card">
       <div className="header-content">

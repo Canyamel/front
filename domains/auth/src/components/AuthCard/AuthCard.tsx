@@ -10,24 +10,26 @@ interface AuthCardProps {
     children: React.ReactNode;
 }
 
-export default function AuthCard({ children }: AuthCardProps) {
-    const { hasError } = useAuthError();
+const AuthCard = ({ children }: AuthCardProps) => {
+  const { hasError } = useAuthError();
 
-    return (
-        <Card className={`auth-card ${hasError ? "auth-card-error" : ""}`}>
-            <Flex className="auth-card-content">
-                <AuthLogo />
-                <Flex className="auth-card-form">
-                    {children}
-                </Flex>
-                <div className="auth-card-footer-container">
-                    <Divider className="auth-card-footer-divider">Безопасный вход</Divider>
-                    <Flex className="auth-card-footer">
-                        <SecurityIcon />
-                        <Typography.Text type="secondary">Защищено 256-битным шифрованием</Typography.Text>
-                    </Flex>
-                </div>
-            </Flex>
-        </Card>
-    );
-}
+  return (
+    <Card className={`auth-card ${hasError ? "auth-card-error" : ""}`}>
+      <Flex className="auth-card-content">
+        <AuthLogo />
+        <Flex className="auth-card-form">
+          {children}
+        </Flex>
+        <div className="auth-card-footer-container">
+          <Divider className="auth-card-footer-divider">Безопасный вход</Divider>
+          <Flex className="auth-card-footer">
+            <SecurityIcon />
+            <Typography.Text type="secondary">Защищено 256-битным шифрованием</Typography.Text>
+          </Flex>
+        </div>
+      </Flex>
+    </Card>
+  );
+};
+
+export default AuthCard;

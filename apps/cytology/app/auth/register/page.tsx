@@ -1,6 +1,6 @@
 import { RegisterPage } from "@medml/auth";
 
-export default function Register() {
-  return <RegisterPage />;
-}
+const Register = () => <RegisterPage />;
+
+export default Register;
 

@@ -1,6 +1,6 @@
 import { LoginPage } from "@medml/auth";
 
-export default function Login() {
-  return <LoginPage />;
-}
+const Login = () => <LoginPage />;
+
+export default Login;
 

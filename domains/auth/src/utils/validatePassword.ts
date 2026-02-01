@@ -1,13 +1,13 @@
-export function validatePassword(password: string): {
+export const validatePassword = (password: string): {
   isValid: boolean;
   errors: string[];
-} {
+} => {
   const errors: string[] = [];
 
   if (password.length < 8) {
     errors.push("Минимум 8 знаков");
   }
-  
+
   if (!/[A-ZА-Я]/.test(password)) {
     errors.push("Заглавная буква");
   }
@@ -20,4 +20,4 @@ export function validatePassword(password: string): {
     isValid: errors.length === 0,
     errors,
   };
-}
+};

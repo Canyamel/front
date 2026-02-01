@@ -1,89 +1,58 @@
 import NextAuth from "next-auth";
+import type { NextAuthOptions, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
-import type { NextAuthToken, NextAuthUser } from "@medml/auth";
-import { apiClient, apiRequest } from "@medml/store";
+import { apiRequest } from "@medml/store";
 import dayjs from "dayjs";
-
-interface LoginResponse {
-  access: string;
-  refresh: string;
-}
 
 interface RefreshTokenResponse {
   access_token: string;
   refresh_token: string;
 }
 
-async function handleLogin(email: string, password: string) {
-  try {
-    const data = await apiClient.post<LoginResponse>("/auth/login/", { email, password });
+const handleRefreshToken = async (token: string) => {
+  const data = await apiRequest<RefreshTokenResponse>({
+    url: "/auth/refresh",
+    method: "POST",
+    headers: { token },
+  });
+  return data;
+};
 
-    if (data?.access && data?.refresh) {
-      return {
-        id: "null",
-        name: "null",
-        email: email,
-        data: {
-          accessToken: data.access,
-          refreshToken: data.refresh,
-          accessTokenExpiry: dayjs().add(2, "day").toString(),
-        },
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function handleRefreshToken(token: string) {
-  try {
-    const data = await apiRequest<RefreshTokenResponse>({
-      url: "/auth/refresh",
-      method: "POST",
-      headers: {
-        token: token,
-      },
-    });
-    return data;
-  } catch {
-    throw new Error("Token refresh failed");
-  }
-}
-
-const authOptions: any = {
+const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        username: { type: "text" },
-        password: { type: "password" },
+        accessToken: { type: "text" },
+        refreshToken: { type: "text" },
       },
-      async authorize(credentials) {
-        if (credentials?.username && credentials?.password) {
-          const user = await handleLogin(
-            credentials?.username,
-            credentials?.password
-          );
+      async authorize(credentials): Promise<User | null> {
+        const accessToken = credentials?.accessToken;
+        const refreshToken = credentials?.refreshToken;
+        if (!accessToken || !refreshToken) return null;
 
-          if (user?.data.accessToken) {
-            return user;
-          }
-
-          return null;
-        } else {
-          return null;
-        }
+        return {
+          id: "null",
+          name: "null",
+          email: "",
+          image: null,
+          data: {
+            accessToken,
+            refreshToken,
+            accessTokenExpiry: dayjs().add(2, "day").toString(),
+          },
+        } as unknown as User;
       },
     }),
   ],
 
   callbacks: {
-    jwt: async ({ token, user }: { token: NextAuthToken; user?: NextAuthUser }) => {
-      if (user) {
-        token.accessToken = String(user?.data.accessToken);
-        token.accessTokenExpiry = String(user?.data.accessTokenExpiry);
-        token.refreshToken = String(user?.data.refreshToken);
+    jwt: async ({ token, user }: { token: JWT; user?: User }) => {
+      if (user?.data) {
+        token.accessToken = user.data.accessToken;
+        token.accessTokenExpiry = user.data.accessTokenExpiry;
+        token.refreshToken = user.data.refreshToken;
       }
 
       const shouldRefreshTime = dayjs(token.accessTokenExpiry).diff(
@@ -91,7 +60,7 @@ const authOptions: any = {
       );
 
       if (shouldRefreshTime > 0) {
-        return Promise.resolve(token);
+        return token;
       }
 
       try {
@@ -102,20 +71,20 @@ const authOptions: any = {
         token.accessToken = access_token;
         token.accessTokenExpiry = dayjs().add(2, "day").toString();
         token.refreshToken = refresh_token;
-        return Promise.resolve(token);
+        return token;
       } catch {
-        return Promise.resolve(token);
+        return token;
       }
     },
 
-    session: async ({ session, token }: any) => {
+    session: async ({ session, token }) => {
       session.accessToken = token.accessToken;
       session.accessTokenExpiry = token.accessTokenExpiry;
-      return Promise.resolve(session);
+      return session;
     },
 
-    signIn({ user }: { user: any }) {
-      return !!user?.data.refreshToken;
+    signIn({ user }) {
+      return !!user?.data?.refreshToken;
     },
   },
 

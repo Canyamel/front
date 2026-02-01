@@ -2,10 +2,10 @@ import { baseApi } from "@medml/store";
 import type {
   RegisterPayload,
   LoginPayload,
-  LoginResponse,
   RefreshTokenPayload,
   RefreshTokenResponse,
-} from "../types";
+  AuthLoginResponse,
+} from "@medml/auth";
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -17,11 +17,15 @@ export const authApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Auth"],
     }),
-    login: builder.mutation<LoginResponse, LoginPayload>({
+    login: builder.mutation<AuthLoginResponse, LoginPayload>({
       query: (payload) => ({
         url: "/auth/login/",
         method: "POST",
         body: payload,
+      }),
+      transformResponse: (response: { access: string; refresh: string }): AuthLoginResponse => ({
+        accessToken: response.access,
+        refreshToken: response.refresh,
       }),
     }),
     refreshToken: builder.mutation<RefreshTokenResponse, RefreshTokenPayload>({

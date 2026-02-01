@@ -14,14 +14,12 @@ export const metadata: Metadata = {
   description: "Умный помощник врача",
 };
 
-export default function RootLayout({
-  children,
-}: React.PropsWithChildren) {
-  return (
-    <html lang="ru" className={inter.className}>
-      <body>
-        <RootLayoutClient>{children}</RootLayoutClient>
-      </body>
-    </html>
-  );
-}
+const RootLayout = ({ children }: React.PropsWithChildren) => (
+  <html lang="ru" className={inter.className}>
+    <body>
+      <RootLayoutClient>{children}</RootLayoutClient>
+    </body>
+  </html>
+);
+
+export default RootLayout;

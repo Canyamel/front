@@ -13,9 +13,14 @@ export interface LoginPayload {
   password: string;
 }
 
-export interface LoginResponse {
-  access: string;
-  refresh: string;
+export interface AuthLoginResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface IAuthApi {
+  login(payload: LoginPayload): Promise<AuthLoginResponse>;
+  register(payload: RegisterPayload): Promise<void>;
 }
 
 export interface RefreshTokenPayload {

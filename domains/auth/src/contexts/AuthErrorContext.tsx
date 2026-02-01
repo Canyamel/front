@@ -11,7 +11,7 @@ interface AuthErrorContextType {
 
 const AuthErrorContext = createContext<AuthErrorContextType | undefined>(undefined);
 
-export function AuthErrorProvider({ children }: { children: ReactNode }) {
+export const AuthErrorProvider = ({ children }: { children: ReactNode }) => {
   const [hasError, setHasErrorState] = useState(false);
   const [errorMessage, setErrorMessageState] = useState<string | null>(null);
 
@@ -35,12 +35,12 @@ export function AuthErrorProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthErrorContext.Provider>
   );
-}
+};
 
-export function useAuthError() {
+export const useAuthError = () => {
   const context = useContext(AuthErrorContext);
   if (!context) {
     throw new Error("useAuthError must be used within AuthErrorProvider");
   }
   return context;
-}
+};

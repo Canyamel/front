@@ -1,16 +1,12 @@
 export { LoginPage, RegisterPage } from "./pages";
 export { AuthLayout } from "./components";
 export { AuthErrorProvider } from "./contexts/AuthErrorContext";
-export {
-  authApi,
-  useRegisterUserMutation,
-  useLoginMutation,
-  useRefreshTokenMutation,
-} from "./api/authApi";
+export { AuthApiProvider, useAuthApi } from "./contexts/AuthApiContext";
 export type {
   RegisterPayload,
   LoginPayload,
-  LoginResponse,
+  AuthLoginResponse,
+  IAuthApi,
   RefreshTokenPayload,
   RefreshTokenResponse,
   NextAuthToken,

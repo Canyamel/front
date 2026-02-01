@@ -11,10 +11,7 @@ import {
   SyncAuthWrapper,
 } from "@medml/ui";
 
-export default function RootLayoutClient({
-  children,
-}: React.PropsWithChildren) {
-  return (
+const RootLayoutClient = ({ children }: React.PropsWithChildren) => (
     <RootProvider modality="cytology">
       <LoadingWrapper>
         <MessageWrapper>
@@ -26,5 +23,6 @@ export default function RootLayoutClient({
         </MessageWrapper>
       </LoadingWrapper>
     </RootProvider>
-  );
-}
+);
+
+export default RootLayoutClient;

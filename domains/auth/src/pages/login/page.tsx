@@ -3,14 +3,14 @@
 import "./page.scss";
 
 import { useCallback, useState } from "react";
-import { Button, Form, Flex, Input } from "antd";
-import { signIn } from "next-auth/react";
+import { Button, Form, Input } from "antd";
 import { useRouter } from "next/navigation";
 
 import { EmailIcon, PasswordIcon } from "@medml/ui";
 import { validateEmail } from "../../utils/validateEmail";
 import AuthFormWrapper from "../../components/AuthFormWrapper";
 import { useAuthError } from "../../contexts/AuthErrorContext";
+import { useAuthApi } from "../../contexts/AuthApiContext";
 
 const { Password } = Input;
 
@@ -26,6 +26,7 @@ interface LoginPageProps {
 
 const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
   const router = useRouter();
+  const authApi = useAuthApi();
   const [form] = Form.useForm<LoginFormData>();
   const [disabledButton, setDisabledButton] = useState(true);
   const { hasError, setHasError, setErrorMessage } = useAuthError();
@@ -36,30 +37,21 @@ const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
         setHasError(false);
         setErrorMessage(null);
 
-        const result = await signIn("credentials", {
-          username: values.email,
-          password: values.password,
-          redirect: false,
-        });
+        await authApi.login({ email: values.email, password: values.password });
 
-        if (result?.ok) {
-          setHasError(false);
-          setErrorMessage(null);
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            router.push("/patients");
-          }
+        setHasError(false);
+        setErrorMessage(null);
+        if (onSuccess) {
+          onSuccess();
         } else {
-          const errorMsg = result?.error || "Неверные данные";
-          setHasError(true);
-          setErrorMessage(errorMsg);
-          if (onError) {
-            onError(errorMsg);
-          }
+          router.push("/");
         }
-      } catch (error: any) {
-        const errorMsg = error?.message || "Неверные данные";
+      } catch (error: unknown) {
+        const errorMsg =
+          (error as { data?: { detail?: string }; message?: string })?.data
+            ?.detail ??
+          (error as { message?: string })?.message ??
+          "Неверные данные";
         setHasError(true);
         setErrorMessage(errorMsg);
         if (onError) {
@@ -67,7 +59,7 @@ const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
         }
       }
     },
-    [router, onSuccess, onError, setHasError, setErrorMessage]
+    [authApi, router, onSuccess, onError, setHasError, setErrorMessage]
   );
 
   const checkFormValidity = useCallback(() => {

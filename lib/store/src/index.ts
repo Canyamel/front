@@ -6,4 +6,5 @@ export * from './slices/authSlice';
 export * from './slices/loadingSlice';
 export * from './slices/errorSlice';
 export * from './middleware';
+export * from './types/rtkQueryResult';
 

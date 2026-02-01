@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@medml/shared": "*",
-    "@medml/store": "*",
     "next-auth": "^4.24.11",
     "lodash-es": "^4.17.21",
     "dayjs": "^1.11.13"

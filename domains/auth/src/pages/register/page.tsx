@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { UserIcon } from "@medml/ui";
 import { EmailIcon, PasswordIcon } from "@medml/ui";
 
-import { useRegisterUserMutation } from "../../api/authApi";
+import { useAuthApi } from "../../contexts/AuthApiContext";
 import { validateEmail } from "../../utils/validateEmail";
 import { validatePassword } from "../../utils/validatePassword";
 import AuthFormWrapper from "../../components/AuthFormWrapper";
@@ -32,12 +32,12 @@ interface RegisterPageProps {
 
 const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
   const router = useRouter();
+  const authApi = useAuthApi();
   const [form] = Form.useForm<RegisterFormData>();
   const [disabledButton, setDisabledButton] = useState(true);
   const password = Form.useWatch('password', form);
   const { hasError, setHasError, setErrorMessage } = useAuthError();
-
-  const [registerUser, { isLoading: isRegisterLoading }] = useRegisterUserMutation();
+  const [isRegisterLoading, setIsRegisterLoading] = useState(false);
 
   const checkFormValidity = useCallback(() => {
     form
@@ -73,13 +73,14 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
       try {
         setHasError(false);
         setErrorMessage(null);
+        setIsRegisterLoading(true);
 
         const nameParts = values.fullName.trim().split(/\s+/).filter((word: string) => word.length > 0);
         const lastName = nameParts[0] || "";
         const firstName = nameParts[1] || "";
         const fathersName = nameParts[2] || "";
 
-        await registerUser({
+        await authApi.register({
           email: values.email,
           last_name: lastName,
           first_name: firstName,
@@ -87,7 +88,7 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
           med_organization: "",
           password1: values.password,
           password2: values.confirmPassword,
-        }).unwrap();
+        });
 
         const result = await signIn("credentials", {
           username: values.email,
@@ -101,7 +102,7 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
           if (onSuccess) {
             onSuccess();
           } else {
-            router.push("/patients");
+            router.push("/");
           }
         } else {
           const errorMsg = result?.error || "Неверные данные для входа";
@@ -111,16 +112,19 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
             onError(errorMsg);
           }
         }
-      } catch (error: any) {
-        const errorMsg = error?.data?.detail || error?.data?.message || "Неверные данные";
+      } catch (error: unknown) {
+        const err = error as { data?: { detail?: string; message?: string } };
+        const errorMsg = err?.data?.detail ?? err?.data?.message ?? "Неверные данные";
         setHasError(true);
         setErrorMessage(errorMsg);
         if (onError) {
           onError(errorMsg);
         }
+      } finally {
+        setIsRegisterLoading(false);
       }
     },
-    [registerUser, router, onSuccess, onError, setHasError, setErrorMessage]
+    [authApi, router, onSuccess, onError, setHasError, setErrorMessage]
   );
 
   const passwordRules = useCallback((ruleNumber: number) => {
@@ -247,14 +251,14 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
         </Form.Item>
         <Form.Item>
           <Button
-          className="register-submit"
-          type="primary"
-          htmlType="submit"
-          size="large"
-          block
-          disabled={disabledButton}
-          loading={isRegisterLoading}
-        >
+            className="register-submit"
+            type="primary"
+            htmlType="submit"
+            size="large"
+            block
+            disabled={disabledButton}
+            loading={isRegisterLoading}
+          >
             {hasError ? "Неверные данные" : "Создать аккаунт"}
           </Button>
         </Form.Item>
