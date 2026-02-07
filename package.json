@@ -10,6 +10,8 @@
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",
     "build:cytology": "turbo build --filter=cytology-app",
+    "dev:uzi": "turbo dev --filter=uzi-app",
+    "build:uzi": "turbo build --filter=uzi-app",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

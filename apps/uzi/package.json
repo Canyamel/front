@@ -1,0 +1,27 @@
+{
+  "name": "cytology-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "@medml/config": "*",
+    "@medml/ui": "*",
+    "@medml/store": "*",
+    "@medml/shared": "*",
+    "@medml/auth": "*",
+    "@medml/layout": "*",
+    "next-auth": "^4.24.11",
+    "dayjs": "^1.11.13"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
