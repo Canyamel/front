@@ -10,8 +10,9 @@
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",
     "build:cytology": "turbo build --filter=cytology-app",
-    "dev:uzi": "turbo dev --filter=uzi-app",
-    "build:uzi": "turbo build --filter=uzi-app",
+    "dev:uzi": "turbo run dev --filter=uzi-app",
+    "build:uzi": "turbo run build --filter=uzi-app",
+    "start:uzi": "turbo run start --filter=uzi-app",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -35,7 +36,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.0.0",
     "sass": "^1.83.0",
-    "turbo": "^1.13.2",
+    "turbo": "^1.13.4",
     "typescript-eslint": "^8.53.0"
   }
 }
