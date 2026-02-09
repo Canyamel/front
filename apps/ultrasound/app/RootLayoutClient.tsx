@@ -12,7 +12,7 @@ import {
 } from "@medml/ui";
 
 const RootLayoutClient = ({ children }: React.PropsWithChildren) => (
-    <RootProvider modality="uzi">
+    <RootProvider modality="ultrasound">
       <LoadingWrapper>
         <MessageWrapper>
           <ModalWrapper>
