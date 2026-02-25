@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import React from "react";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
 
 export const metadata: Metadata = {
   title: "CT DICOM Viewer",
@@ -8,7 +9,9 @@ export const metadata: Metadata = {
 
 const RootLayout = ({ children }: React.PropsWithChildren) => (
   <html lang="ru">
-    <body>{children}</body>
+    <body>
+      <AntdRegistry>{children}</AntdRegistry>
+    </body>
   </html>
 );
 

@@ -3,7 +3,7 @@ const { configureWebpack } = require('@medml/config/next');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false, // Cornerstone viewport creation conflicts with double-mount
-  transpilePackages: [],
+  transpilePackages: ['@medml/ct-mri-viewer'],
   async headers() {
     return [
       {
