@@ -10,6 +10,8 @@
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",
     "build:cytology": "turbo build --filter=cytology-app",
+    "dev:ultrasound": "turbo run dev --filter=ultrasound-app",
+    "build:ultrasound": "turbo run build --filter=ultrasound-app",
     "dev:ct": "turbo dev --filter=ct-app",
     "build:ct": "turbo build --filter=ct-app",
     "lint": "eslint .",
@@ -35,7 +37,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.0.0",
     "sass": "^1.83.0",
-    "turbo": "^1.13.2",
+    "turbo": "^1.13.4",
     "typescript-eslint": "^8.53.0"
   }
 }
