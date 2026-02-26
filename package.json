@@ -2,11 +2,7 @@
   "name": "medml-front",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "lib/*",
-    "domains/*"
-  ],
+  "workspaces": ["apps/*", "lib/*", "domains/*"],
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",
     "build:cytology": "turbo build --filter=cytology-app",
@@ -14,6 +10,8 @@
     "build:ultrasound": "turbo run build --filter=ultrasound-app",
     "dev:ct": "turbo dev --filter=ct-app",
     "build:ct": "turbo build --filter=ct-app",
+    "dev:mri": "turbo dev --filter=mri-app",
+    "build:mri": "turbo build --filter=mri-app",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
@@ -25,6 +23,12 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-redux": "^9.0.0"
+  },
+  "overrides": {
+    "@cornerstonejs/core": "4.15.31",
+    "@cornerstonejs/dicom-image-loader": "4.15.31",
+    "@cornerstonejs/tools": "4.15.31",
+    "@cornerstonejs/polymorphic-segmentation": "4.15.31"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

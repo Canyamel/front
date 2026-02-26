@@ -9,10 +9,10 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@cornerstonejs/core": "^4.15.31",
-    "@cornerstonejs/dicom-image-loader": "^4.15.31",
-    "@cornerstonejs/polymorphic-segmentation": "^4.15.31",
-    "@cornerstonejs/tools": "^4.15.31",
+    "@cornerstonejs/core": "4.15.31",
+    "@cornerstonejs/dicom-image-loader": "4.15.31",
+    "@cornerstonejs/polymorphic-segmentation": "4.15.31",
+    "@cornerstonejs/tools": "4.15.31",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2"
   },

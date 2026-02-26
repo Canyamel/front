@@ -4,11 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { imageLoader, metaData, Enums } from "@cornerstonejs/core";
 import type { SeriesConfig } from "../types";
-
-const PREVIEW_URL_PATTERNS = ["/I", "/"] as const;
 const PREVIEW_MAX_ATTEMPTS = 2500;
-const CT_WINDOW_CENTER = 40;
-const CT_WINDOW_WIDTH = 400;
+const FALLBACK_WINDOW_CENTER = 40;
+const FALLBACK_WINDOW_WIDTH = 400;
 
 const { MetadataModules } = Enums;
 
@@ -77,9 +75,13 @@ type StudyCardProps = {
 };
 
 function StudyCard({ series, pacsBasePath, cornerstoneReady, onMetaLoaded }: StudyCardProps) {
-  const { id: studyId, sliceStart } = series;
+  const { id: studyId, sliceStart, slicePrefix, slicePostfix } = series;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: studyId, data: { seriesId: studyId } });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: studyId,
+    data: { seriesId: studyId },
+    disabled: !cornerstoneReady,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [meta, setMeta] = useState<SeriesMeta>({});
@@ -90,34 +92,33 @@ function StudyCard({ series, pacsBasePath, cornerstoneReady, onMetaLoaded }: Stu
     setLoading(true);
     setError(false);
 
-    const tryLoadFromIndex = (urlPath: string, index: number): Promise<{ image: Awaited<ReturnType<typeof imageLoader.loadImage>>; imageId: string }> => {
-      const imageId = `wadouri:${baseUrl}${urlPath}${index}`;
+    const prefix = slicePrefix ?? "I";
+    const postfix = slicePostfix ?? "";
+
+    const tryLoadFromIndex = (
+      index: number
+    ): Promise<{ image: Awaited<ReturnType<typeof imageLoader.loadImage>>; imageId: string }> => {
+      const imageId = `wadouri:${baseUrl}/${prefix}${index}${postfix}`;
       return imageLoader.loadImage(imageId).then((image) => ({ image, imageId }));
     };
 
-    const trySequence = (urlPath: string, fromIndex: number): Promise<{ image: Awaited<ReturnType<typeof imageLoader.loadImage>>; imageId: string }> =>
-      tryLoadFromIndex(urlPath, fromIndex).catch(() => {
+    const trySequence = (
+      fromIndex: number
+    ): Promise<{ image: Awaited<ReturnType<typeof imageLoader.loadImage>>; imageId: string }> =>
+      tryLoadFromIndex(fromIndex).catch(() => {
         if (fromIndex >= PREVIEW_MAX_ATTEMPTS) return Promise.reject(new Error("No slice"));
-        return trySequence(urlPath, fromIndex + 1);
+        return trySequence(fromIndex + 1);
       });
 
-    const tryPatterns = (patternList: readonly string[]): Promise<{ image: Awaited<ReturnType<typeof imageLoader.loadImage>>; imageId: string }> => {
-      const path = patternList[0];
-      return trySequence(path, sliceStart).catch(() => {
-        if (patternList.length <= 1) return Promise.reject(new Error("No slice"));
-        return tryPatterns(patternList.slice(1));
-      });
-    };
-
-    tryPatterns(PREVIEW_URL_PATTERNS)
+    trySequence(sliceStart)
       .then(({ image, imageId }) => {
         const pixelData = image.getPixelData();
         const width = image.width;
         const height = image.height;
         const minP = image.minPixelValue ?? 0;
         const maxP = image.maxPixelValue ?? 4095;
-        const wc = Array.isArray(image.windowCenter) ? image.windowCenter[0] : (image.windowCenter ?? CT_WINDOW_CENTER);
-        const ww = Array.isArray(image.windowWidth) ? image.windowWidth[0] : (image.windowWidth ?? CT_WINDOW_WIDTH);
+        const wc = Array.isArray(image.windowCenter) ? image.windowCenter[0] : (image.windowCenter ?? FALLBACK_WINDOW_CENTER);
+        const ww = Array.isArray(image.windowWidth) ? image.windowWidth[0] : (image.windowWidth ?? FALLBACK_WINDOW_WIDTH);
 
         const canvas = canvasRef.current;
         if (canvas) {
@@ -164,8 +165,9 @@ function StudyCard({ series, pacsBasePath, cornerstoneReady, onMetaLoaded }: Stu
         overflow: "hidden",
         background: isDragging ? "#e5f0ff" : "#ffffff",
         marginBottom: 10,
-        cursor: isDragging ? "grabbing" : "grab",
+        cursor: !cornerstoneReady ? "not-allowed" : isDragging ? "grabbing" : "grab",
         boxShadow: isDragging ? "0 0 0 1px #0047e0" : "none",
+        opacity: cornerstoneReady ? 1 : 0.6,
       }}
     >
       <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 600, color: "#222831" }} title={label}>

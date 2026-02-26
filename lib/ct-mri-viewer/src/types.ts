@@ -1,9 +1,24 @@
 export type SeriesConfig = {
   id: string;
-  /** Индекс первого среза (в URL: .../I{sliceStart}) */
+  /**
+   * Индекс первого среза.
+   * По умолчанию URL формируется как `${pacsBasePath}/${id}/I{sliceIndex}`.
+   */
   sliceStart: number;
   /** Количество срезов в серии */
   sliceCount: number;
+  /**
+   * Необязательный префикс имени файла среза.
+   * Например: "I", "IMG_", "CT_".
+   * Если не задан, используется "I".
+   */
+  slicePrefix?: string;
+  /**
+   * Необязательный постфикс (суффикс) имени файла среза.
+   * Например: ".dcm".
+   * Если не задан, суффикс отсутствует.
+   */
+  slicePostfix?: string;
 };
 
 export type CtViewerConfig = {
@@ -13,5 +28,9 @@ export type CtViewerConfig = {
   series: SeriesConfig[];
   /** ID серии для предзагрузки (если не задан — окна пустые, данные перетаскиваются) */
   initialSeriesId?: string;
+  /** Модальность для подбора окна яркости: CT (40/400) или MR (400/800). По умолчанию CT */
+  modality?: "CT" | "MR";
+  /** Переопределение окна яркости: [center, width]. Имеет приоритет над modality */
+  defaultWindow?: [number, number];
 };
 

@@ -48,6 +48,9 @@ export type CtVolumeViewerProps = {
   /** ID серии для предзагрузки (если не задан — окна пустые) */
   initialSeriesId?: string;
 
+  /** Модальность для окна яркости: CT или MR. По умолчанию CT */
+  modality?: "CT" | "MR";
+
   /** Стартовая раскладка окон */
   initialLayout?: CtLayoutId;
 
@@ -68,12 +71,13 @@ export type CtVolumeViewerProps = {
 };
 
 export function CtVolumeViewer(props: CtVolumeViewerProps) {
-  const { pacsBasePath, series, initialSeriesId } = props;
+  const { pacsBasePath, series, initialSeriesId, modality } = props;
 
   const config: CtViewerConfig = {
     pacsBasePath,
     series,
     initialSeriesId,
+    modality,
   };
 
   // Пока что всё поведение реализовано внутри CtViewer,

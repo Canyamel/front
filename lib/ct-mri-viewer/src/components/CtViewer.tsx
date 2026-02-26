@@ -87,8 +87,19 @@ const MPR_ORIENTATIONS = [
   { id: 2, label: "Корональная" },
 ] as const;
 
-const CT_WINDOW_LOWER = 40 - 400 / 2;
-const CT_WINDOW_UPPER = 40 + 400 / 2;
+const DEFAULT_WINDOW: Record<string, [number, number]> = {
+  CT: [40, 400],
+  MR: [400, 800],
+};
+
+function getWindowRange(config: CtViewerConfig): [number, number] {
+  if (config.defaultWindow) {
+    const [center, width] = config.defaultWindow;
+    return [center - width / 2, center + width / 2];
+  }
+  const [center, width] = DEFAULT_WINDOW[config.modality === "MR" ? "MR" : "CT"];
+  return [center - width / 2, center + width / 2];
+}
 
 /** Fallback metadata provider: извлекает метаданные из закэшированного изображения, если DICOM metadata недоступна */
 function createCacheBasedMetadataProvider() {
@@ -184,12 +195,14 @@ function createVolumeImagePlaneFallbackProvider(volumeId: string) {
   return () => metaData.removeProvider(provider);
 }
 
-function setCtTransferFunction({
-  volumeActor,
-}: {
-  volumeActor: { getProperty: () => { getRGBTransferFunction: (i: number) => { setMappingRange: (l: number, u: number) => void } } };
-}) {
-  volumeActor.getProperty().getRGBTransferFunction(0).setMappingRange(CT_WINDOW_LOWER, CT_WINDOW_UPPER);
+function createTransferFunctionSetter(range: [number, number]) {
+  return ({
+    volumeActor,
+  }: {
+    volumeActor: { getProperty: () => { getRGBTransferFunction: (i: number) => { setMappingRange: (l: number, u: number) => void } } };
+  }) => {
+    volumeActor.getProperty().getRGBTransferFunction(0).setMappingRange(range[0], range[1]);
+  };
 }
 
 const VIEWPORT_COLORS: Record<string, string> = {
@@ -325,6 +338,7 @@ export function CtViewer({ config }: CtViewerProps) {
   const [crosshairsVisible, setCrosshairsVisible] = useState(false);
   const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
   const syncScrollEnabledRef = useRef(true);
+  const cornerstoneReadyRef = useRef(false);
   const [selectedViewportId, setSelectedViewportId] = useState<(typeof ALL_VIEWPORT_IDS)[number] | null>(null);
   const [viewportOrientations, setViewportOrientations] = useState<Record<string, number>>({
     [VIEWPORT_IDS.CT_AXIAL]: 0,
@@ -346,6 +360,7 @@ export function CtViewer({ config }: CtViewerProps) {
   type ToolGroupT = ReturnType<typeof ToolGroupManager.getToolGroup>;
   const toolGroupsBySeriesRef = useRef<Map<string, ToolGroupT>>(new Map());
   const seriesVolumeIdsRef = useRef<Map<string, string>>(new Map());
+  const seriesWindowRef = useRef<Map<string, [number, number]>>(new Map());
   type CameraSync = ReturnType<typeof createCameraPositionSynchronizer>;
   const cameraSyncsRef = useRef<{ axial: CameraSync; sagittal: CameraSync; coronal: CameraSync } | null>(null);
 
@@ -356,6 +371,9 @@ export function CtViewer({ config }: CtViewerProps) {
     []
   );
 
+  const slotsWithVolumeCount = slots.filter((s) => s.seriesId != null).length;
+  const canUseCrosshairs = slotsWithVolumeCount >= 2;
+
   const setTool = useCallback(
     (tool: (typeof TOOLS)[number]) => {
       applyToolToAllGroups((tg) => {
@@ -363,7 +381,7 @@ export function CtViewer({ config }: CtViewerProps) {
         tg.setToolPassive(EllipticalROITool.toolName);
         tg.setToolPassive(RectangleROITool.toolName);
         tg.setToolPassive(WindowLevelTool.toolName);
-        if (crosshairsVisible) tg.setToolPassive(CrosshairsTool.toolName);
+        if (canUseCrosshairs && crosshairsVisible) tg.setToolPassive(CrosshairsTool.toolName);
         else tg.setToolDisabled(CrosshairsTool.toolName);
         if (tool === "WindowLevel") {
           tg.setToolActive(WindowLevelTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
@@ -378,16 +396,26 @@ export function CtViewer({ config }: CtViewerProps) {
         }
       });
       setActiveTool(tool);
-      const re = getRenderingEngine(RENDERING_ENGINE_ID);
-      if (re) {
-        requestAnimationFrame(() => {
-          re.resize(true, true);
-          re.renderViewports([...ALL_VIEWPORT_IDS]);
-        });
-      }
     },
-    [crosshairsVisible, applyToolToAllGroups]
+    [canUseCrosshairs, crosshairsVisible, applyToolToAllGroups]
   );
+
+  const resetWindowLevel = useCallback(() => {
+    const re = getRenderingEngine(RENDERING_ENGINE_ID);
+    if (!re) return;
+    const slotsWithVolume = slots.filter((s) => s.seriesId != null);
+    for (const slot of slotsWithVolume) {
+      const range = seriesWindowRef.current.get(slot.seriesId!);
+      if (!range) continue;
+      const vp = re.getViewport(slot.viewportId);
+      const actorEntry = (vp as { getDefaultActor?: () => { actor?: unknown } })?.getDefaultActor?.();
+      const actor = actorEntry?.actor as { getProperty?: () => { getRGBTransferFunction?: (i: number) => { setMappingRange: (l: number, u: number) => void } } } | undefined;
+      if (actor?.getProperty?.()?.getRGBTransferFunction?.(0)) {
+        actor.getProperty().getRGBTransferFunction(0).setMappingRange(range[0], range[1]);
+      }
+    }
+    re.renderViewports(slotsWithVolume.map((s) => s.viewportId));
+  }, [slots]);
 
   const toggleCrosshairs = useCallback(() => {
     setCrosshairsVisible((v) => {
@@ -403,6 +431,10 @@ export function CtViewer({ config }: CtViewerProps) {
   useEffect(() => {
     syncScrollEnabledRef.current = syncScrollEnabled;
   }, [syncScrollEnabled]);
+
+  useEffect(() => {
+    cornerstoneReadyRef.current = cornerstoneReady;
+  }, [cornerstoneReady]);
 
   const toggleSyncScroll = useCallback(() => {
     setSyncScrollEnabled((v) => {
@@ -438,9 +470,11 @@ export function CtViewer({ config }: CtViewerProps) {
       if (!re) return;
       const volId = isFirstLoad ? CT_VOLUME_ID : volumeIdForSeries(seriesId);
       const baseUrl = `${window.location.origin}${pacsBasePath}/${seriesId}`;
+      const prefix = s.slicePrefix ?? "I";
+      const postfix = s.slicePostfix ?? "";
       const imageIds = Array.from(
         { length: s.sliceCount },
-        (_, i) => `wadouri:${baseUrl}/I${s.sliceStart + i}`
+        (_, i) => `wadouri:${baseUrl}/${prefix}${s.sliceStart + i}${postfix}`
       );
       const n = imageIds.length;
       const indices = new Set<number>();
@@ -449,6 +483,18 @@ export function CtViewer({ config }: CtViewerProps) {
       for (let i = n - 1; i >= n - 30 && i >= 0; i--) indices.add(i);
       const toPreload = [...indices].map((i) => imageIds[i]);
       await Promise.allSettled(toPreload.map((id) => imageLoader.loadImage(id)));
+      const firstImageId = imageIds[0];
+      const firstImage = cache.getImage(firstImageId) as { windowCenter?: number | number[]; windowWidth?: number | number[] } | undefined;
+      const configRange = getWindowRange(config);
+      const wc = firstImage
+        ? (Array.isArray(firstImage.windowCenter) ? firstImage.windowCenter[0] : (firstImage.windowCenter ?? (configRange[0] + configRange[1]) / 2))
+        : (configRange[0] + configRange[1]) / 2;
+      const ww = firstImage
+        ? (Array.isArray(firstImage.windowWidth) ? firstImage.windowWidth[0] : (firstImage.windowWidth ?? configRange[1] - configRange[0]))
+        : configRange[1] - configRange[0];
+      const windowRange: [number, number] = [wc - ww / 2, wc + ww / 2];
+      seriesWindowRef.current.set(seriesId, windowRange);
+
       const volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
       await volume.load();
       seriesVolumeIdsRef.current.set(seriesId, volId);
@@ -456,11 +502,16 @@ export function CtViewer({ config }: CtViewerProps) {
       try {
         await setVolumesForViewports(
           re,
-          [{ volumeId: volId, callback: setCtTransferFunction }],
+          [{ volumeId: volId, callback: createTransferFunctionSetter(windowRange) }],
           assignments.map((a) => a.viewportId),
           true,
           true
         );
+
+        const reCheck = getRenderingEngine(RENDERING_ENGINE_ID);
+        if (!reCheck) {
+          throw new Error("RenderingEngine not ready. Please wait for the viewer to initialize.");
+        }
 
         const tg = createAndSetupToolGroup(seriesId, volId);
         toolGroupsBySeriesRef.current.set(seriesId, tg);
@@ -472,6 +523,9 @@ export function CtViewer({ config }: CtViewerProps) {
             if (prevTg) prevTg.removeViewports(RENDERING_ENGINE_ID, viewportId);
           }
           tg.addViewport(viewportId, RENDERING_ENGINE_ID);
+        }
+        if (assignments.length < 2) {
+          tg.setToolDisabled(CrosshairsTool.toolName);
         }
         const firstVp = re.getViewport(assignments[0].viewportId);
         const forUID =
@@ -534,12 +588,13 @@ export function CtViewer({ config }: CtViewerProps) {
         removeFallback?.();
       }
     },
-    [pacsBasePath, series]
+    [pacsBasePath, series, config]
   );
 
   const handleDropConfirm = useCallback(
     async (orientation: number, fillOtherSlots: boolean) => {
       if (!dropModal.open) return;
+      if (!cornerstoneReadyRef.current) return;
       const { targetSlotId, seriesId } = dropModal;
       setDropModal({ open: false });
       const assignments: { viewportId: (typeof ALL_VIEWPORT_IDS)[number]; orientation: number }[] = [
@@ -569,6 +624,7 @@ export function CtViewer({ config }: CtViewerProps) {
   );
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
+    if (!cornerstoneReadyRef.current) return;
     const { active, over } = event;
     if (!over) return;
     const seriesId = String(active.id);
@@ -664,7 +720,6 @@ export function CtViewer({ config }: CtViewerProps) {
         });
         dicomImageLoaderInit({ maxWebWorkers: navigator.hardwareConcurrency ?? 1 });
         cacheMetadataCleanupRef.current = createCacheBasedMetadataProvider();
-        setCornerstoneReady(true);
 
         toolsInit({ addons: { polySeg } });
         addTool(StackScrollTool);
@@ -694,6 +749,8 @@ export function CtViewer({ config }: CtViewerProps) {
         viewports.forEach((id) => renderingEngine.getViewport(id)?.resetCamera?.());
         renderingEngine.resize(true, true);
         renderingEngine.renderViewports(viewports);
+
+        setCornerstoneReady(true);
 
         const ro = new ResizeObserver(() => {
           if (!disposed) {
@@ -741,16 +798,19 @@ export function CtViewer({ config }: CtViewerProps) {
     }
   }, [layout, ready]);
 
-  // Включаем Crosshairs после полной инициализации viewport — избегаем ошибки в CrosshairsTool
-  // при загрузке (когда аннотаций ещё нет, callback вызывается с undefined).
+  // Crosshairs требуют минимум 2 viewport с объёмом. Иначе mouseMoveCallback получает
+  // undefined вместо массива аннотаций и падает с "Cannot read properties of undefined (reading 'length')".
+  useEffect(() => {
+    if (!canUseCrosshairs && crosshairsVisible) setCrosshairsVisible(false);
+  }, [canUseCrosshairs, crosshairsVisible]);
+
   useEffect(() => {
     if (!cornerstoneReady) return;
-    const t = setTimeout(() => {
-      setCrosshairsVisible(true);
-      applyToolToAllGroups((tg) => tg.setToolPassive(CrosshairsTool.toolName));
-    }, 400);
-    return () => clearTimeout(t);
-  }, [cornerstoneReady, applyToolToAllGroups]);
+    applyToolToAllGroups((tg) => {
+      if (canUseCrosshairs && crosshairsVisible) tg.setToolPassive(CrosshairsTool.toolName);
+      else tg.setToolDisabled(CrosshairsTool.toolName);
+    });
+  }, [cornerstoneReady, canUseCrosshairs, crosshairsVisible, applyToolToAllGroups]);
 
   return (
     <>
@@ -785,7 +845,12 @@ export function CtViewer({ config }: CtViewerProps) {
             )}
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Switch checked={crosshairsVisible} onChange={toggleCrosshairs} />
+                <Switch
+                  checked={crosshairsVisible && canUseCrosshairs}
+                  disabled={!canUseCrosshairs}
+                  onChange={toggleCrosshairs}
+                  title={!canUseCrosshairs ? "Требуется минимум 2 окна с серией" : undefined}
+                />
                 <span>Линии уровня</span>
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -795,7 +860,12 @@ export function CtViewer({ config }: CtViewerProps) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <CtViewerToolbar activeTool={activeTool} onToolChange={setTool} />
+                <CtViewerToolbar
+                  activeTool={activeTool}
+                  onToolChange={setTool}
+                  onResetWindowLevel={resetWindowLevel}
+                  resetWindowLevelDisabled={!slots.some((s) => s.seriesId != null)}
+                />
                 <CtLayoutSelector layout={layout} onLayoutChange={setLayout} />
                 <Popover
                   content={
@@ -923,6 +993,13 @@ export function CtViewer({ config }: CtViewerProps) {
                       const visibleIds = [VIEWPORT_IDS.CT_AXIAL, VIEWPORT_IDS.CT_SAGITTAL];
                       const otherVisible = visibleIds.find((id) => id !== dropModal.targetSlotId);
                       return otherVisible != null && slots.find((s) => s.viewportId === otherVisible)?.seriesId == null;
+                    }
+                    if (layout === "3x1" || layout === "1x3") {
+                      const visibleIds = [VIEWPORT_IDS.CT_AXIAL, VIEWPORT_IDS.CT_SAGITTAL, VIEWPORT_IDS.CT_CORONAL];
+                      const hasEmptyVisible = visibleIds.some(
+                        (id) => id !== dropModal.targetSlotId && slots.find((s) => s.viewportId === id)?.seriesId == null
+                      );
+                      return hasEmptyVisible;
                     }
                     return false;
                   })()
