@@ -10,6 +10,7 @@ const { Title } = Typography;
 
 interface CytologyDiagnosisCardProps {
     segmentType: SegmentType;
+    label?: string;
     isActive?: boolean;
     onClick: () => void;
     editMode?: boolean;
@@ -18,6 +19,7 @@ interface CytologyDiagnosisCardProps {
 
 const DiagnosisCard: React.FC<CytologyDiagnosisCardProps> = ({
     segmentType,
+    label,
     isActive = false,
     onClick,
     editMode = false,
@@ -56,7 +58,7 @@ const DiagnosisCard: React.FC<CytologyDiagnosisCardProps> = ({
                     {/* {isToDelete && <DeleteOutlined />} */}
                     {/* </Title> */}
                     <Title level={5} className={`diagnosis mt-0 ${styles}`}>
-                        {segmentsTranslated[segmentType]}
+                        {label ?? segmentsTranslated[segmentType]}
                     </Title>
                 </Flex>
                 {/* {editMode && node.specialist !== "ai" && (

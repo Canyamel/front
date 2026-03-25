@@ -9,7 +9,7 @@ import {
     useAddNewReviseMutation,
     useAddSegmentMutation,
     useDeleteSegmentMutation,
-    useLazyGetCytologySegmentQuery,
+    useLazyGetCytologySegmentsByTypeQuery,
     usePatchCytologyInfoMutation,
     usePatchSegmentMutation,
 } from "@cytology/core/service/cytology";
@@ -61,7 +61,7 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     const [patchSegment] = usePatchSegmentMutation();
     const [deleteSegment] = useDeleteSegmentMutation();
     const [addNewRevise] = useAddNewReviseMutation();
-    const [getSegmentsLazy] = useLazyGetCytologySegmentQuery();
+    const [getSegmentsByType] = useLazyGetCytologySegmentsByTypeQuery();
     const [patchCytologyInfo] = usePatchCytologyInfoMutation();
 
     useEffect(() => {
@@ -78,7 +78,6 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
 
     const handleSave = useCallback(async () => {
         const newReviseId = (await addNewRevise(cytologyId).unwrap()).id;
-        const newSegments = await getSegmentsLazy(newReviseId).unwrap();
         const allOldSegments: ISegmentStack[] = [];
         const allNewSegments: ISegmentStack[] = [];
         const newSegmentsMap = new Map<string, ISegmentStack>();
@@ -96,9 +95,20 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
         initSegments.forEach((group) => {
             allOldSegments.push(...group.segments);
         });
-        newSegments.forEach((group) => {
-            allNewSegments.push(...group.segments);
-        });
+
+        const typesToLoad = new Set<SegmentType>();
+        initSegments.forEach((group) => typesToLoad.add(group.seg_type));
+        segmentStack.forEach((group) => typesToLoad.add(group.seg_type));
+
+        for (const segType of typesToLoad) {
+            const segmentsByType = await getSegmentsByType({
+                id: newReviseId,
+                segType,
+            }).unwrap();
+
+            allNewSegments.push(...segmentsByType);
+        }
+
         allNewSegments.forEach((seg) => {
             const key = createSegmentKey(seg);
             newSegmentsMap.set(key, seg);
@@ -184,7 +194,7 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     }, [
         cytologyId,
         addNewRevise,
-        getSegmentsLazy,
+        getSegmentsByType,
         initSegments,
         segmentStack,
         addSegment,

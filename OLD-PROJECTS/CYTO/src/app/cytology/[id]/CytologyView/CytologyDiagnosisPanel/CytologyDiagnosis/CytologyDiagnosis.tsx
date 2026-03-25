@@ -5,8 +5,11 @@ import { skipToken } from "@reduxjs/toolkit/query";
 
 import DiagnosisCard from "@cytology/common/DiagnosisCard/DiagnosisCard";
 
-import { IGroupedSegments, SegmentType } from "@cytology/core/types/segments";
-import { useGetCytologyHistoryQuery } from "@cytology/core/service/cytology";
+import { IGroupedSegments, ISegmentType, SegmentType } from "@cytology/core/types/segments";
+import {
+    useGetCytologyHistoryQuery,
+    useGetCytologyTypesQuery,
+} from "@cytology/core/service/cytology";
 import { useAppSelector } from "@cytology/core/hooks";
 import { ModalContext } from "@/contexts";
 
@@ -31,10 +34,13 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({
     currentSegment,
 }) => {
     const { open } = useContext(ModalContext);
-
     const cytologyId = useAppSelector((state) => state.cytology.cytologyId);
     const acessToken = useAppSelector((state) => state.auth.accessToken);
     const cytologyInfo = useAppSelector((state) => state.cytology.cytologyInfo);
+
+    const { data: segmentTypes = [] } = useGetCytologyTypesQuery(
+        acessToken && cytologyId ? cytologyId : skipToken
+    );
 
     const { data: historyData } = useGetCytologyHistoryQuery(acessToken ? cytologyId : skipToken);
     const historyDataRef = useRef(historyData);
@@ -57,12 +63,13 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({
         <Flex vertical className="cytology-diagnosis-wrapper">
             <CytologyInfo />
             <Flex vertical gap={5} className="cytology-diagnosis-cards-wrapper">
-                {segments.map((segment) => (
+                {segmentTypes.map((segment: ISegmentType) => (
                     <DiagnosisCard
-                        segmentType={segment.seg_type}
-                        isActive={currentSegment === segment.seg_type}
-                        onClick={() => onClickCard(segment.seg_type)}
-                        key={segment.seg_type}
+                        segmentType={segment.code as SegmentType}
+                        label={segment.label}
+                        isActive={currentSegment === (segment.code as SegmentType)}
+                        onClick={() => onClickCard(segment.code as SegmentType)}
+                        key={segment.code}
                     />
                 ))}
             </Flex>

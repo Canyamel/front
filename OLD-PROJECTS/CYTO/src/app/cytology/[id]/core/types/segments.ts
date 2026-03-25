@@ -116,3 +116,9 @@ export interface ISegmentCreate {
     };
     seg_type: SegmentType;
 }
+
+export interface ISegmentType {
+    code: string;
+    label: string;
+    color: string;
+}
