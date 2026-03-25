@@ -32,5 +32,7 @@ export type CtViewerConfig = {
   modality?: "CT" | "MR";
   /** Переопределение окна яркости: [center, width]. Имеет приоритет над modality */
   defaultWindow?: [number, number];
+  /** Включать ли инструмент и переключатель «Линии уровня» (Crosshairs). По умолчанию true */
+  enableCrosshairs?: boolean;
 };
 

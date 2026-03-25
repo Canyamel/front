@@ -20,7 +20,12 @@ type CtViewerToolbarProps = {
   resetWindowLevelDisabled?: boolean;
 };
 
-export function CtViewerToolbar({ activeTool, onToolChange, onResetWindowLevel, resetWindowLevelDisabled }: CtViewerToolbarProps) {
+export function CtViewerToolbar({
+  activeTool,
+  onToolChange,
+  onResetWindowLevel,
+  resetWindowLevelDisabled,
+}: CtViewerToolbarProps) {
   return (
     <div
       style={{

@@ -2,20 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CtViewerConfig } from "../types";
-import { Popover, Button, Switch } from "antd";
-import { SwapOutlined } from "@ant-design/icons";
-import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  type DragEndEvent,
-} from "@dnd-kit/core";
+import { Switch, message } from "antd";
 import { CtViewerToolbar } from "./CtViewerToolbar";
 import { CtLayoutSelector, type CtLayoutId } from "./CtLayoutSelector";
 import { StudyListSidebar } from "./StudyListSidebar";
-import { DropProjectionModal } from "./DropProjectionModal";
 import {
   RenderingEngine,
   Enums,
@@ -48,11 +38,9 @@ const {
 } = cornerstoneTools;
 
 const { MouseBindings } = ToolsEnums;
-const { createCameraPositionSynchronizer } = cornerstoneTools.synchronizers;
 
 const VIEWPORT_SIZE = 640;
 const RENDERING_ENGINE_ID = "pet-ct-viewer";
-const CT_VOLUME_ID = "ct-volume";
 const volumeIdForSeries = (seriesId: string) => `ct-volume-${seriesId}`;
 const toolGroupIdForSeries = (seriesId: string) => `ct-toolgroup-${seriesId}`;
 
@@ -60,14 +48,12 @@ const VIEWPORT_IDS = {
   CT_AXIAL: "CT_AXIAL",
   CT_SAGITTAL: "CT_SAGITTAL",
   CT_CORONAL: "CT_CORONAL",
-  CT_AXIAL_2: "CT_AXIAL_2",
 } as const;
 
 const ALL_VIEWPORT_IDS = [
   VIEWPORT_IDS.CT_AXIAL,
   VIEWPORT_IDS.CT_SAGITTAL,
   VIEWPORT_IDS.CT_CORONAL,
-  VIEWPORT_IDS.CT_AXIAL_2,
 ] as const;
 
 /** Соответствие data-viewport атрибута и viewportId */
@@ -75,7 +61,6 @@ const DATA_VIEWPORT_TO_ID: Record<string, (typeof ALL_VIEWPORT_IDS)[number]> = {
   axial: VIEWPORT_IDS.CT_AXIAL,
   sagittal: VIEWPORT_IDS.CT_SAGITTAL,
   coronal: VIEWPORT_IDS.CT_CORONAL,
-  axial2: VIEWPORT_IDS.CT_AXIAL_2,
 };
 
 const TOOLS = ["WindowLevel", "Crosshairs", "Length", "RectangleROI", "EllipseROI"] as const;
@@ -102,7 +87,12 @@ function getWindowRange(config: CtViewerConfig): [number, number] {
 }
 
 /** Fallback metadata provider: извлекает метаданные из закэшированного изображения, если DICOM metadata недоступна */
-function createCacheBasedMetadataProvider() {
+function createCacheBasedMetadataProvider(config: CtViewerConfig) {
+  const defaultRange = getWindowRange(config);
+  const defaultWC = (defaultRange[0] + defaultRange[1]) / 2;
+  const defaultWW = defaultRange[1] - defaultRange[0];
+  const modality = config.modality === "MR" ? "MR" : "CT";
+
   const provider = (type: string, query: unknown) => {
     const imageId = typeof query === "string" ? query : "";
     if (!imageId) return undefined;
@@ -126,13 +116,13 @@ function createCacheBasedMetadataProvider() {
       };
     }
     if (type === Enums.MetadataModules.VOI_LUT) {
-      const wc = Array.isArray(image.windowCenter) ? image.windowCenter[0] : (image.windowCenter ?? 40);
-      const ww = Array.isArray(image.windowWidth) ? image.windowWidth[0] : (image.windowWidth ?? 400);
+      const wc = Array.isArray(image.windowCenter) ? image.windowCenter[0] : (image.windowCenter ?? defaultWC);
+      const ww = Array.isArray(image.windowWidth) ? image.windowWidth[0] : (image.windowWidth ?? defaultWW);
       return { windowWidth: ww, windowCenter: wc };
     }
     if (type === Enums.MetadataModules.GENERAL_SERIES) {
       const base = imageId.replace(/\/I\d+$/, "").replace(/\D/g, "").slice(-24) || "0";
-      return { modality: "CT", seriesInstanceUID: `1.2.3.${base}` };
+      return { modality, seriesInstanceUID: `1.2.3.${base}` };
     }
     if (type === Enums.MetadataModules.IMAGE_PLANE) {
       const cols = image.width ?? 512;
@@ -201,6 +191,7 @@ function createTransferFunctionSetter(range: [number, number]) {
   }: {
     volumeActor: { getProperty: () => { getRGBTransferFunction: (i: number) => { setMappingRange: (l: number, u: number) => void } } };
   }) => {
+    // Keep this as a fallback; we also set VOI on the viewport level (more reliable for MR).
     volumeActor.getProperty().getRGBTransferFunction(0).setMappingRange(range[0], range[1]);
   };
 }
@@ -209,7 +200,6 @@ const VIEWPORT_COLORS: Record<string, string> = {
   [VIEWPORT_IDS.CT_AXIAL]: "rgb(200, 0, 0)",
   [VIEWPORT_IDS.CT_SAGITTAL]: "rgb(200, 200, 0)",
   [VIEWPORT_IDS.CT_CORONAL]: "rgb(0, 200, 0)",
-  [VIEWPORT_IDS.CT_AXIAL_2]: "rgb(0, 150, 200)",
 };
 
 function createAndSetupToolGroup(seriesId: string, volId: string) {
@@ -235,7 +225,8 @@ function createAndSetupToolGroup(seriesId: string, volId: string) {
   tg.setToolActive(PanTool.toolName, { bindings: [{ mouseButton: MouseBindings.Auxiliary }] });
   tg.setToolActive(ZoomTool.toolName, { bindings: [{ mouseButton: MouseBindings.Secondary }] });
   tg.setToolActive(StackScrollTool.toolName, { bindings: [{ mouseButton: MouseBindings.Wheel }] });
-  tg.setToolPassive(CrosshairsTool.toolName);
+  // MVP: линии уровня всегда включены (при наличии серии во вьюпортах)
+  tg.setToolEnabled(CrosshairsTool.toolName);
   return tg;
 }
 
@@ -247,6 +238,8 @@ type SlotState = {
   viewportId: (typeof ALL_VIEWPORT_IDS)[number];
   seriesId: string | null;
   orientation: number | null;
+  sliceIndex: number | null;
+  sliceCount: number | null;
 };
 
 function DroppableViewportSlot({
@@ -254,17 +247,18 @@ function DroppableViewportSlot({
   viewportId,
   slot,
   isSelected,
-  show,
   onSelect,
+  style,
+  show,
 }: {
   dataViewport: string;
   viewportId: (typeof ALL_VIEWPORT_IDS)[number];
   slot: SlotState | undefined;
   isSelected: boolean;
-  show: boolean;
   onSelect: () => void;
+  style?: React.CSSProperties;
+  show: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: viewportId });
   const isEmpty = !slot?.seriesId;
   return (
     <div
@@ -274,10 +268,10 @@ function DroppableViewportSlot({
         height: "100%",
         minHeight: 256,
         flexDirection: "row",
+        ...style,
       }}
     >
       <div
-        ref={setNodeRef}
         data-viewport={dataViewport}
         role="button"
         tabIndex={0}
@@ -287,7 +281,7 @@ function DroppableViewportSlot({
           flex: 1,
           position: "relative",
           minWidth: 0,
-          backgroundColor: isOver ? "#1a2a1a" : "#000",
+          backgroundColor: "#000",
           border: isSelected
             ? "2px solid rgba(24, 144, 255, 0.9)"
             : "1px solid rgba(255, 255, 255, 0.10)",
@@ -296,6 +290,30 @@ function DroppableViewportSlot({
         }}
         onContextMenu={(e) => e.preventDefault()}
       >
+        {slot?.seriesId && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: "rgba(0,0,0,0.55)",
+              color: "rgba(255,255,255,0.9)",
+              fontSize: 12,
+              lineHeight: "16px",
+              zIndex: 2,
+              pointerEvents: "none",
+              userSelect: "none",
+            }}
+          >
+            {(() => {
+              const total = slot.sliceCount ?? null;
+              const current = slot.sliceIndex != null ? slot.sliceIndex + 1 : null;
+              return total && current ? `${current} / ${total}` : total ? `— / ${total}` : "—";
+            })()}
+          </div>
+        )}
         {isEmpty && (
           <div
             style={{
@@ -315,7 +333,7 @@ function DroppableViewportSlot({
               e.stopPropagation();
             }}
           >
-            Перетащите серию сюда
+            Нажмите на серию слева
           </div>
         )}
       </div>
@@ -330,39 +348,35 @@ export function CtViewer({ config }: CtViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const cacheMetadataCleanupRef = useRef<(() => void) | null>(null);
+  const [messageApi, messageContextHolder] = message.useMessage();
   const [ready, setReady] = useState(false);
   const [cornerstoneReady, setCornerstoneReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeSeriesId, setActiveSeriesId] = useState<string | null>(config.initialSeriesId ?? null);
+  const [activeSeriesLabel, setActiveSeriesLabel] = useState<string | null>(null);
+  const [isLoadingSeries, setIsLoadingSeries] = useState(false);
+  const loadTokenRef = useRef(0);
   const [activeTool, setActiveTool] = useState<(typeof TOOLS)[number]>("WindowLevel");
-  const [layout, setLayout] = useState<CtLayoutId>("1x1");
-  const [crosshairsVisible, setCrosshairsVisible] = useState(false);
-  const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
-  const syncScrollEnabledRef = useRef(true);
+  const [layout, setLayout] = useState<CtLayoutId>("1");
   const cornerstoneReadyRef = useRef(false);
-  const [selectedViewportId, setSelectedViewportId] = useState<(typeof ALL_VIEWPORT_IDS)[number] | null>(null);
-  const [viewportOrientations, setViewportOrientations] = useState<Record<string, number>>({
-    [VIEWPORT_IDS.CT_AXIAL]: 0,
-    [VIEWPORT_IDS.CT_SAGITTAL]: 1,
-    [VIEWPORT_IDS.CT_CORONAL]: 2,
-    [VIEWPORT_IDS.CT_AXIAL_2]: 0,
-  });
-  const [mprPopoverOpen, setMprPopoverOpen] = useState(false);
   const [slots, setSlots] = useState<SlotState[]>(() =>
-    ALL_VIEWPORT_IDS.map((viewportId) => ({ viewportId, seriesId: null, orientation: null }))
+    ALL_VIEWPORT_IDS.map((viewportId) => ({
+      viewportId,
+      seriesId: null,
+      orientation: null,
+      sliceIndex: null,
+      sliceCount: null,
+    }))
   );
-  const [dropModal, setDropModal] = useState<{
-    open: true;
-    targetSlotId: (typeof ALL_VIEWPORT_IDS)[number];
-    seriesId: string;
-    seriesLabel?: string;
-  } | { open: false }>({ open: false });
   const [frameOfReferenceUID, setFrameOfReferenceUID] = useState<string | null>(null);
   type ToolGroupT = ReturnType<typeof ToolGroupManager.getToolGroup>;
   const toolGroupsBySeriesRef = useRef<Map<string, ToolGroupT>>(new Map());
   const seriesVolumeIdsRef = useRef<Map<string, string>>(new Map());
   const seriesWindowRef = useRef<Map<string, [number, number]>>(new Map());
-  type CameraSync = ReturnType<typeof createCameraPositionSynchronizer>;
-  const cameraSyncsRef = useRef<{ axial: CameraSync; sagittal: CameraSync; coronal: CameraSync } | null>(null);
+  const seriesById = useRef(new Map<string, (typeof series)[number]>());
+  useEffect(() => {
+    seriesById.current = new Map(series.map((s) => [s.id, s]));
+  }, [series]);
 
   const applyToolToAllGroups = useCallback(
     (fn: (tg: NonNullable<ToolGroupT>) => void) => {
@@ -371,9 +385,6 @@ export function CtViewer({ config }: CtViewerProps) {
     []
   );
 
-  const slotsWithVolumeCount = slots.filter((s) => s.seriesId != null).length;
-  const canUseCrosshairs = slotsWithVolumeCount >= 2;
-
   const setTool = useCallback(
     (tool: (typeof TOOLS)[number]) => {
       applyToolToAllGroups((tg) => {
@@ -381,12 +392,13 @@ export function CtViewer({ config }: CtViewerProps) {
         tg.setToolPassive(EllipticalROITool.toolName);
         tg.setToolPassive(RectangleROITool.toolName);
         tg.setToolPassive(WindowLevelTool.toolName);
-        if (canUseCrosshairs && crosshairsVisible) tg.setToolPassive(CrosshairsTool.toolName);
-        else tg.setToolDisabled(CrosshairsTool.toolName);
+        // MVP: crosshairs всегда включены (рисуются). Инструмент можно сделать активным,
+        // но выключать/скрывать линии уровня нельзя.
+        tg.setToolEnabled(CrosshairsTool.toolName);
         if (tool === "WindowLevel") {
           tg.setToolActive(WindowLevelTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
         } else if (tool === "Crosshairs") {
-          if (crosshairsVisible) tg.setToolActive(CrosshairsTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
+          tg.setToolActive(CrosshairsTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
         } else if (tool === "Length") {
           tg.setToolActive(LengthTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
         } else if (tool === "RectangleROI") {
@@ -397,7 +409,7 @@ export function CtViewer({ config }: CtViewerProps) {
       });
       setActiveTool(tool);
     },
-    [canUseCrosshairs, crosshairsVisible, applyToolToAllGroups]
+    [applyToolToAllGroups]
   );
 
   const resetWindowLevel = useCallback(() => {
@@ -409,66 +421,42 @@ export function CtViewer({ config }: CtViewerProps) {
       if (!range) continue;
       const vp = re.getViewport(slot.viewportId);
       const actorEntry = (vp as { getDefaultActor?: () => { actor?: unknown } })?.getDefaultActor?.();
-      const actor = actorEntry?.actor as { getProperty?: () => { getRGBTransferFunction?: (i: number) => { setMappingRange: (l: number, u: number) => void } } } | undefined;
-      if (actor?.getProperty?.()?.getRGBTransferFunction?.(0)) {
-        actor.getProperty().getRGBTransferFunction(0).setMappingRange(range[0], range[1]);
+      const actor = actorEntry?.actor as
+        | {
+            getProperty?: () => {
+              getRGBTransferFunction?: (i: number) => {
+                setMappingRange: (l: number, u: number) => void;
+              };
+            };
+          }
+        | undefined;
+
+      // Cornerstone actor APIs are loosely typed; keep runtime guards in place
+      // so TypeScript can prove these values are defined.
+      const property = actor?.getProperty?.();
+      const rgbTF = property?.getRGBTransferFunction?.(0);
+      if (rgbTF) {
+        rgbTF.setMappingRange(range[0], range[1]);
       }
     }
     re.renderViewports(slotsWithVolume.map((s) => s.viewportId));
   }, [slots]);
 
-  const toggleCrosshairs = useCallback(() => {
-    setCrosshairsVisible((v) => {
-      const next = !v;
-      applyToolToAllGroups((tg) => {
-        if (next) tg.setToolPassive(CrosshairsTool.toolName);
-        else tg.setToolDisabled(CrosshairsTool.toolName);
-      });
-      return next;
-    });
-  }, [applyToolToAllGroups]);
-
-  useEffect(() => {
-    syncScrollEnabledRef.current = syncScrollEnabled;
-  }, [syncScrollEnabled]);
-
   useEffect(() => {
     cornerstoneReadyRef.current = cornerstoneReady;
   }, [cornerstoneReady]);
-
-  const toggleSyncScroll = useCallback(() => {
-    setSyncScrollEnabled((v) => {
-      const next = !v;
-      const syncs = cameraSyncsRef.current;
-      if (!syncs) return next;
-      const syncByAxis: Record<number, CameraSync> = {
-        0: syncs.axial,
-        1: syncs.sagittal,
-        2: syncs.coronal,
-      };
-      slots.forEach((slot) => {
-        if (!slot.seriesId || slot.orientation == null) return;
-        const sync = syncByAxis[slot.orientation];
-        const info = { renderingEngineId: RENDERING_ENGINE_ID, viewportId: slot.viewportId };
-        if (next) sync.add(info);
-        else sync.remove(info);
-      });
-      return next;
-    });
-  }, [slots]);
 
   const loadVolumeAndAssignToSlots = useCallback(
     async (
       seriesId: string,
       assignments: { viewportId: (typeof ALL_VIEWPORT_IDS)[number]; orientation: number }[],
-      isFirstLoad: boolean,
       currentSlots: SlotState[]
     ) => {
       const s = series.find((x) => x.id === seriesId);
       if (!s) return;
       const re = getRenderingEngine(RENDERING_ENGINE_ID);
       if (!re) return;
-      const volId = isFirstLoad ? CT_VOLUME_ID : volumeIdForSeries(seriesId);
+      const volId = volumeIdForSeries(seriesId);
       const baseUrl = `${window.location.origin}${pacsBasePath}/${seriesId}`;
       const prefix = s.slicePrefix ?? "I";
       const postfix = s.slicePostfix ?? "";
@@ -508,6 +496,23 @@ export function CtViewer({ config }: CtViewerProps) {
           true
         );
 
+        // Prefer viewport-level VOI range; this is generally more consistent across modalities (esp. MR).
+        for (const { viewportId } of assignments) {
+          const vp = re.getViewport(viewportId) as
+            | {
+                setProperties?: (props: unknown) => void;
+                setVOI?: (voi: { lower: number; upper: number }) => void;
+              }
+            | undefined;
+          if (!vp) continue;
+          if (typeof vp.setVOI === "function") {
+            vp.setVOI({ lower: windowRange[0], upper: windowRange[1] });
+          } else if (typeof vp.setProperties === "function") {
+            // Cornerstone accepts different shapes depending on viewport type/version; keep it guarded.
+            vp.setProperties({ voiRange: { lower: windowRange[0], upper: windowRange[1] } });
+          }
+        }
+
         const reCheck = getRenderingEngine(RENDERING_ENGINE_ID);
         if (!reCheck) {
           throw new Error("RenderingEngine not ready. Please wait for the viewer to initialize.");
@@ -517,23 +522,27 @@ export function CtViewer({ config }: CtViewerProps) {
         toolGroupsBySeriesRef.current.set(seriesId, tg);
 
         for (const { viewportId } of assignments) {
-          const prevSlot = currentSlots.find((s) => s.viewportId === viewportId);
-          if (prevSlot?.seriesId) {
-            const prevTg = toolGroupsBySeriesRef.current.get(prevSlot.seriesId);
-            if (prevTg) prevTg.removeViewports(RENDERING_ENGINE_ID, viewportId);
-          }
+          // Важно: один viewport должен принадлежать только одному ToolGroup.
+          // При быстрых переключениях/гонках снимаем viewport со ВСЕХ текущих групп.
+          toolGroupsBySeriesRef.current.forEach((existing) => {
+            try {
+              existing?.removeViewports(RENDERING_ENGINE_ID, viewportId);
+            } catch {
+              // ignore
+            }
+          });
           tg.addViewport(viewportId, RENDERING_ENGINE_ID);
         }
-        if (assignments.length < 2) {
-          tg.setToolDisabled(CrosshairsTool.toolName);
+        tg.setToolEnabled(CrosshairsTool.toolName);
+        // После появления нового тулгрупа — гарантируем правильный активный инструмент.
+        if (activeTool === "Crosshairs") {
+          tg.setToolActive(CrosshairsTool.toolName, { bindings: [{ mouseButton: MouseBindings.Primary }] });
         }
         const firstVp = re.getViewport(assignments[0].viewportId);
         const forUID =
           firstVp?.getFrameOfReferenceUID?.() ??
           (volume as { metadata?: { FrameOfReferenceUID?: string } })?.metadata?.FrameOfReferenceUID;
         if (forUID) setFrameOfReferenceUID(forUID);
-
-        const syncs = cameraSyncsRef.current;
 
         for (const { viewportId, orientation } of assignments) {
           const vp = re.getViewport(viewportId);
@@ -547,34 +556,14 @@ export function CtViewer({ config }: CtViewerProps) {
                 ? Enums.OrientationAxis.SAGITTAL
                 : Enums.OrientationAxis.CORONAL;
           if (vpAny?.applyViewOrientation) vpAny.applyViewOrientation(orientationAxis, true);
-
-          // Синхронизация по ориентации между всеми сериями (если включена)
-          if (syncScrollEnabledRef.current && syncs) {
-            const prevSlot = currentSlots.find((s) => s.viewportId === viewportId);
-            const syncByAxis: Record<number, CameraSync> = {
-              0: syncs.axial,
-              1: syncs.sagittal,
-              2: syncs.coronal,
-            };
-            if (prevSlot?.orientation != null) {
-              const oldSync = syncByAxis[prevSlot.orientation];
-              oldSync.remove({ renderingEngineId: RENDERING_ENGINE_ID, viewportId });
-            }
-            syncByAxis[orientation].add({ renderingEngineId: RENDERING_ENGINE_ID, viewportId });
-          }
         }
         setSlots((prev) =>
           prev.map((slot) => {
             const a = assignments.find((x) => x.viewportId === slot.viewportId);
-            if (a) return { ...slot, seriesId, orientation: a.orientation };
+            if (a) return { ...slot, seriesId, orientation: a.orientation, sliceIndex: 0, sliceCount: s.sliceCount };
             return slot;
           })
         );
-        setViewportOrientations((prev) => {
-          const next = { ...prev };
-          for (const { viewportId, orientation } of assignments) next[viewportId] = orientation;
-          return next;
-        });
         const viewportIdsToRender = assignments.map((a) => a.viewportId);
         re.renderViewports(viewportIdsToRender);
         // Повторный resize и рендер после раскладки (исправляет чёрный экран при 1x1 после выбора «заполнить пустые окна»)
@@ -591,90 +580,41 @@ export function CtViewer({ config }: CtViewerProps) {
     [pacsBasePath, series, config]
   );
 
-  const handleDropConfirm = useCallback(
-    async (orientation: number, fillOtherSlots: boolean) => {
-      if (!dropModal.open) return;
+  const handleSeriesSelect = useCallback(
+    async (seriesId: string, label: string) => {
       if (!cornerstoneReadyRef.current) return;
-      const { targetSlotId, seriesId } = dropModal;
-      setDropModal({ open: false });
+      if (isLoadingSeries) return;
+      const myToken = ++loadTokenRef.current;
+      setError(null);
+      setActiveSeriesId(seriesId);
+      setActiveSeriesLabel(label);
+      setIsLoadingSeries(true);
+
       const assignments: { viewportId: (typeof ALL_VIEWPORT_IDS)[number]; orientation: number }[] = [
-        { viewportId: targetSlotId, orientation },
+        { viewportId: VIEWPORT_IDS.CT_AXIAL, orientation: 0 },
+        { viewportId: VIEWPORT_IDS.CT_SAGITTAL, orientation: 1 },
+        { viewportId: VIEWPORT_IDS.CT_CORONAL, orientation: 2 },
       ];
-      const remaining = [0, 1, 2].filter(
-        (o) => o !== orientation
-      );
-      if (fillOtherSlots) {
-        const emptySlots = slots.filter((s) => s.seriesId === null && s.viewportId !== targetSlotId);
-        let r = 0;
-        for (const slot of emptySlots) {
-          if (r < remaining.length) {
-            assignments.push({ viewportId: slot.viewportId, orientation: remaining[r++] });
-          }
-        }
-      }
-      const isFirstLoad = !slots.some((s) => s.seriesId != null);
+
       try {
-        await loadVolumeAndAssignToSlots(seriesId, assignments, isFirstLoad, slots);
+        // Если во время загрузки уже началась следующая — ничего не делаем.
+        if (myToken !== loadTokenRef.current) return;
+        await loadVolumeAndAssignToSlots(seriesId, assignments, slots);
+        if (myToken !== loadTokenRef.current) return;
+        messageApi.success(`Загружено: ${label}`, 2);
       } catch (err) {
         console.error("Load volume error:", err);
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    },
-    [dropModal, slots, loadVolumeAndAssignToSlots]
-  );
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    if (!cornerstoneReadyRef.current) return;
-    const { active, over } = event;
-    if (!over) return;
-    const seriesId = String(active.id);
-    const viewportId = String(over.id) as (typeof ALL_VIEWPORT_IDS)[number];
-    if (!ALL_VIEWPORT_IDS.includes(viewportId)) return;
-    setDropModal({ open: true, targetSlotId: viewportId, seriesId });
-  },
-    []
-  );
-
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
-  const applyProjectionToSelectedViewport = useCallback(
-    (orientation: number) => {
-      if (!selectedViewportId) return;
-      const re = getRenderingEngine(RENDERING_ENGINE_ID);
-      if (!re) return;
-      const vp = re.getViewport(selectedViewportId);
-      if (!vp) return;
-      const slot = slots.find((s) => s.viewportId === selectedViewportId);
-      const vpAny = vp as { applyViewOrientation?: (orientation: Enums.OrientationAxis, resetCamera?: boolean) => void };
-      if (typeof vpAny.applyViewOrientation === "function") {
-        const orientationAxis: Enums.OrientationAxis =
-          orientation === 0
-            ? Enums.OrientationAxis.AXIAL
-            : orientation === 1
-              ? Enums.OrientationAxis.SAGITTAL
-              : Enums.OrientationAxis.CORONAL;
-        vpAny.applyViewOrientation(orientationAxis, true);
-        setViewportOrientations((prev) => ({ ...prev, [selectedViewportId]: orientation }));
-
-        // Обновляем синхронизацию камеры по ориентации (между всеми сериями)
-        if (syncScrollEnabledRef.current && slot && cameraSyncsRef.current) {
-          const syncs = cameraSyncsRef.current;
-          const viewportInfo = { renderingEngineId: RENDERING_ENGINE_ID, viewportId: selectedViewportId };
-          const syncByAxis: Record<number, CameraSync> = {
-            0: syncs.axial,
-            1: syncs.sagittal,
-            2: syncs.coronal,
-          };
-          const oldOrientation = viewportOrientations[selectedViewportId];
-          if (oldOrientation != null) syncByAxis[oldOrientation].remove(viewportInfo);
-          syncByAxis[orientation].add(viewportInfo);
+        if (myToken === loadTokenRef.current) {
+          setError(err instanceof Error ? err.message : String(err));
+          messageApi.error("Не удалось загрузить серию", 2);
         }
-
-        re.renderViewports([selectedViewportId]);
-        setMprPopoverOpen(false);
+      } finally {
+        if (myToken === loadTokenRef.current) {
+          setIsLoadingSeries(false);
+        }
       }
     },
-    [selectedViewportId, viewportOrientations, slots]
+    [isLoadingSeries, loadVolumeAndAssignToSlots, messageApi, slots]
   );
 
   useEffect(() => {
@@ -706,8 +646,7 @@ export function CtViewer({ config }: CtViewerProps) {
     const el1 = container.querySelector("[data-viewport=axial]") as HTMLDivElement;
     const el2 = container.querySelector("[data-viewport=sagittal]") as HTMLDivElement;
     const el3 = container.querySelector("[data-viewport=coronal]") as HTMLDivElement;
-    const el4 = container.querySelector("[data-viewport=axial2]") as HTMLDivElement;
-    if (!el1 || !el2 || !el3 || !el4) return;
+    if (!el1 || !el2 || !el3) return;
 
     const run = async () => {
       try {
@@ -719,7 +658,7 @@ export function CtViewer({ config }: CtViewerProps) {
           debug: { statsOverlay: false },
         });
         dicomImageLoaderInit({ maxWebWorkers: navigator.hardwareConcurrency ?? 1 });
-        cacheMetadataCleanupRef.current = createCacheBasedMetadataProvider();
+        cacheMetadataCleanupRef.current = createCacheBasedMetadataProvider(config);
 
         toolsInit({ addons: { polySeg } });
         addTool(StackScrollTool);
@@ -736,14 +675,8 @@ export function CtViewer({ config }: CtViewerProps) {
           { viewportId: VIEWPORT_IDS.CT_AXIAL, element: el1, type: Enums.ViewportType.ORTHOGRAPHIC, defaultOptions: { orientation: Enums.OrientationAxis.AXIAL } },
           { viewportId: VIEWPORT_IDS.CT_SAGITTAL, element: el2, type: Enums.ViewportType.ORTHOGRAPHIC, defaultOptions: { orientation: Enums.OrientationAxis.SAGITTAL } },
           { viewportId: VIEWPORT_IDS.CT_CORONAL, element: el3, type: Enums.ViewportType.ORTHOGRAPHIC, defaultOptions: { orientation: Enums.OrientationAxis.CORONAL } },
-          { viewportId: VIEWPORT_IDS.CT_AXIAL_2, element: el4, type: Enums.ViewportType.ORTHOGRAPHIC, defaultOptions: { orientation: Enums.OrientationAxis.AXIAL } },
         ];
         renderingEngine.setViewports(viewerInput);
-
-        const axialSync = createCameraPositionSynchronizer("axial-sync");
-        const sagittalSync = createCameraPositionSynchronizer("sagittal-sync");
-        const coronalSync = createCameraPositionSynchronizer("coronal-sync");
-        cameraSyncsRef.current = { axial: axialSync, sagittal: sagittalSync, coronal: coronalSync };
 
         const viewports = [...ALL_VIEWPORT_IDS];
         viewports.forEach((id) => renderingEngine.getViewport(id)?.resetCamera?.());
@@ -766,7 +699,6 @@ export function CtViewer({ config }: CtViewerProps) {
           setCornerstoneReady(false);
           cacheMetadataCleanupRef.current?.();
           cacheMetadataCleanupRef.current = null;
-          cameraSyncsRef.current = null;
           toolGroupsBySeriesRef.current.forEach((_, seriesId) => {
             ToolGroupManager.destroyToolGroup(toolGroupIdForSeries(seriesId));
           });
@@ -798,218 +730,183 @@ export function CtViewer({ config }: CtViewerProps) {
     }
   }, [layout, ready]);
 
-  // Crosshairs требуют минимум 2 viewport с объёмом. Иначе mouseMoveCallback получает
-  // undefined вместо массива аннотаций и падает с "Cannot read properties of undefined (reading 'length')".
-  useEffect(() => {
-    if (!canUseCrosshairs && crosshairsVisible) setCrosshairsVisible(false);
-  }, [canUseCrosshairs, crosshairsVisible]);
-
   useEffect(() => {
     if (!cornerstoneReady) return;
-    applyToolToAllGroups((tg) => {
-      if (canUseCrosshairs && crosshairsVisible) tg.setToolPassive(CrosshairsTool.toolName);
-      else tg.setToolDisabled(CrosshairsTool.toolName);
-    });
-  }, [cornerstoneReady, canUseCrosshairs, crosshairsVisible, applyToolToAllGroups]);
+    if (!config.initialSeriesId) return;
+    const s = series.find((x) => x.id === config.initialSeriesId);
+    const label = s?.id ?? config.initialSeriesId;
+    handleSeriesSelect(config.initialSeriesId, label);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cornerstoneReady]);
+
+  // Обновляем индекс текущего среза (для оверлея) из viewport’ов.
+  useEffect(() => {
+    if (!cornerstoneReady) return;
+    let stopped = false;
+    const tick = () => {
+      if (stopped) return;
+      const re = getRenderingEngine(RENDERING_ENGINE_ID);
+      if (re) {
+        setSlots((prev) => {
+          let changed = false;
+          const next = prev.map((slot) => {
+            if (!slot.seriesId) return slot;
+            const vp = re.getViewport(slot.viewportId) as
+              | {
+                  getCurrentImageId?: () => string | undefined;
+                  getImageIds?: () => string[] | undefined;
+                  getCurrentImageIdIndex?: () => number | undefined;
+                }
+              | undefined;
+            if (!vp) return slot;
+
+            let idx: number | null = null;
+            try {
+              if (typeof vp.getCurrentImageIdIndex === "function") {
+                const i = vp.getCurrentImageIdIndex();
+                if (typeof i === "number" && Number.isFinite(i)) idx = i;
+              }
+              if (idx == null && typeof vp.getCurrentImageId === "function") {
+                const imageId = vp.getCurrentImageId();
+                const m = imageId?.match(/\/I(\d+)/);
+                const seriesCfg = seriesById.current.get(slot.seriesId);
+                if (m && seriesCfg) {
+                  const num = parseInt(m[1], 10);
+                  if (Number.isFinite(num)) idx = num - seriesCfg.sliceStart;
+                }
+              }
+            } catch {
+              // ignore
+            }
+            if (idx == null) return slot;
+            if (idx !== slot.sliceIndex) {
+              changed = true;
+              return { ...slot, sliceIndex: idx };
+            }
+            return slot;
+          });
+          return changed ? next : prev;
+        });
+      }
+      setTimeout(tick, 150);
+    };
+    tick();
+    return () => {
+      stopped = true;
+    };
+  }, [cornerstoneReady]);
 
   return (
     <>
-      <DndContext
-        sensors={sensors}
-        onDragStart={() => {
-          document.body.style.cursor = "grabbing";
-        }}
-        onDragEnd={(event) => {
-          document.body.style.cursor = "";
-          handleDragEnd(event);
-        }}
-        onDragCancel={() => {
-          document.body.style.cursor = "";
+      {messageContextHolder}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "row",
+          width: "100%",
+          minHeight: Math.max(VIEWPORT_SIZE + 120, 560),
+          height: "calc(100vh - 120px)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            width: "100%",
-            minHeight: Math.max(VIEWPORT_SIZE + 120, 560),
-            height: "calc(100vh - 120px)",
-          }}
-        >
-          <StudyListSidebar pacsBasePath={pacsBasePath} series={series} cornerstoneReady={cornerstoneReady} />
-          <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
-            {error && (
-              <div style={{ color: "#c00", padding: 8, background: "#fee" }}>
-                Ошибка: {error}
-              </div>
-            )}
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Switch
-                  checked={crosshairsVisible && canUseCrosshairs}
-                  disabled={!canUseCrosshairs}
-                  onChange={toggleCrosshairs}
-                  title={!canUseCrosshairs ? "Требуется минимум 2 окна с серией" : undefined}
-                />
-                <span>Линии уровня</span>
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Switch checked={syncScrollEnabled} onChange={toggleSyncScroll} />
-                <span>Синхронизация видов</span>
+        <StudyListSidebar
+          pacsBasePath={pacsBasePath}
+          series={series}
+          cornerstoneReady={cornerstoneReady}
+          onSeriesSelect={(id, label) => handleSeriesSelect(id, label)}
+          selectedSeriesId={activeSeriesId}
+          disabled={isLoadingSeries}
+        />
+        <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 }}>
+          {isLoadingSeries && (
+            <div style={{ padding: "6px 10px", border: "1px solid #ffe58f", borderRadius: 6, background: "#fffbe6" }}>
+              <span style={{ color: "#614700", fontSize: 12 }}>
+                Загрузка серии…
               </span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <CtViewerToolbar
-                  activeTool={activeTool}
-                  onToolChange={setTool}
-                  onResetWindowLevel={resetWindowLevel}
-                  resetWindowLevelDisabled={!slots.some((s) => s.seriesId != null)}
-                />
-                <CtLayoutSelector layout={layout} onLayoutChange={setLayout} />
-                <Popover
-                  content={
-                    selectedViewportId &&
-                    slots.find((s) => s.viewportId === selectedViewportId)?.seriesId != null ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 160 }}>
-                        {MPR_ORIENTATIONS.map(({ id, label }) => (
-                          <Button
-                            key={id}
-                            type={viewportOrientations[selectedViewportId] === id ? "primary" : "default"}
-                            onClick={() => applyProjectionToSelectedViewport(id)}
-                            size="small"
-                            style={{ textAlign: "left" }}
-                            block
-                          >
-                            {label}
-                          </Button>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ color: "#888" }}>
-                        Сначала выберите окно с загруженной серией
-                      </span>
-                    )
-                  }
-                  trigger="click"
-                  open={
-                    mprPopoverOpen &&
-                    !!selectedViewportId &&
-                    slots.find((s) => s.viewportId === selectedViewportId)?.seriesId != null
-                  }
-                  onOpenChange={(open) => {
-                    const hasSeries =
-                      !!selectedViewportId &&
-                      slots.find((s) => s.viewportId === selectedViewportId)?.seriesId != null;
-                    if (!hasSeries) return;
-                    setMprPopoverOpen(open);
-                  }}
-                  placement="bottomLeft"
-                  title="Мультипланарная реконструкция"
-                >
-                  <Button
-                    type="default"
-                    shape="circle"
-                    icon={<SwapOutlined />}
-                    title={
-                      selectedViewportId &&
-                      slots.find((s) => s.viewportId === selectedViewportId)?.seriesId != null
-                        ? "Сменить проекцию выбранного окна"
-                        : "Выберите окно с серией, затем нажмите для смены проекции"
-                    }
-                    disabled={
-                      !selectedViewportId ||
-                      !slots.find((s) => s.viewportId === selectedViewportId)?.seriesId
-                    }
+          )}
+          {error && (
+            <div style={{ color: "#c00", padding: 8, background: "#fee" }}>
+              Ошибка: {error}
+            </div>
+          )}
+          {/* MVP: синхронизация видов убрана */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1, minHeight: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <CtViewerToolbar
+                activeTool={activeTool}
+                onToolChange={setTool}
+                onResetWindowLevel={resetWindowLevel}
+                resetWindowLevelDisabled={!slots.some((s) => s.seriesId != null)}
+              />
+              <CtLayoutSelector layout={layout} onLayoutChange={setLayout} />
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  layout === "1"
+                    ? "minmax(256px, 1fr)"
+                    : layout === "3H"
+                    ? "minmax(256px, 1fr) minmax(256px, 1fr) minmax(256px, 1fr)"
+                    : layout === "3V"
+                      ? "minmax(256px, 1fr)"
+                      : "minmax(256px, 1fr) minmax(256px, 1fr)",
+                gridTemplateRows:
+                  layout === "1"
+                    ? "minmax(256px, 1fr)"
+                    : layout === "3H"
+                    ? "minmax(256px, 1fr)"
+                    : layout === "3V"
+                      ? "minmax(256px, 1fr) minmax(256px, 1fr) minmax(256px, 1fr)"
+                      : "minmax(256px, 1fr) minmax(256px, 1fr)",
+                gap: 8,
+                flex: 1,
+                minHeight: VIEWPORT_SIZE,
+              }}
+            >
+              {(["axial", "sagittal", "coronal"] as const).map((dataViewport) => {
+                const viewportId = DATA_VIEWPORT_TO_ID[dataViewport];
+                const slot = slots.find((s) => s.viewportId === viewportId);
+                const show =
+                  layout === "1" ? dataViewport === "axial" : true;
+                const layoutStyle: React.CSSProperties =
+                  layout === "1"
+                    ? { gridColumn: "1 / 2", gridRow: "1 / 2" }
+                    : layout === "3H"
+                    ? dataViewport === "axial"
+                      ? { gridColumn: "1 / 2", gridRow: "1 / 2" }
+                      : dataViewport === "sagittal"
+                        ? { gridColumn: "2 / 3", gridRow: "1 / 2" }
+                        : { gridColumn: "3 / 4", gridRow: "1 / 2" }
+                    : layout === "3V"
+                      ? dataViewport === "axial"
+                        ? { gridColumn: "1 / 2", gridRow: "1 / 2" }
+                        : dataViewport === "sagittal"
+                          ? { gridColumn: "1 / 2", gridRow: "2 / 3" }
+                          : { gridColumn: "1 / 2", gridRow: "3 / 4" }
+                      : // 2L1R
+                        dataViewport === "axial"
+                        ? { gridColumn: "1 / 2", gridRow: "1 / 2" }
+                        : dataViewport === "sagittal"
+                          ? { gridColumn: "1 / 2", gridRow: "2 / 3" }
+                          : { gridColumn: "2 / 3", gridRow: "1 / 3" };
+                return (
+                  <DroppableViewportSlot
+                    key={dataViewport}
+                    dataViewport={dataViewport}
+                    viewportId={viewportId}
+                    slot={slot}
+                    isSelected={false}
+                    onSelect={() => {}}
+                    style={layoutStyle}
+                    show={show}
                   />
-                </Popover>
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    layout === "1x1" || layout === "1x2" || layout === "1x3"
-                      ? "1fr"
-                      : layout === "2x1" || layout === "2x2"
-                        ? "1fr 1fr"
-                        : layout === "3x1"
-                          ? "1fr 1fr 1fr"
-                          : "1fr",
-                  gridTemplateRows:
-                    layout === "1x1" || layout === "2x1" || layout === "3x1"
-                      ? "1fr"
-                      : layout === "1x2" || layout === "2x2"
-                        ? "1fr 1fr"
-                        : layout === "1x3"
-                          ? "1fr 1fr 1fr"
-                          : "1fr",
-                  gap: 8,
-                  flex: 1,
-                  minHeight: VIEWPORT_SIZE,
-                }}
-              >
-                {(["axial", "sagittal", "coronal", "axial2"] as const).map((dataViewport) => {
-                  const viewportId = DATA_VIEWPORT_TO_ID[dataViewport];
-                  const slot = slots.find((s) => s.viewportId === viewportId);
-                  return (
-                    <DroppableViewportSlot
-                      key={dataViewport}
-                      dataViewport={dataViewport}
-                      viewportId={viewportId}
-                      slot={slot}
-                      isSelected={selectedViewportId === viewportId}
-                      show={
-                        dataViewport === "axial" ||
-                        (dataViewport === "sagittal" &&
-                          (layout === "2x1" ||
-                            layout === "1x2" ||
-                            layout === "2x2" ||
-                            layout === "3x1" ||
-                            layout === "1x3")) ||
-                        (dataViewport === "coronal" &&
-                          (layout === "2x2" || layout === "3x1" || layout === "1x3")) ||
-                        (dataViewport === "axial2" && layout === "2x2")
-                      }
-                      onSelect={() => setSelectedViewportId(viewportId)}
-                    />
-                  );
-                })}
-              </div>
+                );
+              })}
             </div>
           </div>
-          <DropProjectionModal
-            open={dropModal.open}
-            seriesLabel={dropModal.open ? dropModal.seriesId : undefined}
-            showFillOtherSlots={
-              dropModal.open
-                ? (() => {
-                    if (layout === "1x1") return false;
-                    const emptyCount = slots.filter(
-                      (s) => s.seriesId === null && s.viewportId !== dropModal.targetSlotId
-                    ).length;
-                    if (emptyCount === 0) return false;
-                    if (layout === "2x2") return true;
-                    if (layout === "2x1" || layout === "1x2") {
-                      const visibleIds = [VIEWPORT_IDS.CT_AXIAL, VIEWPORT_IDS.CT_SAGITTAL];
-                      const otherVisible = visibleIds.find((id) => id !== dropModal.targetSlotId);
-                      return otherVisible != null && slots.find((s) => s.viewportId === otherVisible)?.seriesId == null;
-                    }
-                    if (layout === "3x1" || layout === "1x3") {
-                      const visibleIds = [VIEWPORT_IDS.CT_AXIAL, VIEWPORT_IDS.CT_SAGITTAL, VIEWPORT_IDS.CT_CORONAL];
-                      const hasEmptyVisible = visibleIds.some(
-                        (id) => id !== dropModal.targetSlotId && slots.find((s) => s.viewportId === id)?.seriesId == null
-                      );
-                      return hasEmptyVisible;
-                    }
-                    return false;
-                  })()
-                : false
-            }
-            onConfirm={handleDropConfirm}
-            onCancel={() => setDropModal({ open: false })}
-          />
         </div>
-      </DndContext>
+      </div>
     </>
   );
 }

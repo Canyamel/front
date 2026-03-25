@@ -51,6 +51,9 @@ export type CtVolumeViewerProps = {
   /** Модальность для окна яркости: CT или MR. По умолчанию CT */
   modality?: "CT" | "MR";
 
+  /** Включать ли инструмент и переключатель «Линии уровня» (Crosshairs) */
+  enableCrosshairs?: boolean;
+
   /** Стартовая раскладка окон */
   initialLayout?: CtLayoutId;
 
@@ -71,13 +74,14 @@ export type CtVolumeViewerProps = {
 };
 
 export function CtVolumeViewer(props: CtVolumeViewerProps) {
-  const { pacsBasePath, series, initialSeriesId, modality } = props;
+  const { pacsBasePath, series, initialSeriesId, modality, enableCrosshairs } = props;
 
   const config: CtViewerConfig = {
     pacsBasePath,
     series,
     initialSeriesId,
     modality,
+    enableCrosshairs,
   };
 
   // Пока что всё поведение реализовано внутри CtViewer,

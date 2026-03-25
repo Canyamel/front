@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useDraggable } from "@dnd-kit/core";
 import { imageLoader, metaData, Enums } from "@cornerstonejs/core";
 import type { SeriesConfig } from "../types";
 const PREVIEW_MAX_ATTEMPTS = 2500;
@@ -72,16 +71,22 @@ type StudyCardProps = {
   pacsBasePath: string;
   cornerstoneReady: boolean;
   onMetaLoaded?: (studyId: string, meta: SeriesMeta) => void;
+  onSelect?: (studyId: string, label: string, meta: SeriesMeta) => void;
+  selected?: boolean;
+  selectionDisabled?: boolean;
 };
 
-function StudyCard({ series, pacsBasePath, cornerstoneReady, onMetaLoaded }: StudyCardProps) {
+function StudyCard({
+  series,
+  pacsBasePath,
+  cornerstoneReady,
+  onMetaLoaded,
+  onSelect,
+  selected,
+  selectionDisabled = false,
+}: StudyCardProps) {
   const { id: studyId, sliceStart, slicePrefix, slicePostfix } = series;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: studyId,
-    data: { seriesId: studyId },
-    disabled: !cornerstoneReady,
-  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [meta, setMeta] = useState<SeriesMeta>({});
@@ -153,21 +158,33 @@ function StudyCard({ series, pacsBasePath, cornerstoneReady, onMetaLoaded }: Stu
   }, [studyId, cornerstoneReady, onMetaLoaded]);
 
   const label = meta.seriesDescription?.trim() || (meta.seriesNumber != null ? `Серия ${meta.seriesNumber}` : studyId);
+  const canSelect = cornerstoneReady && !selectionDisabled && !loading;
 
   return (
     <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (!canSelect) return;
+        onSelect?.(studyId, label, meta);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!canSelect) return;
+          onSelect?.(studyId, label, meta);
+        }
+      }}
       style={{
-        border: "1px solid #e5e7eb",
+        border: selected ? "1px solid rgba(24, 144, 255, 0.9)" : "1px solid #e5e7eb",
         borderRadius: 6,
         overflow: "hidden",
-        background: isDragging ? "#e5f0ff" : "#ffffff",
+        background: selected ? "rgba(24, 144, 255, 0.08)" : "#ffffff",
         marginBottom: 10,
-        cursor: !cornerstoneReady ? "not-allowed" : isDragging ? "grabbing" : "grab",
-        boxShadow: isDragging ? "0 0 0 1px #0047e0" : "none",
-        opacity: cornerstoneReady ? 1 : 0.6,
+        cursor: !cornerstoneReady ? "not-allowed" : selectionDisabled ? "wait" : loading ? "progress" : "pointer",
+        boxShadow: selected ? "0 0 0 1px rgba(24, 144, 255, 0.35)" : "none",
+        opacity: cornerstoneReady ? 1 : 0.75,
+        outline: "none",
       }}
     >
       <div style={{ padding: "6px 8px", fontSize: 11, fontWeight: 600, color: "#222831" }} title={label}>
@@ -231,9 +248,19 @@ type StudyListSidebarProps = {
   pacsBasePath: string;
   series: SeriesConfig[];
   cornerstoneReady: boolean;
+  onSeriesSelect?: (seriesId: string, label: string, meta: SeriesMeta) => void;
+  selectedSeriesId?: string | null;
+  disabled?: boolean;
 };
 
-export function StudyListSidebar({ pacsBasePath, series, cornerstoneReady }: StudyListSidebarProps) {
+export function StudyListSidebar({
+  pacsBasePath,
+  series,
+  cornerstoneReady,
+  onSeriesSelect,
+  selectedSeriesId,
+  disabled = false,
+}: StudyListSidebarProps) {
   const [headerMeta, setHeaderMeta] = useState<SeriesMeta | null>(null);
 
   const handleMetaLoaded = useCallback((_studyId: string, meta: SeriesMeta) => {
@@ -264,6 +291,9 @@ export function StudyListSidebar({ pacsBasePath, series, cornerstoneReady }: Stu
             pacsBasePath={pacsBasePath}
             cornerstoneReady={cornerstoneReady}
             onMetaLoaded={handleMetaLoaded}
+            onSelect={onSeriesSelect}
+            selected={selectedSeriesId === s.id}
+            selectionDisabled={disabled}
           />
         ))}
       </div>
