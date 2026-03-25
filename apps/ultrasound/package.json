@@ -15,6 +15,7 @@
     "@medml/shared": "*",
     "@medml/auth": "*",
     "@medml/layout": "*",
+    "@medml/patient_list": "*",
     "next-auth": "^4.24.11",
     "dayjs": "^1.11.13"
   },
