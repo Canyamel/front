@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { Popover, Tooltip, Button } from "antd";
 import { AppstoreOutlined } from "@ant-design/icons";
-
-export type CtLayoutId = "1" | "3H" | "3V" | "2L1R";
+import type { CtLayoutId } from "../layout";
 
 const LAYOUTS: { id: CtLayoutId; label: string }[] = [
   { id: "1", label: "1 окно (аксиальная)" },
@@ -48,7 +47,7 @@ export function CtLayoutSelector({ layout, onLayoutChange }: CtLayoutSelectorPro
       onOpenChange={setOpen}
       placement="bottomLeft"
       arrow={false}
-      overlayInnerStyle={{ padding: 0 }}
+      styles={{ body: { padding: 0 } }}
     >
       <Button
         type={open ? "primary" : "default"}

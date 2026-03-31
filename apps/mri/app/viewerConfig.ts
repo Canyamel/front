@@ -1,13 +1,11 @@
 import type { CtViewerConfig } from "@medml/ct-mri-viewer";
 
 /**
- * Конфиг просмотрщика: снимки берутся из public/dicoms.
- * Структура папок: public/dicoms/<seriesId>/I0, I1, I2, ...
- * По умолчанию одна серия S1 с индексами срезов от 0; sliceCount подставьте по числу файлов.
+ * Конфиг просмотрщика: снимки из public/dicoms.
+ * Яркость при открытии берётся из DICOM (WC/WW); modality влияет только на запасной VOI, если тегов нет.
  */
 export const defaultViewerConfig: CtViewerConfig = {
   pacsBasePath: "/dicoms",
-  series: [
-    { id: "S1", sliceStart: 0, sliceCount: 14 },
-  ],
+  series: [{ id: "S1", sliceStart: 0, sliceCount: 14 }],
+  modality: "MR",
 };

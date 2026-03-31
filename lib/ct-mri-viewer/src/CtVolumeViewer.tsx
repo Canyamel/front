@@ -1,8 +1,8 @@
 "use client";
 
 import type { CtViewerConfig, SeriesConfig } from "./types";
-import type { CtLayoutId } from "./components/CtLayoutSelector";
-import { CtViewer } from "./components/CtViewer";
+import type { CtLayoutId } from "./layout";
+import { CtViewer } from "./ct-viewer/CtViewer";
 
 export type CtSegmentPoint = {
   /** Координаты в пикселях внутри среза */
@@ -48,8 +48,11 @@ export type CtVolumeViewerProps = {
   /** ID серии для предзагрузки (если не задан — окна пустые) */
   initialSeriesId?: string;
 
-  /** Модальность для окна яркости: CT или MR. По умолчанию CT */
+  /** Модальность для окна яркости: CT или MR (мягче стартовое окно). По умолчанию CT */
   modality?: "CT" | "MR";
+
+  /** Запасное окно [center, width], когда в данных нет WC/WW */
+  defaultWindow?: [number, number];
 
   /** Включать ли инструмент и переключатель «Линии уровня» (Crosshairs) */
   enableCrosshairs?: boolean;
@@ -74,13 +77,14 @@ export type CtVolumeViewerProps = {
 };
 
 export function CtVolumeViewer(props: CtVolumeViewerProps) {
-  const { pacsBasePath, series, initialSeriesId, modality, enableCrosshairs } = props;
+  const { pacsBasePath, series, initialSeriesId, modality, defaultWindow, enableCrosshairs } = props;
 
   const config: CtViewerConfig = {
     pacsBasePath,
     series,
     initialSeriesId,
     modality,
+    defaultWindow,
     enableCrosshairs,
   };
 

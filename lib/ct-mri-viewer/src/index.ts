@@ -5,4 +5,6 @@ export type {
   CtSegmentConfig,
 } from "./CtVolumeViewer";
 export type { SeriesConfig, CtViewerConfig } from "./types";
-export type { CtLayoutId } from "./components/CtLayoutSelector";
+export type { VoiPolicyConfig } from "./viewer/windowLevel";
+export type { CtLayoutId } from "./layout";
+export { DEFAULT_CT_LAYOUT } from "./layout";

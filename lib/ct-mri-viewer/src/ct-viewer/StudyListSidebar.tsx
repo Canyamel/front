@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { imageLoader, metaData, Enums } from "@cornerstonejs/core";
 import type { SeriesConfig } from "../types";
+import type { VoiPolicyConfig } from "../viewer/windowLevel";
+import { voiRangeFromImage } from "../viewer/windowLevel";
 const PREVIEW_MAX_ATTEMPTS = 2500;
-const FALLBACK_WINDOW_CENTER = 40;
-const FALLBACK_WINDOW_WIDTH = 400;
 
 const { MetadataModules } = Enums;
 
@@ -70,6 +70,8 @@ type StudyCardProps = {
   series: SeriesConfig;
   pacsBasePath: string;
   cornerstoneReady: boolean;
+  /** Та же политика VOI, что у основного просмотрщика (модальность / defaultWindow). */
+  viewerVoiPolicy: VoiPolicyConfig;
   onMetaLoaded?: (studyId: string, meta: SeriesMeta) => void;
   onSelect?: (studyId: string, label: string, meta: SeriesMeta) => void;
   selected?: boolean;
@@ -80,12 +82,13 @@ function StudyCard({
   series,
   pacsBasePath,
   cornerstoneReady,
+  viewerVoiPolicy,
   onMetaLoaded,
   onSelect,
   selected,
   selectionDisabled = false,
 }: StudyCardProps) {
-  const { id: studyId, sliceStart, slicePrefix, slicePostfix } = series;
+  const { id: studyId, sliceStart, sliceCount, slicePrefix, slicePostfix } = series;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -115,15 +118,25 @@ function StudyCard({
         return trySequence(fromIndex + 1);
       });
 
-    trySequence(sliceStart)
+    const midIndex =
+      sliceCount > 0 ? sliceStart + Math.max(0, Math.floor(sliceCount / 2)) : sliceStart;
+    tryLoadFromIndex(midIndex)
+      .catch(() => trySequence(sliceStart))
       .then(({ image, imageId }) => {
         const pixelData = image.getPixelData();
         const width = image.width;
         const height = image.height;
         const minP = image.minPixelValue ?? 0;
         const maxP = image.maxPixelValue ?? 4095;
-        const wc = Array.isArray(image.windowCenter) ? image.windowCenter[0] : (image.windowCenter ?? FALLBACK_WINDOW_CENTER);
-        const ww = Array.isArray(image.windowWidth) ? image.windowWidth[0] : (image.windowWidth ?? FALLBACK_WINDOW_WIDTH);
+        const [wlMin, wlMax] = voiRangeFromImage(
+          {
+            windowCenter: image.windowCenter,
+            windowWidth: image.windowWidth,
+          },
+          viewerVoiPolicy
+        );
+        const wc = (wlMin + wlMax) / 2;
+        const ww = wlMax - wlMin;
 
         const canvas = canvasRef.current;
         if (canvas) {
@@ -155,7 +168,7 @@ function StudyCard({
         setLoading(false);
         setError(true);
       });
-  }, [studyId, cornerstoneReady, onMetaLoaded]);
+  }, [studyId, cornerstoneReady, onMetaLoaded, viewerVoiPolicy, slicePrefix, slicePostfix, pacsBasePath, sliceStart, sliceCount]);
 
   const label = meta.seriesDescription?.trim() || (meta.seriesNumber != null ? `Серия ${meta.seriesNumber}` : studyId);
   const canSelect = cornerstoneReady && !selectionDisabled && !loading;
@@ -248,6 +261,7 @@ type StudyListSidebarProps = {
   pacsBasePath: string;
   series: SeriesConfig[];
   cornerstoneReady: boolean;
+  viewerVoiPolicy: VoiPolicyConfig;
   onSeriesSelect?: (seriesId: string, label: string, meta: SeriesMeta) => void;
   selectedSeriesId?: string | null;
   disabled?: boolean;
@@ -257,6 +271,7 @@ export function StudyListSidebar({
   pacsBasePath,
   series,
   cornerstoneReady,
+  viewerVoiPolicy,
   onSeriesSelect,
   selectedSeriesId,
   disabled = false,
@@ -290,6 +305,7 @@ export function StudyListSidebar({
             series={s}
             pacsBasePath={pacsBasePath}
             cornerstoneReady={cornerstoneReady}
+            viewerVoiPolicy={viewerVoiPolicy}
             onMetaLoaded={handleMetaLoaded}
             onSelect={onSeriesSelect}
             selected={selectedSeriesId === s.id}
