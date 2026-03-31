@@ -23,6 +23,7 @@
       "@medml/ui": ["./lib/ui/src"],
       "@medml/store": ["./lib/store/src"],
       "@medml/patients": ["./domains/patients/src"],
+      "@medml/patient_list": ["./domains/patient_list/src"],
       "@medml/auth": ["./domains/auth/src"],
       "@medml/layout": ["./domains/layout/src"],
       "@medml/shared": ["./lib/shared/src"],
