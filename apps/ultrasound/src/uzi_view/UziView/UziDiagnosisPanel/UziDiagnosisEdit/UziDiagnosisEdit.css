@@ -1,0 +1,18 @@
+.uzi-diagnoses {
+    overflow: auto;
+    height: 100%;
+}
+
+.uzi-diagnosis-button {
+    color: #0135a3 !important;
+    border: 1px solid #0135a3 !important;
+}
+
+.uzi-diagnosis-edit-wrapper {
+    margin-top: auto;
+}
+
+.uzi-edit-panel {
+    flex-grow: 1;
+    height: 100%;
+}

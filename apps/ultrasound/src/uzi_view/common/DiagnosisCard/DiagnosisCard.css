@@ -1,0 +1,52 @@
+.uzi-diagnosis-card {
+    border-radius: 10px;
+    padding: 10px 20px;
+    border: 1px solid #ededed;
+    height: auto !important;
+    justify-content: start !important;
+}
+
+.uzi-diagnosis-card:hover {
+    border: 1px solid #bebebe;
+    box-shadow: 0px 0px 1px 0px rgba(34, 60, 80, 0.2);
+    cursor: pointer;
+}
+
+.uzi-diagnosis-card.active {
+    border: 1px solid #0135a3;
+}
+
+.diagnosis {
+    border-radius: 3px !important;
+    width: fit-content;
+    padding: 2px 5px;
+    background: #fafafa;
+    border: 1px solid #d9d9d9;
+    color: #b3b2b8 !important;
+}
+
+.diagnosis-green {
+    color: #389e0d !important;
+    background: #f6ffed;
+    border-color: #b7eb8f;
+}
+
+.diagnosis-red {
+    color: #cf1322 !important;
+    background: #fff1f0;
+    border: 1px solid #ffa39e;
+}
+
+.diagnosis-orange {
+    color: #df6a2b !important;
+    background: #fff8f4;
+    border: 1px solid #ffbd99;
+}
+
+.uzi-card-content {
+    width: 100%;
+}
+
+.anticon-info-circle {
+    color: orange !important;
+}

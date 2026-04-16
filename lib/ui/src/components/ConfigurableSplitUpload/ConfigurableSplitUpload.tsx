@@ -1,0 +1,96 @@
+import * as React from "react";
+import { Button, Flex, Form, Space, Typography, message } from "antd";
+import type { FormInstance } from "antd/es/form";
+
+import type { UploadSchemaField } from "../ConfigurableUploadForm/uploadSchemaTypes";
+import { UploadSchemaFieldItems } from "../ConfigurableUploadForm/UploadSchemaFieldItems";
+
+export type ConfigurableSplitUploadProps = {
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  /** Схема полей слева; опции селектов можно подставлять динамически из родителя. */
+  fields: UploadSchemaField[];
+  /** Справа: обычно `<Upload.Dragger {...uploadProps} />` с props из родителя. */
+  uploadSlot: React.ReactNode;
+  form?: FormInstance<Record<string, unknown>>;
+  initialValues?: Record<string, unknown>;
+  submitText?: React.ReactNode;
+  cancelText?: React.ReactNode;
+  className?: string;
+  /** Файл контролируется родителем (через Dragger); при requireFile проверяется перед отправкой. */
+  file?: File | null;
+  requireFile?: boolean;
+  onCancel?: () => void;
+  onSubmit: (payload: { values: Record<string, unknown> }) => void | Promise<void>;
+};
+
+export function ConfigurableSplitUpload({
+  title,
+  description,
+  fields,
+  uploadSlot,
+  form: formProp,
+  initialValues,
+  submitText = "Начать",
+  cancelText = "Отменить",
+  className,
+  file,
+  requireFile = true,
+  onCancel,
+  onSubmit,
+}: ConfigurableSplitUploadProps) {
+  const [innerForm] = Form.useForm<Record<string, unknown>>();
+  const form = formProp ?? innerForm;
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const handleFinish = async (values: Record<string, unknown>) => {
+    if (requireFile && !file) {
+      message.error("Выберите файл для загрузки");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onSubmit({ values });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className={className}>
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        {title ? (
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            {title}
+          </Typography.Title>
+        ) : null}
+        {description ? <Typography.Text type="secondary">{description}</Typography.Text> : null}
+
+        <Form<Record<string, unknown>>
+          form={form}
+          layout="vertical"
+          initialValues={initialValues}
+          onFinish={handleFinish}
+        >
+          <Flex gap={24} align="flex-start" wrap="wrap">
+            <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+              <UploadSchemaFieldItems fields={fields} disabled={submitting} />
+            </div>
+            <div style={{ flex: "1 1 280px", minWidth: 0 }}>{uploadSlot}</div>
+          </Flex>
+
+          <Space style={{ justifyContent: "flex-end", width: "100%", marginTop: 16 }}>
+            {onCancel ? (
+              <Button onClick={onCancel} disabled={submitting}>
+                {cancelText}
+              </Button>
+            ) : null}
+            <Button type="primary" htmlType="submit" loading={submitting}>
+              {submitText}
+            </Button>
+          </Space>
+        </Form>
+      </Space>
+    </div>
+  );
+}

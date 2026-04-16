@@ -1,14 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Avatar, Button, Card, Space, Table, Typography } from 'antd';
+import { EllipsisOutlined } from '@ant-design/icons';
+import { Card, Dropdown, Space, Typography, type MenuProps, Table } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { TableCurrentDataSource } from 'antd/es/table/interface';
 
 import { PatientListHeader } from '../PatientListHeader';
-import { PatientTableFooter } from '../PatientTableFooter';
 import { DiagnosisTag, StatusTag } from '../tags';
 import type { PatientListSort, PatientListSortOrder, PatientRow } from '../../types';
-import { getAvatarText } from '../../utils';
 
 export type PatientListPanelProps = {
   className?: string;
@@ -34,6 +34,7 @@ export type PatientListPanelProps = {
   onSortChange?: (sort: PatientListSort) => void;
 
   onOpenPatientCard?: (id: PatientRow['id']) => void;
+  onDeletePatient?: (id: PatientRow['id']) => void;
 
   emptyText?: React.ReactNode;
 };
@@ -60,8 +61,33 @@ export function PatientListPanel({
   onPageSizeChange,
   onSortChange,
   onOpenPatientCard,
+  onDeletePatient,
   emptyText = 'Пациенты не найдены',
 }: PatientListPanelProps) {
+  const diagnosisFilters = React.useMemo(
+    () =>
+      Array.from(
+        new Map(
+          rows
+            .filter((r) => r.diagnosisLabel)
+            .map((r) => [r.diagnosisLabel, { text: r.diagnosisLabel as string, value: r.diagnosisLabel as string }])
+        ).values()
+      ),
+    [rows]
+  );
+
+  const statusFilters = React.useMemo(
+    () =>
+      Array.from(
+        new Map(
+          rows
+            .filter((r) => r.statusLabel)
+            .map((r) => [r.statusLabel, { text: r.statusLabel as string, value: r.statusLabel as string }])
+        ).values()
+      ),
+    [rows]
+  );
+
   const columns = React.useMemo<ColumnsType<PatientRow>>(
     () => [
       {
@@ -72,9 +98,11 @@ export function PatientListPanel({
         sortOrder: sort?.key === 'fullName' ? toTableSortOrder(sort.order) : undefined,
         render: (_value, row) => (
           <Space size={10}>
-            <Avatar size={28}>{row.avatarText ?? getAvatarText(row.fullName, ' ')}</Avatar>
+            {/* <Avatar size={28}>{row.avatarText ?? getAvatarText(row.fullName, ' ')}</Avatar> */}
             <div style={{ lineHeight: 1.2 }}>
-              <Typography.Text strong>{row.fullName}</Typography.Text>
+              <Typography.Link strong onClick={() => onOpenPatientCard?.(row.id)}>
+                {row.fullName}
+              </Typography.Link>
             </div>
           </Space>
         ),
@@ -83,40 +111,36 @@ export function PatientListPanel({
         title: 'Полис пациента',
         dataIndex: 'policyNumber',
         key: 'policyNumber',
-        sorter: true,
-        sortOrder: sort?.key === 'policyNumber' ? toTableSortOrder(sort.order) : undefined,
         render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
       },
       {
         title: 'Эл. почта',
         dataIndex: 'email',
         key: 'email',
-        sorter: true,
-        sortOrder: sort?.key === 'email' ? toTableSortOrder(sort.order) : undefined,
         render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
       },
       {
-        title: 'Дата приема',
-        dataIndex: 'visitDate',
-        key: 'visitDate',
+        title: 'Дата рождения',
+        dataIndex: 'birthDate',
+        key: 'birthDate',
         sorter: true,
-        sortOrder: sort?.key === 'visitDate' ? toTableSortOrder(sort.order) : undefined,
+        sortOrder: sort?.key === 'birthDate' ? toTableSortOrder(sort.order) : undefined,
         render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
       },
       {
         title: 'Диагноз',
         dataIndex: 'diagnosisLabel',
         key: 'diagnosisLabel',
-        sorter: true,
-        sortOrder: sort?.key === 'diagnosisLabel' ? toTableSortOrder(sort.order) : undefined,
+        filters: diagnosisFilters,
+        onFilter: (value, record) => record.diagnosisLabel === value,
         render: (v: string | undefined) => (v ? <DiagnosisTag>{v}</DiagnosisTag> : '—'),
       },
       {
         title: 'Статус',
         dataIndex: 'statusLabel',
         key: 'statusLabel',
-        sorter: true,
-        sortOrder: sort?.key === 'statusLabel' ? toTableSortOrder(sort.order) : undefined,
+        filters: statusFilters,
+        onFilter: (value, record) => record.statusLabel === value,
         render: (_v: string | undefined, row) =>
           row.statusLabel ? <StatusTag tone={row.statusTone}>{row.statusLabel}</StatusTag> : '—',
       },
@@ -124,26 +148,74 @@ export function PatientListPanel({
         title: '',
         key: 'actions',
         align: 'right',
-        render: (_v, row) => (
-          <Button type="default" onClick={() => onOpenPatientCard?.(row.id)}>
-            Карта пациента
-          </Button>
-        ),
+        render: (_v, row) => {
+          const items: MenuProps['items'] = [
+            {
+              key: 'open',
+              label: 'Открыть',
+              onClick: () => onOpenPatientCard?.(row.id),
+            },
+            {
+              key: 'delete',
+              label: 'Удалить',
+              onClick: () => onDeletePatient?.(row.id),
+            },
+          ];
+
+          return (
+            <Dropdown menu={{ items }} trigger={['click']}>
+              <Typography.Link>
+                <EllipsisOutlined />
+              </Typography.Link>
+            </Dropdown>
+          );
+        },
       },
     ],
-    [onOpenPatientCard, sort?.key, sort?.order]
+    [diagnosisFilters, onDeletePatient, onOpenPatientCard, sort?.key, sort?.order, statusFilters]
   );
 
   const handleTableChange = React.useCallback(
-    (_pagination: TablePaginationConfig, _filters: unknown, sorter: unknown) => {
-      if (!onSortChange) return;
-
-      const s = sorter as { field?: string; order?: PatientListSortOrder };
-      const nextKey = (s.field ?? null) as PatientListSort['key'];
-      const nextOrder = (s.order ?? null) as PatientListSortOrder;
-      onSortChange({ key: nextKey, order: nextOrder });
+    (
+      pagination: TablePaginationConfig,
+      _filters: unknown,
+      sorter: unknown,
+      extra: TableCurrentDataSource<PatientRow>
+    ) => {
+      if (extra.action === 'paginate') {
+        if (pagination.current != null) {
+          onPageChange?.(pagination.current);
+        }
+        if (pagination.pageSize != null && pagination.pageSize !== pageSize) {
+          onPageSizeChange?.(pagination.pageSize);
+        }
+      }
+      if (extra.action === 'sort' && onSortChange) {
+        const s = (Array.isArray(sorter) ? sorter[0] : sorter) as {
+          field?: string;
+          order?: PatientListSortOrder;
+        };
+        const nextKey = (s.field ?? null) as PatientListSort['key'];
+        const nextOrder = (s.order ?? null) as PatientListSortOrder;
+        onSortChange({ key: nextKey, order: nextOrder });
+      }
     },
-    [onSortChange]
+    [onPageChange, onPageSizeChange, onSortChange, pageSize]
+  );
+
+  const tablePagination = React.useMemo(
+    () => ({
+      current: page,
+      pageSize,
+      total,
+      showSizeChanger: true,
+      pageSizeOptions: [10, 20, 50],
+      showTotal: (totalCount: number, range: [number, number]) =>
+        totalCount <= 0
+          ? '0 из 0 пациентов'
+          : `${range[0]}–${range[1]} из ${totalCount} пациентов`,
+    }),
+    [page, pageSize, total]
   );
 
   return (
@@ -162,18 +234,11 @@ export function PatientListPanel({
           columns={columns}
           dataSource={rows}
           loading={isLoading}
-          pagination={false}
+          pagination={tablePagination}
           onChange={handleTableChange}
           locale={{ emptyText }}
+          showSorterTooltip={{ title: 'Сортировать' }}
           size="middle"
-        />
-
-        <PatientTableFooter
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageChange={onPageChange}
-          onPageSizeChange={onPageSizeChange}
         />
       </Space>
     </Card>

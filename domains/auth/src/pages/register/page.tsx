@@ -4,8 +4,6 @@ import "./page.scss";
 
 import { useCallback, useState } from "react";
 import { Form, Input, Button, Badge, Space } from "antd";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 import { UserIcon } from "@medml/ui";
 import { EmailIcon, PasswordIcon } from "@medml/ui";
@@ -15,6 +13,7 @@ import { validateEmail } from "../../utils/validateEmail";
 import { validatePassword } from "../../utils/validatePassword";
 import AuthFormWrapper from "../../components/AuthFormWrapper";
 import { useAuthError } from "../../contexts/AuthErrorContext";
+import { DEFAULT_POST_AUTH_PATH } from "../../constants/routes";
 
 const { Password } = Input;
 
@@ -28,10 +27,10 @@ interface RegisterFormData {
 interface RegisterPageProps {
   onSuccess?: () => void;
   onError?: (error: string) => void;
+  authedRedirectTo?: string;
 }
 
-const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
-  const router = useRouter();
+const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PATH }: RegisterPageProps) => {
   const authApi = useAuthApi();
   const [form] = Form.useForm<RegisterFormData>();
   const [disabledButton, setDisabledButton] = useState(true);
@@ -90,27 +89,14 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
           password2: values.confirmPassword,
         });
 
-        const result = await signIn("credentials", {
-          username: values.email,
-          password: values.password,
-          redirect: false,
-        });
+        await authApi.login({ email: values.email, password: values.password });
 
-        if (result?.ok) {
-          setHasError(false);
-          setErrorMessage(null);
-          if (onSuccess) {
-            onSuccess();
-          } else {
-            router.push("/");
-          }
+        setHasError(false);
+        setErrorMessage(null);
+        if (onSuccess) {
+          onSuccess();
         } else {
-          const errorMsg = result?.error || "Неверные данные для входа";
-          setHasError(true);
-          setErrorMessage(errorMsg);
-          if (onError) {
-            onError(errorMsg);
-          }
+          window.location.assign(authedRedirectTo);
         }
       } catch (error: unknown) {
         const err = error as { data?: { detail?: string; message?: string } };
@@ -124,7 +110,7 @@ const RegisterPage = ({ onSuccess, onError }: RegisterPageProps) => {
         setIsRegisterLoading(false);
       }
     },
-    [authApi, router, onSuccess, onError, setHasError, setErrorMessage]
+    [authApi, onSuccess, onError, setHasError, setErrorMessage, authedRedirectTo]
   );
 
   const passwordRules = useCallback((ruleNumber: number) => {

@@ -1,4 +1,4 @@
-@import "./tokens";
+@use "./tokens" as *;
 
 // Secondary text style mixin
 @mixin text-secondary {

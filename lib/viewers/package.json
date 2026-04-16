@@ -9,7 +9,11 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@medml/shared": "*"
+    "@annotorious/openseadragon": "^3.3.2",
+    "@annotorious/react": "^3.1.0",
+    "@medml/shared": "*",
+    "@ant-design/icons": "^6.0.0",
+    "antd": "^5.27.0"
   },
   "peerDependencies": {
     "react": "^18.0.0",

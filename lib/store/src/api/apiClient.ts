@@ -1,7 +1,25 @@
+const getViteApiBaseUrl = (): string | undefined => {
+  try {
+    const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+    const url = env?.VITE_API_BASE_URL;
+    return typeof url === "string" && url.length > 0 ? url : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const getBaseUrl = (): string => {
-  return (
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api"
-  );
+  const viteUrl = getViteApiBaseUrl();
+  if (viteUrl) return viteUrl;
+
+  if (typeof process !== "undefined" && process.env) {
+    if (typeof window === "undefined") {
+      return process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+    }
+    return process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
+  }
+
+  return "/api";
 };
 
 export interface ApiRequestOptions {

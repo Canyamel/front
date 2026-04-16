@@ -59,7 +59,7 @@ export function CtViewer({ config }: CtViewerProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const viewportGridRef = useRef<HTMLDivElement>(null);
-  const resizeDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const resizeDebounceRef = useRef<number | undefined>(undefined);
   const cleanupRef = useRef<(() => void) | null>(null);
   const cacheMetadataCleanupRef = useRef<(() => void) | null>(null);
   const [messageApi, messageContextHolder] = message.useMessage();

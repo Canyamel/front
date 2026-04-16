@@ -3,22 +3,22 @@
 import "./Header.scss";
 
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Button, Card, Typography } from "antd";
 
 import { HeaderIcon } from "@medml/ui";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
 
 const { Title } = Typography;
 
 const Header = () => {
-  const { data: session } = useSession();
+  const { status } = useSession();
   const pathname = usePathname();
 
-  // const handleSignOut = useCallback(() => {
-  //   signOut({ callbackUrl: "/auth/login" });
-  // }, []);
+  const isAuthenticated = status === "authenticated";
+  const showLoginButton = !isAuthenticated && status !== "loading" && pathname !== "/auth/login";
+  const showRegisterButton =
+    !isAuthenticated && status !== "loading" && pathname === "/auth/login";
 
   return (
     <Card className="header-card">
@@ -34,12 +34,12 @@ const Header = () => {
           <Link href="/patients" >
             <Title level={5} type="secondary">Пациенты</Title>
           </Link>
-          <Link href="/export">
-            <Title level={5} type="secondary">Профиль врача</Title>
+          <Link href="/faq">
+            <Title level={5} type="secondary">FAQ</Title>
           </Link>
         </div>
 
-        {!session && pathname !== "/auth/login" && (
+        {showLoginButton && (
           <Link href="/auth/login">
             <Button className="header-button">
               <Title level={5}>Вход</Title>
@@ -47,7 +47,7 @@ const Header = () => {
           </Link>
         )}
 
-        {!session && pathname === "/auth/login" && (
+        {showRegisterButton && (
           <Link href="/auth/register">
             <Button className="header-button">
               <Title level={5}>Регистрация</Title>

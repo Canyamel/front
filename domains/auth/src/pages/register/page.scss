@@ -1,3 +1,5 @@
+@use "@medml/ui/styles/fonts" as *;
+
 .register-form {
     width: 100%;
 
@@ -17,8 +19,6 @@
     height: auto !important;
     padding: 14px 20px !important;
 }
-
-@import "@medml/ui/styles/fonts";
 
 .password-rules {
     margin-bottom: 24px;

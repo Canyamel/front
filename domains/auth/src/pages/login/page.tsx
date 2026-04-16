@@ -4,13 +4,13 @@ import "./page.scss";
 
 import { useCallback, useState } from "react";
 import { Button, Form, Input } from "antd";
-import { useRouter } from "next/navigation";
-
 import { EmailIcon, PasswordIcon } from "@medml/ui";
 import { validateEmail } from "../../utils/validateEmail";
 import AuthFormWrapper from "../../components/AuthFormWrapper";
 import { useAuthError } from "../../contexts/AuthErrorContext";
 import { useAuthApi } from "../../contexts/AuthApiContext";
+import { DEFAULT_POST_AUTH_PATH } from "../../constants/routes";
+import { sanitizeInternalPath } from "../../utils/sanitizeCallbackUrl";
 
 const { Password } = Input;
 
@@ -22,14 +22,24 @@ interface LoginFormData {
 interface LoginPageProps {
   onSuccess?: () => void;
   onError?: (error: string) => void;
+  /** Куда уйти, если пользователь уже авторизован (по умолчанию — список пациентов) */
+  authedRedirectTo?: string;
+  /** Из query `callbackUrl` (передаётся из server page) */
+  callbackUrl?: string | null;
 }
 
-const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
-  const router = useRouter();
+const LoginPage = ({
+  onSuccess,
+  onError,
+  authedRedirectTo = DEFAULT_POST_AUTH_PATH,
+  callbackUrl,
+}: LoginPageProps) => {
   const authApi = useAuthApi();
   const [form] = Form.useForm<LoginFormData>();
   const [disabledButton, setDisabledButton] = useState(true);
   const { hasError, setHasError, setErrorMessage } = useAuthError();
+
+  const resolvedAfterLogin = sanitizeInternalPath(callbackUrl) ?? authedRedirectTo;
 
   const handleSubmit = useCallback(
     async (values: LoginFormData) => {
@@ -44,7 +54,7 @@ const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
         if (onSuccess) {
           onSuccess();
         } else {
-          router.push("/");
+          window.location.assign(resolvedAfterLogin);
         }
       } catch (error: unknown) {
         const errorMsg =
@@ -59,7 +69,7 @@ const LoginPage = ({ onSuccess, onError }: LoginPageProps) => {
         }
       }
     },
-    [authApi, router, onSuccess, onError, setHasError, setErrorMessage]
+    [authApi, onSuccess, onError, setHasError, setErrorMessage, resolvedAfterLogin]
   );
 
   const checkFormValidity = useCallback(() => {
