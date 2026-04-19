@@ -9,7 +9,7 @@ import type { CtLayoutId } from "../layout";
 import { DEFAULT_CT_LAYOUT } from "../layout";
 import { MprControlBar } from "./mpr/MprControlBar";
 import { MprViewportGrid } from "./mpr/MprViewportGrid";
-import { RenderingEngine, Enums, getRenderingEngine } from "@cornerstonejs/core";
+import { RenderingEngine, Enums, getRenderingEngine, cache } from "@cornerstonejs/core";
 import * as polySeg from "@cornerstonejs/polymorphic-segmentation";
 import type { PublicViewportInput } from "@cornerstonejs/core/types";
 import * as cornerstoneTools from "@cornerstonejs/tools";
@@ -19,6 +19,7 @@ import {
   VIEWPORT_IDS,
   VIEWPORT_MIN_SIZE_PX,
   toolGroupIdForSeries,
+  volumeIdForSeries,
 } from "../viewer/constants";
 import type { MprSlotState } from "../viewer/types";
 import { registerCacheBasedMetadataProvider } from "../viewer/metadataProviders";
@@ -203,8 +204,8 @@ export function CtViewer({ config }: CtViewerProps) {
         if (myToken !== loadTokenRef.current) return;
         if (!mountedRef.current) return;
 
-        // Очистить кэш предыдущих томов, кроме текущего
-        const currentSeriesIds = slots.map(s => s.seriesId).filter(Boolean) as string[];
+        // Очистить кэш предыдущих томов, кроме текущего (но для повторной загрузки очистить и текущий)
+        const currentSeriesIds = slots.map(s => s.seriesId).filter(Boolean).filter(id => id !== seriesId) as string[];
         purgeVolumeCache(currentSeriesIds);
 
         await loadVolumeAndAssignToSlots(seriesId);
