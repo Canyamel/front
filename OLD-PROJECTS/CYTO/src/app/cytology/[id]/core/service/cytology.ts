@@ -3,11 +3,13 @@ import { baseApi } from "@/service/baseApi";
 import { IPoint } from "@cytology/CytologyView/CytologyViewer/Viewer/interfaces/queries";
 import { ICytolgyInfoPatch, ICytology, ICytologyHistory } from "@cytology/core/types/cytology";
 import {
-    IGroupedSegments,
     ISegmentCreate,
-    ISegmentResponse,
     ISegmentStack,
+    ISegmentType,
+    SegmentType,
+    ISegment,
 } from "@cytology/core/types/segments";
+import { IPaginated } from "../types/basic";
 
 export const cytologyApi = baseApi.injectEndpoints({
     endpoints: (builder) => ({
@@ -15,32 +17,29 @@ export const cytologyApi = baseApi.injectEndpoints({
             query: (id) => `/cytology/${id}`,
             providesTags: ["Cytology"],
         }),
-        getCytologySegment: builder.query<IGroupedSegments[], string | number>({
-            query: (id) => `/cytology/${id}/segments`,
+        getCytologyTypes: builder.query<ISegmentType[], string | number>({
+            query: (id) => `/cytology/${id}/segments/types/`,
             providesTags: ["Segments"],
-            transformResponse: (response: ISegmentResponse) =>
-                response.results.reduce((acc: IGroupedSegments[], segment) => {
-                    const existingGroup = acc.find((group) => group.seg_type === segment.seg_type);
+            transformResponse: (response: IPaginated<ISegmentType>) => response.results
+        }),
+        getCytologySegmentsByType: builder.query<
+            ISegmentStack[],
+            { id: string | number; segType: SegmentType }
+        >({
+            query: ({ id, segType }) => `/cytology/${id}/segments/${segType}/`,
+            providesTags: ["Segments"],
+            transformResponse: (response: ISegment[]) =>
+                response.flatMap((segment) => {
                     const { data, seg_type, is_ai } = segment;
-                    const segmentsToStack: ISegmentStack[] = data.map((segmentData) => ({
+
+                    return data.map((segmentData) => ({
                         id: segmentData.id,
                         seg_type,
                         is_ai,
                         points: segmentData.points,
                         details: segmentData.details,
                     }));
-
-                    if (existingGroup) {
-                        existingGroup.segments.push(...segmentsToStack);
-                    } else {
-                        acc.push({
-                            seg_type: seg_type,
-                            segments: segmentsToStack,
-                        });
-                    }
-
-                    return acc;
-                }, []),
+                }),
         }),
         addSegment: builder.mutation<void, { cytologyId: number; segment: ISegmentCreate }>({
             query: ({ cytologyId, segment }) => ({
@@ -90,8 +89,8 @@ export const cytologyApi = baseApi.injectEndpoints({
 
 export const {
     useGetCytologyInfoQuery,
-    useGetCytologySegmentQuery,
-    useLazyGetCytologySegmentQuery,
+    useGetCytologyTypesQuery,
+    useLazyGetCytologySegmentsByTypeQuery,
     useAddSegmentMutation,
     usePatchSegmentMutation,
     useDeleteSegmentMutation,

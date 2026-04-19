@@ -27,7 +27,8 @@
       "@medml/auth": ["./domains/auth/src"],
       "@medml/layout": ["./domains/layout/src"],
       "@medml/shared": ["./lib/shared/src"],
-      "@medml/viewers": ["./lib/viewers/src"]
+      "@medml/viewers": ["./lib/viewers/src"],
+      "@medml/ct-mri-viewer": ["./lib/ct-mri-viewer/src"]
     }
   },
   "exclude": ["node_modules"]

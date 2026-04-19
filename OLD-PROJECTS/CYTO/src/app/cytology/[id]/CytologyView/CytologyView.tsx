@@ -12,12 +12,19 @@ import {
 } from "@cytology/core/store";
 import {
     useGetCytologyInfoQuery,
-    useGetCytologySegmentQuery,
+    useGetCytologyTypesQuery,
+    useLazyGetCytologySegmentsByTypeQuery,
 } from "@cytology/core/service/cytology";
 import { Modes } from "@/app/cytology/[id]/core/types/basic";
 
 import CytologyDiagnosisPanel from "./CytologyDiagnosisPanel/CytologyDiagnosisPanel";
 import CytologyViewer from "./CytologyViewer/CytologyViewer";
+import {
+    IGroupedSegments,
+    ISegmentStack,
+    ISegmentType,
+    SegmentType,
+} from "@cytology/core/types/segments";
 
 import "./CytologyView.css";
 
@@ -32,14 +39,17 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
     const segmentStack = useAppSelector((state) => state.segment.segmentStack);
 
     const [mode, setMode] = useState<Modes>("view");
+    const [viewSegments, setViewSegments] = useState<ISegmentStack[]>([]);
 
     const { data: cytologyInfoData } = useGetCytologyInfoQuery(
         !!accessToken ? generalCytologyId : skipToken
     );
 
-    const { data: segmentsData } = useGetCytologySegmentQuery(
+    const { data: segmentTypesData } = useGetCytologyTypesQuery(
         !!accessToken ? generalCytologyId : skipToken
     );
+
+    const [getSegmentsByType] = useLazyGetCytologySegmentsByTypeQuery();
 
     useEffect(() => {
         dispatch(setCytologyId(generalCytologyId));
@@ -53,11 +63,65 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
     }, [cytologyInfoData, dispatch, mode]);
 
     useEffect(() => {
-        if (mode === "view") {
-            dispatch(setInitSegments(segmentsData || []));
-            dispatch(setSegmentsStack(segmentsData || []));
+        if (mode !== "view") {
+            return;
         }
-    }, [dispatch, mode, segmentsData]);
+
+        if (!accessToken || !segmentTypesData) {
+            dispatch(setInitSegments([]));
+            dispatch(setSegmentsStack([]));
+            return;
+        }
+
+        const loadAllSegments = async () => {
+            const grouped: IGroupedSegments[] = [];
+
+            for (const type of segmentTypesData as ISegmentType[]) {
+                const segType = type.code as SegmentType;
+
+                try {
+                    const segments = await getSegmentsByType({
+                        id: generalCytologyId,
+                        segType,
+                    }).unwrap();
+
+                    if (!segments.length) continue;
+
+                    grouped.push({
+                        seg_type: segType,
+                        segments,
+                    });
+                } catch {
+                    // ignore failed type load
+                }
+            }
+
+            dispatch(setInitSegments(grouped));
+            dispatch(setSegmentsStack(grouped));
+        };
+
+        loadAllSegments();
+    }, [dispatch, mode, accessToken, segmentTypesData, generalCytologyId, getSegmentsByType]);
+
+    useEffect(() => {
+        if (mode !== "view") {
+            return;
+        }
+
+        if (!accessToken || !currentSegment) {
+            setViewSegments([]);
+            return;
+        }
+
+        getSegmentsByType({ id: generalCytologyId, segType: currentSegment as SegmentType })
+            .unwrap()
+            .then((segments) => {
+                setViewSegments(segments);
+            })
+            .catch(() => {
+                setViewSegments([]);
+            });
+    }, [mode, accessToken, currentSegment, generalCytologyId, getSegmentsByType]);
 
     return (
         <>
@@ -65,9 +129,13 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
                 <Col span={16} className="cytology-viewer-wrapper">
                     <CytologyViewer
                         isEditMode={mode === "edit"}
-                        segments={(segmentStack ?? []).flatMap((item) =>
-                            item.seg_type === currentSegment ? item.segments : []
-                        )}
+                        segments={
+                            mode === "edit"
+                                ? (segmentStack ?? []).flatMap((item) =>
+                                      item.seg_type === currentSegment ? item.segments : []
+                                  )
+                                : viewSegments
+                        }
                         imageUrl={cytologyInfoData?.original_image.image}
                     />
                 </Col>

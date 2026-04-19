@@ -18,7 +18,8 @@ export type SegmentType =
     | "STS"
     | "SPS"
     | "SNM"
-    | "STM";
+    | "STM"
+    | "PFS";
 
 export const segmentTypes: SegmentType[] = [
     "NIL",
@@ -37,6 +38,7 @@ export const segmentTypes: SegmentType[] = [
     "SPS",
     "SNM",
     "STM",
+    "PFS"
 ];
 
 export const segmentsTranslated: Record<SegmentType, string> = {
@@ -56,6 +58,7 @@ export const segmentsTranslated: Record<SegmentType, string> = {
     NIL: "Нет информации о клетках",
     NIR: "Нет информации о скоплениях",
     NIM: "Нет информации о метастазе",
+    PFS: "Парафолликулярная структура"
 };
 
 export type ISegmentResponse = IPaginated<ISegment>;
@@ -112,4 +115,10 @@ export interface ISegmentCreate {
         points: IPoint[];
     };
     seg_type: SegmentType;
+}
+
+export interface ISegmentType {
+    code: string;
+    label: string;
+    color: string;
 }
