@@ -73,8 +73,11 @@ export async function loadVolumeToViewports(
   const windowRange = voiRangeFromImage(refImage, policy);
   ctx.seriesWindowRef.current.set(seriesId, windowRange);
 
-  const volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
-  await volume.load();
+  let volume = cache.getVolume(volId);
+  if (!volume) {
+    volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
+    await volume.load();
+  }
   ctx.seriesVolumeIdsRef.current.set(seriesId, volId);
 
   const removeFallback = registerVolumeImagePlaneFallback(volId);
@@ -197,6 +200,10 @@ export function purgeVolumeCache(keepSeriesIds: string[]): void {
   });
 
   volumesToRemove.forEach(volumeId => {
-    cache.removeVolumeLoadObject(volumeId);
+    try {
+      cache.removeVolumeLoadObject(volumeId);
+    } catch (error) {
+      console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
+    }
   });
 }
