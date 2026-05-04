@@ -20,7 +20,8 @@ export type LoadVolumeContext = {
   activeTool: ViewerToolId;
   toolGroupsBySeriesRef: MutableRefObject<Map<string, ToolGroupT>>;
   seriesVolumeIdsRef: MutableRefObject<Map<string, string>>;
-  seriesWindowRef: MutableRefObject<Map<string, [number, number]>>;
+  /** Начальный VOI с загрузки серии — только для сброса яркости, не перезаписывать при WL. */
+  seriesInitialVoiRef: MutableRefObject<Map<string, [number, number]>>;
   setSlots: Dispatch<SetStateAction<MprSlotState[]>>;
   setFrameOfReferenceUID: (uid: string | null) => void;
 };
@@ -71,7 +72,7 @@ export async function loadVolumeToViewports(
     refImage = cache.getImage(imageIds[0]) as typeof refImage;
   }
   const windowRange = voiRangeFromImage(refImage, policy);
-  ctx.seriesWindowRef.current.set(seriesId, windowRange);
+  ctx.seriesInitialVoiRef.current.set(seriesId, windowRange);
 
   const volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
   await volume.load();

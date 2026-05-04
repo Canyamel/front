@@ -88,8 +88,8 @@ export function CtViewer({ config }: CtViewerProps) {
   type ToolGroupT = ReturnType<typeof ToolGroupManager.getToolGroup>;
   const toolGroupsBySeriesRef = useRef<Map<string, ToolGroupT>>(new Map());
   const seriesVolumeIdsRef = useRef<Map<string, string>>(new Map());
-  const seriesWindowRef = useRef<Map<string, [number, number]>>(new Map());
-  useMprVoiSync(cornerstoneReady, seriesWindowRef);
+  const seriesInitialVoiRef = useRef<Map<string, [number, number]>>(new Map());
+  useMprVoiSync(cornerstoneReady);
   const activeToolRef = useRef<CtToolId>(activeTool);
   activeToolRef.current = activeTool;
 
@@ -149,10 +149,24 @@ export function CtViewer({ config }: CtViewerProps) {
     if (!re) return;
     const slotsWithVolume = slots.filter((s) => s.seriesId != null);
     for (const slot of slotsWithVolume) {
-      const range = seriesWindowRef.current.get(slot.seriesId!);
+      const seriesId = slot.seriesId!;
+      const range = seriesInitialVoiRef.current.get(seriesId);
       if (!range) continue;
-      const vp = re.getViewport(slot.viewportId);
-      const actorEntry = (vp as { getDefaultActor?: () => { actor?: unknown } })?.getDefaultActor?.();
+      const volumeId = seriesVolumeIdsRef.current.get(seriesId);
+      const vp = re.getViewport(slot.viewportId) as
+        | {
+            setProperties?: (props: unknown) => void;
+            setVOI?: (voi: { lower: number; upper: number }, volId?: string, suppressEvents?: boolean) => void;
+            getDefaultActor?: () => { actor?: unknown };
+          }
+        | undefined;
+      if (!vp) continue;
+      if (typeof vp.setVOI === "function") {
+        vp.setVOI({ lower: range[0], upper: range[1] }, volumeId, true);
+      } else if (typeof vp.setProperties === "function") {
+        vp.setProperties({ voiRange: { lower: range[0], upper: range[1] } });
+      }
+      const actorEntry = vp.getDefaultActor?.();
       const actor = actorEntry?.actor as
         | {
             getProperty?: () => {
@@ -182,7 +196,7 @@ export function CtViewer({ config }: CtViewerProps) {
         activeTool: activeToolRef.current,
         toolGroupsBySeriesRef,
         seriesVolumeIdsRef,
-        seriesWindowRef,
+        seriesInitialVoiRef,
         setSlots,
         setFrameOfReferenceUID,
       });
