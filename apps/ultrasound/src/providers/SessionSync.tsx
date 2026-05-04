@@ -18,7 +18,7 @@ import {
 
 /**
  * 1) При VITE_SESSION_CHECK=true — GET проверка сессии (см. VITE_SESSION_PATH).
- * 2) Иначе при старте — один POST /refresh (как «проверка сессии» без NextAuth), если не VITE_BOOTSTRAP_REFRESH=false.
+ * 2) Иначе при старте bootstrap-refresh ВЫКЛЮЧЕН по умолчанию и включается только через VITE_BOOTSTRAP_REFRESH=true.
  * 3) Любой 401 на API обрабатывает @medml/store baseQuery (refresh + повтор запроса).
  */
 export default function SessionSync({ children }: { children: React.ReactNode }) {
@@ -43,7 +43,7 @@ export default function SessionSync({ children }: { children: React.ReactNode })
     if (sessionEnabled) return;
     if (bootstrapDone.current) return;
     if (!accessToken || !refreshToken) return;
-    if (import.meta.env.VITE_BOOTSTRAP_REFRESH === "false") return;
+    if (import.meta.env.VITE_BOOTSTRAP_REFRESH !== "true") return;
 
     bootstrapDone.current = true;
     refreshMutation({ token: refreshToken })

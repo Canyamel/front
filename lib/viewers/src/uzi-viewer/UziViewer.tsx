@@ -45,7 +45,8 @@ const UziViewer: React.FC<UziViewerProps> = ({
 }) => {
   const [tool, setTool] = useState<UziDrawingTool>("rectangle");
   const canDrawOnSelectedNode = isEditMode && !!selectedNode && selectedNode.specialist !== "ai";
-  const viewerType = "osd";
+  // OLD UZI behavior: use plain Annotorious image viewer.
+  const viewerType = "img";
   const currentImageSegments = useMemo(
     () => segments.filter((segment) => segment.image_id === imageId),
     [segments, imageId]

@@ -34,7 +34,7 @@ export default function SessionSync({ children }: { children: React.ReactNode })
     if (sessionEnabled) return;
     if (bootstrapDone.current) return;
     if (!accessToken || !refreshToken) return;
-    if (import.meta.env.VITE_BOOTSTRAP_REFRESH === "false") return;
+    if (import.meta.env.VITE_BOOTSTRAP_REFRESH !== "true") return;
 
     bootstrapDone.current = true;
     refreshMutation({ token: refreshToken })
