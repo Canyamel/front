@@ -1,0 +1,45 @@
+.uzi-icons {
+    font-size: 30px;
+}
+
+.uzi-toolbox {
+    width: 50%;
+}
+
+.uzi-viewer {
+    height: 100%;
+    position: relative;
+}
+
+.uzi-edit-hint {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    width: min(360px, calc(100% - 24px));
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    border-radius: 10px;
+}
+
+.uzi-viewer-wrapper {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.viewer {
+    width: 200px;
+}
+
+.left {
+    margin-right: auto;
+}
+
+.right {
+    margin-left: auto;
+}
+
+.uzi-nav-button.ant-btn-link:disabled {
+    background: transparent !important;
+    box-shadow: none !important;
+}

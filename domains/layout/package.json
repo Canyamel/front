@@ -16,8 +16,10 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "antd": "^5.12.0",
+    "@medml/ui": "*",
     "next": "^14.0.0",
-    "next-auth": "^4.24.11"
+    "next-auth": "^4.24.11",
+    "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

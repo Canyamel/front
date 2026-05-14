@@ -1,4 +1,4 @@
-@import "@medml/ui/styles/fonts";
+@use "@medml/ui/styles/fonts" as *;
 
 // Spacing Tokens
 $spacing-md: 30px;
@@ -8,4 +8,10 @@ $spacing-md: 30px;
   font-family: $font-family-sf-pro;
   padding-left: 30%;
   padding-right: 30%;
+}
+
+.auth-redirect-hint {
+  margin: 0;
+  text-align: center;
+  opacity: 0.85;
 }

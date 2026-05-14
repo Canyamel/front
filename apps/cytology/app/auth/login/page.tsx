@@ -1,6 +1,10 @@
 import { LoginPage } from "@medml/auth";
 
-const Login = () => <LoginPage />;
+type Props = {
+  searchParams: { callbackUrl?: string };
+};
 
-export default Login;
+export default function Login({ searchParams }: Props) {
+  return <LoginPage callbackUrl={searchParams.callbackUrl} />;
+}
 

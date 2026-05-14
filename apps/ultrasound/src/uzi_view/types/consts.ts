@@ -1,0 +1,14 @@
+export const ADD_NODE = "Add node";
+export const ADD_SEGMENT = "Add segment";
+export const EDIT_ECHO = "Edit echo";
+export const DOWNLOAD_UZI = "Download uzi";
+export const GET_UZI_IDS = "Get uzi ids";
+export const GET_NODES_SEGMENTS = "Get nodes segments";
+export const GET_NODES = "Get nodes";
+export const GET_SEGMENTS = "Get segments";
+export const DELETE_NODE = "Delete node";
+export const DELETE_SEGMENT = "Delete segment";
+export const EDIT_SEGMENT = "Edit segment";
+export const GET_ECHO = "Get echo";
+export const GET_UZI_INFO = "Get uzi info";
+export const GET_PATIENT_INFO = "Get patient info";

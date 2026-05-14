@@ -4,22 +4,29 @@ import "../../styles/auth.scss";
 
 import { PropsWithChildren, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 import AuthCard from "../AuthCard";
+import { DEFAULT_POST_AUTH_PATH } from "../../constants/routes";
+import { sanitizeInternalPath } from "../../utils/sanitizeCallbackUrl";
 
 const AuthLayout = ({ children }: PropsWithChildren) => {
   const { status } = useSession();
-  const router = useRouter();
 
   useEffect(() => {
-    if (status === "authenticated") {
-      router.replace("/");
-    }
-  }, [status, router]);
+    if (status !== "authenticated" || typeof window === "undefined") return;
+    const raw = new URLSearchParams(window.location.search).get("callbackUrl");
+    const target = sanitizeInternalPath(raw) ?? DEFAULT_POST_AUTH_PATH;
+    window.location.assign(target);
+  }, [status]);
 
   if (status === "authenticated") {
-    return null;
+    return (
+      <div className="auth_pages">
+        <AuthCard>
+          <p className="auth-redirect-hint">Перенаправление…</p>
+        </AuthCard>
+      </div>
+    );
   }
 
   return (

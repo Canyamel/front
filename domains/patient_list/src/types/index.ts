@@ -7,7 +7,8 @@ export type PatientRow = {
   policyNumber?: string;
   email?: string;
 
-  visitDate?: string;
+  /** Дата рождения (с бэка `birth_date`) */
+  birthDate?: string;
   diagnosisLabel?: string;
 
   statusLabel?: string;

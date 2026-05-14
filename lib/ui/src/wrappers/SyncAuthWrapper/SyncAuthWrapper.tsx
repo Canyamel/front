@@ -2,7 +2,6 @@
 
 import { setToken } from "@medml/store";
 import { useAppDispatch } from "@medml/store";
-import { Session } from "next-auth";
 import { useSession } from "next-auth/react";
 import React, { ReactNode, useEffect } from "react";
 
@@ -12,12 +11,18 @@ interface SyncAuthWrapperProps {
 
 const SyncAuthWrapper: React.FC<SyncAuthWrapperProps> = ({ children }) => {
   const dispatch = useAppDispatch();
-  const { data }: { data: (Session & { accessToken?: string }) | null } =
-    useSession();
+  const { data, status } = useSession();
 
   useEffect(() => {
-    dispatch(setToken(data?.accessToken));
-  }, [data, dispatch]);
+    const accessToken = (data as { accessToken?: string } | null | undefined)?.accessToken;
+    if (status === "authenticated" && accessToken) {
+      dispatch(setToken(accessToken));
+      return;
+    }
+    if (status === "unauthenticated") {
+      dispatch(setToken(undefined));
+    }
+  }, [data, status, dispatch]);
 
   return <>{children}</>;
 };

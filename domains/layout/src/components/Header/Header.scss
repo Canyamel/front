@@ -1,12 +1,8 @@
-@import "@medml/ui/styles/fonts";
+@use "@medml/ui/styles/tokens" as *;
 
 // Color Tokens
 $color-accent: #FF6B35;
 $color-text-white: #ffffff;
-
-// Font Tokens
-$font-size-medium: 16px;
-$font-weight-semibold: 510;
 
 // Spacing Tokens
 $spacing-sm: 20px;
@@ -27,8 +23,9 @@ $button-padding-y: 8px;
 }
 
 @mixin header-font-base {
-  font-family: $font-family-sf-pro !important;
+  font-family: $font-family-base !important;
   font-size: $font-size-medium;
+  font-weight: $font-weight-normal;
 }
 
 @mixin accent-button {
@@ -40,9 +37,19 @@ $button-padding-y: 8px;
   @include header-hover-effect;
 
   * {
-    font-weight: $font-weight-semibold !important;
+    font-weight: $font-weight-medium !important;
     color: $color-text-white !important;
   }
+}
+
+.header-nav-text {
+  margin: 0 !important;
+  font-weight: $font-weight-normal !important;
+  font-size: $font-size-medium;
+}
+
+.header-button .header-nav-text {
+  font-weight: $font-weight-medium !important;
 }
 
 .header {

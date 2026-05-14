@@ -1,0 +1,15 @@
+@use "./tokens" as *;
+
+* {
+  font-family: $font-family-base;
+}
+
+.page {
+  height: calc(100vh - 100px);
+  padding-bottom: 5%;
+}
+
+.page-dynamic {
+  min-height: calc(100vh - 100px);
+  padding-bottom: 5%;
+}

@@ -4,72 +4,92 @@ import * as React from 'react';
 import { Layout } from 'antd';
 
 import { PatientListPanel, type PatientListPanelProps } from '../../components/PatientListPanel/PatientListPanel';
-import { PatientListUiProvider, usePatientListUi } from '../../contexts/PatientListUiContext';
-import type { PatientRow } from '../../types';
+import type { PatientListSort, PatientListSortOrder, PatientRow } from '../../types';
 
-const mockRows: PatientRow[] = [
-  {
-    id: 1,
-    fullName: 'Алексеев Алексей Алексеевич',
-    avatarText: 'АА',
-    policyNumber: '1111111111111111',
-    email: '654123@mail.ru',
-    visitDate: '04.02.2026',
-    diagnosisLabel: 'не обслед.',
-    statusLabel: 'Активен',
-    statusTone: 'success',
-  },
-];
+export type PatientsPageProps = {
+  title?: React.ReactNode;
+  className?: string;
 
-function PatientsPageInner() {
-  const { search, setSearch, page, setPage, pageSize, setPageSize, sort, setSort } =
-    usePatientListUi();
+  rows?: PatientRow[];
+  total?: number;
+  isLoading?: boolean;
+  emptyText?: React.ReactNode;
 
-  const filtered = React.useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return mockRows;
-    return mockRows.filter((r) => {
-      const hay = `${r.fullName} ${r.policyNumber ?? ''} ${r.email ?? ''}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [search]);
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  onSearchSubmit?: (value: string) => void;
 
-  const paged = React.useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [page, pageSize, filtered]);
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 
-  React.useEffect(() => {
-    setPage(1);
-  }, [search, pageSize, setPage]);
+  sort?: PatientListSort;
+  onSortChange?: (sort: PatientListSort) => void;
+
+  onAddPatient?: () => void;
+  onOpenPatientCard?: (id: PatientRow['id']) => void;
+  onDeletePatient?: (id: PatientRow['id']) => void;
+};
+
+export default function PatientsPage({
+  title = 'Мои пациенты',
+  className,
+  rows = [],
+  total,
+  isLoading,
+  emptyText,
+  searchValue,
+  onSearchChange,
+  onSearchSubmit,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  sort,
+  onSortChange,
+  onAddPatient,
+  onOpenPatientCard,
+  onDeletePatient,
+}: PatientsPageProps) {
+  const [internalSearch, setInternalSearch] = React.useState('');
+  const [internalPage, setInternalPage] = React.useState(1);
+  const [internalPageSize, setInternalPageSize] = React.useState(10);
+  const [internalSort, setInternalSort] = React.useState<PatientListSort>({
+    key: null,
+    order: null as PatientListSortOrder,
+  });
+
+  const resolvedSearch = searchValue ?? internalSearch;
+  const resolvedPage = page ?? internalPage;
+  const resolvedPageSize = pageSize ?? internalPageSize;
+  const resolvedSort = sort ?? internalSort;
 
   const panelProps: PatientListPanelProps = {
-    title: 'Мои пациенты',
-    rows: paged,
-    total: filtered.length,
-    page,
-    pageSize,
-    searchValue: search,
-    onSearchChange: setSearch,
-    onSearchSubmit: (v) => setSearch(v),
-    onAddPatient: () => {},
-    onOpenPatientCard: () => {},
-    onPageChange: (p) => setPage(p),
-    onPageSizeChange: (s) => setPageSize(s),
-    sort,
-    onSortChange: (next) => setSort(next),
+    className,
+    title,
+    rows,
+    total: total ?? rows.length,
+    isLoading,
+    emptyText,
+    page: resolvedPage,
+    pageSize: resolvedPageSize,
+    searchValue: resolvedSearch,
+    onSearchChange: onSearchChange ?? setInternalSearch,
+    onSearchSubmit: onSearchSubmit ?? (onSearchChange ?? setInternalSearch),
+    onPageChange: onPageChange ?? setInternalPage,
+    onPageSizeChange: onPageSizeChange ?? setInternalPageSize,
+    sort: resolvedSort,
+    onSortChange: onSortChange ?? setInternalSort,
+    onAddPatient,
+    onOpenPatientCard,
+    onDeletePatient,
   };
 
-  return <PatientListPanel {...panelProps} />;
-}
-
-export default function PatientsPage() {
   return (
     <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
       <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: '0 auto', width: '100%' }}>
-        <PatientListUiProvider initialPageSize={10}>
-          <PatientsPageInner />
-        </PatientListUiProvider>
+        <PatientListPanel {...panelProps} />
       </Layout.Content>
     </Layout>
   );

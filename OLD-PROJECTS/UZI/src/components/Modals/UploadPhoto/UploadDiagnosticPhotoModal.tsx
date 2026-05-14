@@ -209,7 +209,7 @@ export default function UploadDiagnosticPhotoModal({
                         >
                             <Select
                                 options={[
-                                    { value: 'lateral', label: 'Продольная' },
+                                    { value: 'long', label: 'Продольная' },
                                     { value: 'cross', label: 'Поперечная' },
                                 ]}
                                 placeholder="Выберите проекцию"
@@ -257,14 +257,14 @@ export default function UploadDiagnosticPhotoModal({
                                     options={
                                         Array.isArray(patients)
                                             ? patients.map(
-                                                  (
-                                                      option: PatientDataType
-                                                  ) => ({
-                                                      value: option.key,
-                                                      label: option.fullName,
-                                                      policy: option.policy,
-                                                  })
-                                              )
+                                                (
+                                                    option: PatientDataType
+                                                ) => ({
+                                                    value: option.key,
+                                                    label: option.fullName,
+                                                    policy: option.policy,
+                                                })
+                                            )
                                             : []
                                     }
                                     optionRender={(option) => (
@@ -322,7 +322,7 @@ export default function UploadDiagnosticPhotoModal({
                                 title="Начать"
                                 htmlType="submit"
                                 type="primary"
-                                // disabled={!isValidForm}
+                            // disabled={!isValidForm}
                             />
                         </ConditionalRender>
                     </Flex>

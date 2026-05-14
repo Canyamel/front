@@ -3,13 +3,8 @@
 import React from "react";
 
 import { AuthErrorProvider } from "@medml/auth";
-import {
-  RootProvider,
-  LoadingWrapper,
-  MessageWrapper,
-  ModalWrapper,
-  SyncAuthWrapper,
-} from "@medml/ui";
+import { LoadingWrapper, MessageWrapper, ModalWrapper } from "@medml/ui";
+import { RootProvider, SyncAuthWrapper } from "@medml/ui/next";
 
 const RootLayoutClient = ({ children }: React.PropsWithChildren) => (
     <RootProvider modality="cytology">

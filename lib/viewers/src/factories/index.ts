@@ -2,4 +2,6 @@
 
 // Placeholder for ViewerFactory implementation
 
+export {};
+
 

@@ -10,16 +10,36 @@ interface RefreshTokenResponse {
   refresh_token: string;
 }
 
+const getNormalizedApiBase = (): string => {
+  const raw = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+  const trimmed = raw.replace(/\/+$/, "");
+  return trimmed.replace(/\/auth$/i, "");
+};
+
+const buildAuthUrl = (path: string): string => {
+  const base = getNormalizedApiBase();
+  if (!base) {
+    return path;
+  }
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+};
+
 const handleRefreshToken = async (token: string) => {
   const data = await apiRequest<RefreshTokenResponse>({
-    url: "/auth/refresh",
+    url: buildAuthUrl("/refresh"),
     method: "POST",
-    headers: { token },
+    body: {
+      refresh_token: token,
+    },
   });
   return data;
 };
 
 const authOptions: NextAuthOptions = {
+  pages: {
+    signIn: "/auth/login",
+  },
   providers: [
     CredentialsProvider({
       name: "Credentials",
