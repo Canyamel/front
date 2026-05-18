@@ -2,9 +2,9 @@ import { AuthState } from '../slices/authSlice';
 
 export const prepareHeaders = (
   headers: Headers,
-  { getState }: { getState: () => unknown }
+  api: { getState: () => unknown; endpoint: string; type: string }
 ) => {
-  const state = getState() as { auth: AuthState };
+  const state = api.getState() as { auth: AuthState };
   const token = state?.auth?.accessToken;
 
   if (token) {

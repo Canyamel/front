@@ -1,6 +1,7 @@
+/** Ключи — коды для API (кириллица, как в OLD-PROJECTS/CYTO). */
 export const markings: Record<string, string> = {
-  P11: "П11",
-  L23: "Л23",
+  П11: "П11",
+  Л23: "Л23",
 };
 
 export const localizations: Record<string, string> = {

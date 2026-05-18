@@ -40,6 +40,19 @@ const joinBase = (base: string, path: string): string => {
   return `${b}${p}`;
 };
 
+const getViteEnv = (): Record<string, string | undefined> | undefined => {
+  try {
+    return (import.meta as { env?: Record<string, string | undefined> }).env;
+  } catch {
+    return undefined;
+  }
+};
+
+const getAuthRefreshPath = (): string => getViteEnv()?.VITE_AUTH_REFRESH_PATH ?? '/refresh';
+
+const refreshUsesTokenHeader = (): boolean =>
+  getViteEnv()?.VITE_AUTH_REFRESH_HEADER_TOKEN === 'true';
+
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: getBaseUrl(),
   prepareHeaders,
@@ -78,11 +91,17 @@ export const baseQueryWithReauth: BaseQueryFn<
 
   refreshSingleton ??= (async () => {
     const baseUrl = getBaseUrl();
-    const res = await fetch(joinBase(baseUrl, '/refresh'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refresh }),
-    });
+    const refreshPath = getAuthRefreshPath();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const fetchInit: RequestInit = { method: 'POST', headers };
+
+    if (refreshUsesTokenHeader()) {
+      headers.token = refresh;
+    } else {
+      fetchInit.body = JSON.stringify({ refresh_token: refresh });
+    }
+
+    const res = await fetch(joinBase(baseUrl, refreshPath), fetchInit);
     if (!res.ok) {
       api.dispatch(setToken(undefined));
       return;

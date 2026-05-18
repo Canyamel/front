@@ -7,7 +7,11 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfigurableSplitUpload, type UploadSchemaField } from "@medml/ui";
 
 import { markings, localizations } from "@/lib/cytologyConstants";
-import { useCreateCytologyMutation } from "@/lib/cytologyApi";
+import {
+  formatCreateCytologyError,
+  mapUploadValuesToCreateCytologyBody,
+  useCreateCytologyMutation,
+} from "@/lib/cytologyApi";
 import { useGetMedWorkerPatientsQuery } from "@/lib/patientsApi";
 import { useDoctorId } from "@/lib/useDoctorId";
 
@@ -87,25 +91,16 @@ export default function UploadPhotoRoute() {
       return;
     }
     try {
-      const result = await createCytology({
-        image: file,
-        diagnostic_marking: String(values.marking ?? ""),
-        diagnostic_number: String(Number(values.number ?? 0)),
-        material_type: String(values.localization ?? ""),
-        calcitonin: String(Number(values.calcitonin ?? 0)),
-        thyroglobulin: String(Number(values.thyroglobulin ?? 0)),
-        calcitonin_in_flush: String(Number(values.calcInSense ?? 0)),
-        patient_card: String(values.patientCard ?? ""),
-      }).unwrap();
+      const result = await createCytology(mapUploadValuesToCreateCytologyBody(file, values)).unwrap();
 
       message.success("Снимок отправлен на диагностику");
       const nextId = result.id ?? result.image_id;
       if (!nextId) {
         throw new Error("No cytology id in response");
       }
-      navigate(`/cytology/${encodeURIComponent(String(nextId))}`);
-    } catch {
-      message.error("Не удалось отправить снимок");
+      navigate(`/diagnostic_is_running/${encodeURIComponent(String(nextId))}`);
+    } catch (error) {
+      message.error(formatCreateCytologyError(error));
     }
   };
 

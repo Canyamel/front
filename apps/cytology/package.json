@@ -15,6 +15,7 @@
     "@medml/auth": "*",
     "@medml/layout": "*",
     "@medml/patient_list": "*",
+    "@medml/patient_create": "*",
     "@medml/patient_view": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

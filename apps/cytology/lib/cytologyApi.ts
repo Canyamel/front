@@ -1,7 +1,69 @@
-import { baseApi } from "@medml/store";
+import { ApiFormRequestError, apiFormRequest, baseApi } from "@medml/store";
+import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+
+/** Строка для multipart — как `.toString()` в OLD CYTO, без Number(). */
+export function cytologyFormFieldToString(value: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "";
+  }
+  return String(value).trim();
+}
+
+/** Файл из antd Upload / Dragger. */
+export function resolveUploadFile(file: File | Blob & { name?: string }): File {
+  if (file instanceof File) return file;
+  const name = file.name ?? "upload.svs";
+  return new File([file], name, { type: file.type || "application/octet-stream" });
+}
+
+export function buildCreateCytologyFormData(body: CreateCytologyBody): FormData {
+  const formData = new FormData();
+  const image = resolveUploadFile(body.image);
+  // Как в OLD-PROJECTS/CYTO: append без явного filename
+  formData.append("image", image);
+  formData.append("diagnostic_marking", body.diagnostic_marking);
+  formData.append("diagnostic_number", body.diagnostic_number);
+  formData.append("material_type", body.material_type);
+  formData.append("calcitonin", body.calcitonin);
+  formData.append("thyroglobulin", body.thyroglobulin);
+  formData.append("calcitonin_in_flush", body.calcitonin_in_flush);
+  formData.append("patient_card", body.patient_card);
+  return formData;
+}
+
+export function formatCreateCytologyError(error: unknown): string {
+  if (error && typeof error === "object") {
+    if ("data" in error && (error as { data?: unknown }).data != null) {
+      const data = (error as { data: unknown }).data;
+      if (typeof data === "object") return `Не удалось отправить снимок: ${JSON.stringify(data)}`;
+      return `Не удалось отправить снимок: ${String(data)}`;
+    }
+    if ("error" in error && typeof (error as { error?: string }).error === "string") {
+      return `Не удалось отправить снимок: ${(error as { error: string }).error}`;
+    }
+  }
+  return "Не удалось отправить снимок";
+}
+
+export function mapUploadValuesToCreateCytologyBody(
+  file: File | Blob,
+  values: Record<string, unknown>
+): CreateCytologyBody {
+  return {
+    image: resolveUploadFile(file),
+    diagnostic_marking: cytologyFormFieldToString(values.marking),
+    diagnostic_number: cytologyFormFieldToString(values.number),
+    material_type: cytologyFormFieldToString(values.localization),
+    calcitonin: cytologyFormFieldToString(values.calcitonin),
+    thyroglobulin: cytologyFormFieldToString(values.thyroglobulin),
+    calcitonin_in_flush: cytologyFormFieldToString(values.calcInSense),
+    patient_card: cytologyFormFieldToString(values.patientCard),
+  };
+}
 
 export type CreateCytologyBody = {
-  image: File;
+  image: File | Blob;
   diagnostic_marking: string;
   diagnostic_number: string;
   material_type: string;
@@ -163,21 +225,30 @@ export type CytologyHistoryResponse = PaginatedResponse<CytologyHistoryItem>;
 export const cytologyApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     createCytology: builder.mutation<CreateCytologyResponse, CreateCytologyBody>({
-      query: (payload) => {
-        const formData = new FormData();
-        formData.append("image", payload.image);
-        formData.append("diagnostic_marking", payload.diagnostic_marking);
-        formData.append("diagnostic_number", payload.diagnostic_number);
-        formData.append("material_type", payload.material_type);
-        formData.append("calcitonin", payload.calcitonin);
-        formData.append("thyroglobulin", payload.thyroglobulin);
-        formData.append("calcitonin_in_flush", payload.calcitonin_in_flush);
-        formData.append("patient_card", payload.patient_card);
-        return {
-          url: "/cytology/create/",
-          method: "POST",
-          body: formData,
-        };
+      async queryFn(body, api) {
+        try {
+          const data = await apiFormRequest<CreateCytologyResponse>(
+            "/cytology/create/",
+            buildCreateCytologyFormData(body),
+            api.getState
+          );
+          return { data };
+        } catch (error) {
+          if (error instanceof ApiFormRequestError) {
+            return {
+              error: {
+                status: error.status,
+                data: error.data,
+              } satisfies FetchBaseQueryError,
+            };
+          }
+          return {
+            error: {
+              status: "FETCH_ERROR",
+              error: String(error),
+            } satisfies FetchBaseQueryError,
+          };
+        }
       },
       invalidatesTags: () => [{ type: "Cytology", id: "LIST" }],
     }),

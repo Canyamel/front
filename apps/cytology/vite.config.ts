@@ -27,11 +27,17 @@ function processPolyfillPlugin(mode: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
+  const apiBaseUrl = env.VITE_API_BASE_URL ?? "/api/v3";
   const proxyTarget =
-    env.VITE_CYTOLOGY_PROXY_TARGET ?? env.VITE_API_PROXY_TARGET ?? "http://localhost:8080";
+    env.VITE_CYTOLOGY_PROXY_TARGET ?? env.VITE_API_PROXY_TARGET ?? "http://msa.mephi.ru:7000";
 
   return {
     plugins: [processPolyfillPlugin(mode), react()],
+    define: {
+      "import.meta.env.VITE_API_BASE_URL": JSON.stringify(apiBaseUrl),
+      "import.meta.env.VITE_AUTH_REFRESH_PATH": JSON.stringify("/auth/refresh"),
+      "import.meta.env.VITE_AUTH_REFRESH_HEADER_TOKEN": JSON.stringify("true"),
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

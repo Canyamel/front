@@ -59,6 +59,14 @@ const routes: RouteObject[] = [
           </RequireAuth>
         ),
       },
+      {
+        path: "diagnostic_is_running/:id",
+        element: (
+          <RequireAuth>
+            <PlaceholderRoute title="Снимок анализируется" />
+          </RequireAuth>
+        ),
+      },
       { path: "history", element: <PlaceholderRoute title="История" /> },
       { path: "dialogs", element: <PlaceholderRoute title="Диалоги" /> },
       { path: "export", element: <PlaceholderRoute title="Экспорт" /> },

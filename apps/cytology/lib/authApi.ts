@@ -6,6 +6,10 @@ import type {
   AuthLoginResponse,
 } from "@medml/auth";
 
+/**
+ * Опциональный GET «проверки сессии» на бэкенде.
+ * Включить: `VITE_SESSION_CHECK=true`, при необходимости `VITE_SESSION_PATH=...`.
+ */
 export function getSessionConfig(): { enabled: boolean; path: string } {
   try {
     const env = (import.meta as { env?: Record<string, string | undefined> }).env;
@@ -22,49 +26,20 @@ export function getSessionConfig(): { enabled: boolean; path: string } {
   }
 }
 
-const getNormalizedApiBase = (): string => {
-  const viteEnv = (import.meta as { env?: Record<string, string | undefined> }).env;
-  const processEnv = (
-    globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }
-  ).process?.env;
-  const raw = viteEnv?.VITE_API_BASE_URL ?? processEnv?.NEXT_PUBLIC_API_BASE_URL ?? "";
-  const trimmed = raw.replace(/\/+$/, "");
-  return trimmed.replace(/\/auth$/i, "");
-};
-
-const buildAuthUrl = (path: string): string => {
-  const base = getNormalizedApiBase();
-  if (!base) {
-    return path;
-  }
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${normalizedPath}`;
-};
-
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     registerUser: builder.mutation<void, RegisterPayload>({
       query: (payload) => ({
-        url: buildAuthUrl("/reg/doctor"),
+        url: "/auth/register/",
         method: "POST",
-        body: {
-          email: payload.email,
-          password: payload.password1,
-          fullname: [payload.last_name, payload.first_name, payload.fathers_name]
-            .filter(Boolean)
-            .join(" ")
-            .trim(),
-          org: payload.med_organization ?? "",
-          job: "Врач",
-          description: "",
-        },
+        body: payload,
       }),
       invalidatesTags: (_result, error) =>
         error ? [] : ["Auth", "MedWorker"],
     }),
     login: builder.mutation<AuthLoginResponse, LoginPayload>({
       query: (payload) => ({
-        url: buildAuthUrl("/login"),
+        url: "/auth/login/",
         method: "POST",
         body: payload,
       }),
@@ -82,11 +57,9 @@ export const authApi = baseApi.injectEndpoints({
     }),
     refreshToken: builder.mutation<AuthLoginResponse, RefreshTokenPayload>({
       query: (payload) => ({
-        url: buildAuthUrl("/refresh"),
+        url: "/auth/refresh",
         method: "POST",
-        body: {
-          refresh_token: payload.token,
-        },
+        headers: { token: payload.token },
       }),
       transformResponse: (
         response: {
