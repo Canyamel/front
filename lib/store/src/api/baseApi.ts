@@ -21,9 +21,23 @@ const getViteApiBaseUrl = (): string | undefined => {
 	}
 }
 
+const getRefreshPath = (): string => {
+	try {
+		const env = (import.meta as { env?: Record<string, string | undefined> })
+			.env
+		const custom = env?.VITE_AUTH_REFRESH_PATH
+		if (typeof custom === 'string' && custom.length > 0) {
+			return custom.startsWith('/') ? custom : `/${custom}`
+		}
+	} catch {
+		/* ignore */
+	}
+	return '/auth/token/refresh/'
+}
+
 const getBaseUrl = (): string => {
 	const viteUrl = getViteApiBaseUrl()
-	if (viteUrl) return viteUrl
+	if (viteUrl) return viteUrl.endsWith('/') ? viteUrl : `${viteUrl}/`
 
 	if (typeof process !== 'undefined' && process.env) {
 		if (typeof window === 'undefined') {
@@ -81,10 +95,10 @@ export const baseQueryWithReauth: BaseQueryFn<
 
 	refreshSingleton ??= (async () => {
 		const baseUrl = getBaseUrl()
-		const res = await fetch(joinBase(baseUrl, '/refresh'), {
+		const res = await fetch(joinBase(baseUrl, getRefreshPath()), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ refresh_token: refresh }),
+			body: JSON.stringify({ refresh, refresh_token: refresh }),
 		})
 		if (!res.ok) {
 			api.dispatch(setToken(undefined))

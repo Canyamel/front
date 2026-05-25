@@ -1,5 +1,7 @@
 export type PatientRow = {
   id: string | number;
+  /** Карта приёма (thyroid API: `patient_card` при загрузке УЗИ) */
+  patientCardId?: string;
 
   fullName: string;
   avatarText?: string;

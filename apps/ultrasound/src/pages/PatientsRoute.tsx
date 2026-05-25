@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 
 import {
   PatientCreateModal,
-  buildFullNameUzi,
   stripPolicyDigits,
   type PatientCreateValuesUzi,
 } from "@medml/patient_create";
@@ -13,8 +12,7 @@ import { PatientsPage } from "@medml/patient_list";
 import type { PatientListSort } from "@medml/patient_list";
 
 import {
-  useCreateMedPatientCardMutation,
-  useCreateMedPatientMutation,
+  useCreateUziPatientWithCardMutation,
   useGetDoctorPatientsQuery,
 } from "@/lib/patientsApi";
 import { useDoctorId } from "@/lib/useDoctorId";
@@ -23,8 +21,8 @@ export default function PatientsRoute() {
   const navigate = useNavigate();
   const { doctorId, status } = useDoctorId();
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
-  const [createPatient, { isLoading: isCreatingPatient }] = useCreateMedPatientMutation();
-  const [createCard, { isLoading: isCreatingCard }] = useCreateMedPatientCardMutation();
+  const [createPatient, { isLoading: isCreatingPatient }] =
+    useCreateUziPatientWithCardMutation();
 
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -58,23 +56,21 @@ export default function PatientsRoute() {
     const birth_date = dayjs(values.birthDate).format("YYYY-MM-DD");
     const policy = stripPolicyDigits(values.policy);
     const created = await createPatient({
+      doctorId,
+      surname: values.surname.trim(),
+      name: values.name.trim(),
+      patronymic: values.patronymic.trim(),
       email: values.email.trim(),
-      fullname: buildFullNameUzi(values),
       policy,
       active: values.active,
       malignancy: values.malignancy,
       birth_date,
+      diagnosis: values.diagnosis.trim(),
     }).unwrap();
-    const patientId = typeof created === "object" && created && "id" in created ? String((created as { id: string }).id) : "";
-    if (!patientId) {
+    if (!created.id) {
       message.error("Сервер не вернул идентификатор пациента");
       return;
     }
-    await createCard({
-      patient_id: patientId,
-      doctor_id: doctorId,
-      diagnosis: values.diagnosis.trim(),
-    }).unwrap();
     message.success("Пациент создан");
     setCreateModalOpen(false);
   };
@@ -106,7 +102,7 @@ export default function PatientsRoute() {
         variant="uzi"
         onCancel={() => setCreateModalOpen(false)}
         onFinish={(vals) => void handleCreateFinish(vals as PatientCreateValuesUzi)}
-        confirmLoading={isCreatingPatient || isCreatingCard}
+        confirmLoading={isCreatingPatient}
       />
     </>
   );

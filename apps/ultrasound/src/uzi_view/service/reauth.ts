@@ -28,10 +28,10 @@ export async function refreshAccessToken(): Promise<string | null> {
     return null;
   }
 
-  const response = await fetch(`${getApiBaseUrl()}refresh`, {
+  const response = await fetch(`${getApiBaseUrl()}auth/token/refresh/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    body: JSON.stringify({ refresh: refreshToken }),
   });
 
   if (!response.ok) {

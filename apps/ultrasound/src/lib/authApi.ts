@@ -46,7 +46,11 @@ export const authApi = baseApi.injectEndpoints({
       query: (payload) => ({
         url: "/auth/login/",
         method: "POST",
-        body: payload,
+        body: {
+          email: payload.email,
+          username: payload.email,
+          password: payload.password,
+        },
       }),
       transformResponse: (
         response: {

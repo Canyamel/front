@@ -35,10 +35,12 @@ export default function UploadPhotoRoute() {
 
   const fields = React.useMemo<UploadSchemaField[]>(() => {
     const deviceOptions = devices.map((d) => ({ value: d.id, label: d.name }));
-    const patientOptions = patients.map((p) => ({
-      value: String(p.id),
-      label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
-    }));
+    const patientOptions = patients
+      .filter((p) => p.patientCardId)
+      .map((p) => ({
+        value: String(p.patientCardId),
+        label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
+      }));
 
     return [
       {
@@ -106,10 +108,10 @@ export default function UploadPhotoRoute() {
       return;
     }
     const projection = String(values.projection ?? "");
-    const patientId = String(values.patient ?? "");
+    const patientCardId = String(values.patient ?? "");
     const deviceId = String(values.device ?? "");
     try {
-      await uploadUzi({ file, projection, patientId, deviceId }).unwrap();
+      await uploadUzi({ file, projection, patientCardId, deviceId }).unwrap();
       message.success("Снимок отправлен на диагностику");
       navigate("/patients");
     } catch (e) {
@@ -121,10 +123,12 @@ export default function UploadPhotoRoute() {
   const pageBusy =
     status === "authenticated" && (!doctorId || devicesLoading || patientsLoading);
 
-  const uploadInitialValues = React.useMemo(
-    () => (presetPatientId ? { patient: presetPatientId } : undefined),
-    [presetPatientId]
-  );
+  const uploadInitialValues = React.useMemo(() => {
+    if (!presetPatientId) return undefined;
+    const row = patients.find((p) => String(p.id) === presetPatientId);
+    const cardId = row?.patientCardId;
+    return cardId ? { patient: cardId } : undefined;
+  }, [presetPatientId, patients]);
 
   return (
     <Layout style={{ minHeight: "100vh", background: "transparent" }}>

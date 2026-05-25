@@ -1,5 +1,14 @@
 import { baseApi } from "@medml/store";
 
+function normalizeListResults<T>(response: unknown): T[] {
+  if (Array.isArray(response)) return response as T[];
+  if (response && typeof response === "object") {
+    const results = (response as { results?: unknown }).results;
+    if (Array.isArray(results)) return results as T[];
+  }
+  return [];
+}
+
 export type UziDeviceDto = {
   id: string;
   name: string;
@@ -53,7 +62,12 @@ export type UziInfoDto = {
 export const uziApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getUziDevices: builder.query<UziDeviceDto[], void>({
-      query: () => ({ url: "/uzi/devices" }),
+      query: () => ({ url: "/uzi/devices/" }),
+      transformResponse: (response: unknown) =>
+        normalizeListResults<UziDeviceDto>(response).map((d) => ({
+          id: String(d.id),
+          name: d.name,
+        })),
     }),
 
     getUziInfo: builder.query<UziInfoDto, string>({
@@ -75,16 +89,22 @@ export const uziApi = baseApi.injectEndpoints({
     }),
     uploadUziDiagnostic: builder.mutation<
       unknown,
-      { file: File; projection: string; patientId: string; deviceId: string }
+      {
+        file: File;
+        projection: string;
+        /** id карты приёма (`patient_card`), не id пациента */
+        patientCardId: string;
+        deviceId: string;
+      }
     >({
-      query: ({ file, projection, patientId, deviceId }) => {
+      query: ({ file, projection, patientCardId, deviceId }) => {
         const formData = new FormData();
-        formData.append("file", file);
-        formData.append("projection", projection);
-        formData.append("external_id", patientId);
-        formData.append("device_id", deviceId);
+        formData.append("original_image", file);
+        formData.append("projection_type", projection);
+        formData.append("patient_card", patientCardId);
+        formData.append("uzi_device", deviceId);
         return {
-          url: "/uzi",
+          url: "/uzi/create/",
           method: "POST",
           body: formData,
         };

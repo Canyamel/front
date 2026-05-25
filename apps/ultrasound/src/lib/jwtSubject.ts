@@ -16,9 +16,9 @@ export function getAccessTokenSubject(accessToken: string): string {
 
     const payload = JSON.parse(json) as Record<string, unknown>;
     const id =
+      payload.user_id ??
       payload.sub ??
       payload.doctor_id ??
-      payload.user_id ??
       payload.med_worker_id ??
       payload.id;
 

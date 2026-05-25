@@ -9,6 +9,8 @@ interface ImportMetaEnv {
 	readonly VITE_SESSION_CHECK?: string
 	/** Путь относительно API base (по умолчанию `/session`) */
 	readonly VITE_SESSION_PATH?: string
+	/** Путь refresh относительно API base (по умолчанию `/auth/token/refresh/`) */
+	readonly VITE_AUTH_REFRESH_PATH?: string
 }
 
 interface ImportMeta {
