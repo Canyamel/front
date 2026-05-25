@@ -44,7 +44,7 @@ export const authApi = baseApi.injectEndpoints({
     }),
     login: builder.mutation<AuthLoginResponse, LoginPayload>({
       query: (payload) => ({
-        url: "/login",
+        url: "/auth/login/",
         method: "POST",
         body: payload,
       }),
@@ -63,10 +63,10 @@ export const authApi = baseApi.injectEndpoints({
     }),
     refreshToken: builder.mutation<AuthLoginResponse, RefreshTokenPayload>({
       query: (payload) => ({
-        url: "/refresh",
+        url: "/auth/token/refresh/",
         method: "POST",
         body: {
-          refresh_token: payload.token,
+          refresh: payload.token,
         },
       }),
       transformResponse: (raw: {
