@@ -2,7 +2,11 @@
   "name": "medml-front",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["apps/*", "lib/*", "domains/*"],
+  "workspaces": [
+    "apps/*",
+    "lib/*",
+    "domains/*"
+  ],
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",
     "build:cytology": "turbo build --filter=cytology-app",
@@ -20,6 +24,7 @@
     "@ant-design/nextjs-registry": "^1.0.1",
     "@reduxjs/toolkit": "^2.0.0",
     "antd": "^5.12.0",
+    "openseadragon": "^4.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-redux": "^9.0.0"
@@ -33,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/node": "^25.1.0",
+    "@types/openseadragon": "^5.0.2",
     "@types/react": "^18.3.27",
     "@types/react-dom": "^18.3.7",
     "eslint": "^9.39.2",

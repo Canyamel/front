@@ -8,6 +8,7 @@ import { DOWNLOAD_UZI } from "../../types/consts";
 
 import { useAppDispatch, useAppSelector } from "@/uzi_view/store/hook";
 
+import { isThyroidBackend } from "@/lib/apiBackend";
 import { downloadUziImage } from "@/uzi_view/service/download";
 
 import { addLoading, deleteLoading } from "../../store/utilsSlice";
@@ -123,7 +124,10 @@ const UziViewer: React.FC<UziViewerProps> = ({
     if (uziIds) {
       const downloadHandler = async () => {
         setIsLoading(true);
-        return await downloadUziImage(uziId, uziIds[index].id, accessToken);
+        const slideId = isThyroidBackend()
+          ? String(index + 1)
+          : uziIds[index].id;
+        return await downloadUziImage(uziId, slideId, accessToken);
       };
 
       downloadHandler()

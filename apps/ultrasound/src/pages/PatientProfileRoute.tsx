@@ -144,7 +144,11 @@ export default function PatientProfileRoute() {
     setUziPage(1);
   }, [patientId]);
 
-  const { data: patientApi, isLoading: patientLoading } = useGetMedPatientByIdQuery(patientId, {
+  const {
+    data: patientApi,
+    isLoading: patientLoading,
+    isError: patientError,
+  } = useGetMedPatientByIdQuery(patientId, {
     skip: !patientId || status !== "authenticated",
   });
 
@@ -196,6 +200,10 @@ export default function PatientProfileRoute() {
       <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: "0 auto", width: "100%" }}>
         {missingId ? (
           <Typography.Text type="danger">Не указан идентификатор пациента (?id=)</Typography.Text>
+        ) : patientError && !patientLoading ? (
+          <Typography.Text type="danger">
+            Не удалось загрузить данные пациента. Проверьте, что бэкенд запущен и вы авторизованы.
+          </Typography.Text>
         ) : (
           <PatientProfileView
             patient={patient}

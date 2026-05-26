@@ -6,6 +6,7 @@ import type { UploadFile, UploadProps } from "antd";
 
 import { ConfigurableSplitUpload, type UploadSchemaField } from "@medml/ui";
 
+import { isThyroidBackend } from "@/lib/apiBackend";
 import { useGetDoctorPatientsQuery } from "@/lib/patientsApi";
 import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/lib/uziApi";
 import { getRtkErrorMessage } from "@/lib/rtkErrorMessage";
@@ -36,9 +37,9 @@ export default function UploadPhotoRoute() {
   const fields = React.useMemo<UploadSchemaField[]>(() => {
     const deviceOptions = devices.map((d) => ({ value: d.id, label: d.name }));
     const patientOptions = patients
-      .filter((p) => p.patientCardId)
+      .filter((p) => (isThyroidBackend() ? p.patientCardId : p.id))
       .map((p) => ({
-        value: String(p.patientCardId),
+        value: String(isThyroidBackend() ? p.patientCardId : p.id),
         label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
       }));
 
@@ -108,10 +109,10 @@ export default function UploadPhotoRoute() {
       return;
     }
     const projection = String(values.projection ?? "");
-    const patientCardId = String(values.patient ?? "");
+    const patientRefId = String(values.patient ?? "");
     const deviceId = String(values.device ?? "");
     try {
-      await uploadUzi({ file, projection, patientCardId, deviceId }).unwrap();
+      await uploadUzi({ file, projection, patientRefId, deviceId }).unwrap();
       message.success("Снимок отправлен на диагностику");
       navigate("/patients");
     } catch (e) {
@@ -126,8 +127,9 @@ export default function UploadPhotoRoute() {
   const uploadInitialValues = React.useMemo(() => {
     if (!presetPatientId) return undefined;
     const row = patients.find((p) => String(p.id) === presetPatientId);
-    const cardId = row?.patientCardId;
-    return cardId ? { patient: cardId } : undefined;
+    if (!row) return undefined;
+    const value = isThyroidBackend() ? row.patientCardId : row.id;
+    return value ? { patient: String(value) } : undefined;
   }, [presetPatientId, patients]);
 
   return (

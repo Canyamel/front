@@ -8,6 +8,7 @@ import PlaceholderRoute from "@/pages/PlaceholderRoute";
 import UploadPhotoRoute from "@/pages/UploadPhotoRoute";
 import PatientProfileRoute from "@/pages/PatientProfileRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
+import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
 
 const routes: RouteObject[] = [
@@ -56,6 +57,22 @@ const routes: RouteObject[] = [
         element: (
           <RequireAuth>
             <UploadPhotoRoute />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "result",
+        element: (
+          <RequireAuth>
+            <LegacyResultRedirect />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "result/:uziId",
+        element: (
+          <RequireAuth>
+            <LegacyResultRedirect />
           </RequireAuth>
         ),
       },

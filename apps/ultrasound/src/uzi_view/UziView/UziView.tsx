@@ -16,6 +16,8 @@ import { setImageId, setSelectedNode, setUziId } from "../store/uziSlice";
 import { setToken } from "../store/authSlice";
 import { deleteError } from "../store/utilsSlice";
 
+import { isThyroidBackend } from "@/lib/apiBackend";
+
 import { Modals, Modes } from "../types/types";
 import { GET_NODES, GET_NODES_SEGMENTS, GET_UZI_IDS } from "../types/consts";
 
@@ -66,8 +68,10 @@ const UziView: React.FC<UziViewProps> = ({ generalUziId, accessToken }) => {
     data: nodesSegments,
     error: errorNodesSegments,
   } = useGetNodesSegmentsQuery(
-    !!accessToken && uziReady === "completed" && uziIds && uziIds[pageIndex]?.id
-      ? uziIds[pageIndex]?.id
+    !!accessToken && uziReady === "completed" && uziIds
+      ? isThyroidBackend()
+        ? generalUziId
+        : uziIds[pageIndex]?.id
       : skipToken
   );
   const {

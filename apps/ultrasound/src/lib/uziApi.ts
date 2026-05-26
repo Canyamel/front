@@ -1,5 +1,8 @@
 import { baseApi } from "@medml/store";
 
+import { isThyroidBackend } from "./apiBackend";
+import type { ThyroidUziApiResponse } from "./thyroidResultsTypes";
+
 function normalizeListResults<T>(response: unknown): T[] {
   if (Array.isArray(response)) return response as T[];
   if (response && typeof response === "object") {
@@ -87,24 +90,50 @@ export const uziApi = baseApi.injectEndpoints({
         url: `/uzi/image/${encodeURIComponent(imageId)}/nodes-segments`,
       }),
     }),
+
+    /** Thyroid: полный bundle для ResultsPage (`?format=json`). */
+    getThyroidUziData: builder.query<ThyroidUziApiResponse, string>({
+      query: (uziId) => `/uzi/${encodeURIComponent(uziId)}/?format=json`,
+      providesTags: (_result, _error, uziId) => [{ type: "Uzi", id: uziId }],
+    }),
+
+    updateThyroidUziData: builder.mutation<void, { uziId: string; data: unknown }>({
+      query: ({ uziId, data }) => ({
+        url: `/uzi/${encodeURIComponent(uziId)}/update/`,
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { uziId }) => [{ type: "Uzi", id: uziId }],
+    }),
     uploadUziDiagnostic: builder.mutation<
       unknown,
       {
         file: File;
         projection: string;
-        /** id карты приёма (`patient_card`), не id пациента */
-        patientCardId: string;
+        /** Thyroid: id карты (`patient_card`). Med: id пациента (`external_id`). */
+        patientRefId: string;
         deviceId: string;
       }
     >({
-      query: ({ file, projection, patientCardId, deviceId }) => {
+      query: ({ file, projection, patientRefId, deviceId }) => {
         const formData = new FormData();
-        formData.append("original_image", file);
-        formData.append("projection_type", projection);
-        formData.append("patient_card", patientCardId);
-        formData.append("uzi_device", deviceId);
+        if (isThyroidBackend()) {
+          formData.append("original_image", file);
+          formData.append("projection_type", projection);
+          formData.append("patient_card", patientRefId);
+          formData.append("uzi_device", deviceId);
+          return {
+            url: "/uzi/create/",
+            method: "POST",
+            body: formData,
+          };
+        }
+        formData.append("file", file);
+        formData.append("projection", projection);
+        formData.append("external_id", patientRefId);
+        formData.append("device_id", deviceId);
         return {
-          url: "/uzi/create/",
+          url: "/uzi",
           method: "POST",
           body: formData,
         };
@@ -121,4 +150,6 @@ export const {
   useGetUziImagePagesQuery,
   useGetUziNodesQuery,
   useGetUziImageNodesSegmentsQuery,
+  useGetThyroidUziDataQuery,
+  useUpdateThyroidUziDataMutation,
 } = uziApi;

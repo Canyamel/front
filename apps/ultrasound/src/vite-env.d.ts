@@ -11,8 +11,17 @@ interface ImportMetaEnv {
 	readonly VITE_SESSION_PATH?: string
 	/** Путь refresh относительно API base (по умолчанию `/auth/token/refresh/`) */
 	readonly VITE_AUTH_REFRESH_PATH?: string
+	/** `thyroid` (по умолчанию) | `med` — какой набор API-путей использовать */
+	readonly VITE_API_BACKEND?: string
 }
 
 interface ImportMeta {
 	readonly env: ImportMetaEnv
+}
+
+declare module "@recogito/annotorious-openseadragon";
+declare module "@recogito/annotorious-selector-pack";
+declare module "svg-polygon-points" {
+	export function fromGeoJSON(coords: number[][]): { toString(): string };
+	export function toGeoJSON(svg: string): number[][][];
 }

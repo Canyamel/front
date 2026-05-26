@@ -2,7 +2,79 @@ import { formatApiDateToDisplay } from "@medml/shared";
 import { baseApi } from "@medml/store";
 import type { PatientListSortOrder, PatientRow } from "@medml/patient_list";
 
-/** Карточка из `GET med_worker/patients/{id}/` (thyroid backend). */
+import { isThyroidBackend } from "./apiBackend";
+
+/* ─── Med / legacy ─── */
+
+type MedPatientDto = {
+  id: string | number;
+  fullname: string;
+  active: boolean;
+  email: string;
+  policy: string;
+  malignancy: boolean;
+  birth_date?: string | null;
+  birthDate?: string | null;
+};
+
+export type CreateMedPatientBody = {
+  email: string;
+  fullname: string;
+  policy: string;
+  active: boolean;
+  malignancy: boolean;
+  birth_date: string;
+};
+
+export type CreateMedCardBody = {
+  patient_id: string;
+  doctor_id: string;
+  diagnosis: string;
+};
+
+export type CreateMedPatientResponse = {
+  id: string;
+};
+
+const medSortKeyMap: Record<
+  Exclude<keyof PatientRow, "id" | "avatarText" | "statusTone" | "patientCardId">,
+  string
+> = {
+  fullName: "fullname",
+  policyNumber: "policy",
+  email: "email",
+  birthDate: "birth_date",
+  diagnosisLabel: "malignancy",
+  statusLabel: "active",
+};
+
+function normalizeMedPatientsPayload(response: unknown): MedPatientDto[] {
+  if (Array.isArray(response)) return response as MedPatientDto[];
+  if (
+    response &&
+    typeof response === "object" &&
+    Array.isArray((response as { results?: unknown }).results)
+  ) {
+    return (response as { results: MedPatientDto[] }).results;
+  }
+  return [];
+}
+
+function mapMedPatientToRow(item: MedPatientDto): PatientRow {
+  return {
+    id: String(item.id),
+    fullName: item.fullname,
+    policyNumber: item.policy,
+    email: item.email,
+    birthDate: formatApiDateToDisplay(item.birth_date ?? item.birthDate),
+    diagnosisLabel: item.malignancy ? "Обнаружено" : "Не обнаружено",
+    statusLabel: item.active ? "Активен" : "Не активен",
+    statusTone: item.active ? "success" : "default",
+  };
+}
+
+/* ─── Thyroid ─── */
+
 type ThyroidPatientCardDto = {
   id: number;
   has_nodules?: string | boolean;
@@ -18,21 +90,20 @@ type ThyroidPatientCardDto = {
   };
 };
 
-type GetDoctorPatientsArgs = {
+export type CreateUziPatientWithCardBody = {
   doctorId: string;
-  search?: string;
-  page?: number;
-  pageSize?: number;
-  sortKey?: keyof PatientRow | null;
-  sortOrder?: PatientListSortOrder;
+  surname: string;
+  name: string;
+  patronymic: string;
+  email: string;
+  policy: string;
+  birth_date: string;
+  active: boolean;
+  malignancy: boolean;
+  diagnosis: string;
 };
 
-type GetDoctorPatientsResult = {
-  rows: PatientRow[];
-  total: number;
-};
-
-function normalizeCardsPayload(response: unknown): ThyroidPatientCardDto[] {
+function normalizeThyroidCardsPayload(response: unknown): ThyroidPatientCardDto[] {
   if (!response || typeof response !== "object") return [];
   const root = response as Record<string, unknown>;
   if (Array.isArray(root.cards)) {
@@ -48,14 +119,14 @@ function normalizeCardsPayload(response: unknown): ThyroidPatientCardDto[] {
   return [];
 }
 
-function patientFullName(p: ThyroidPatientCardDto["patient"]): string {
+function thyroidPatientFullName(p: ThyroidPatientCardDto["patient"]): string {
   return [p.last_name, p.first_name, p.fathers_name]
     .filter((part) => typeof part === "string" && part.trim().length > 0)
     .join(" ")
     .trim();
 }
 
-function mapCardToRow(card: ThyroidPatientCardDto): PatientRow {
+function mapThyroidCardToRow(card: ThyroidPatientCardDto): PatientRow {
   const p = card.patient;
   const nodules =
     card.has_nodules === true ||
@@ -63,9 +134,8 @@ function mapCardToRow(card: ThyroidPatientCardDto): PatientRow {
     card.has_nodules === "t";
   return {
     id: String(p.id),
-    /** id карты приёма — для `POST uzi/create/` (поле `patient_card`) */
     patientCardId: String(card.id),
-    fullName: patientFullName(p) || "—",
+    fullName: thyroidPatientFullName(p) || "—",
     policyNumber: String(p.personal_policy ?? ""),
     email: String(p.email ?? ""),
     birthDate: formatApiDateToDisplay(p.birth_date) ?? "—",
@@ -75,8 +145,8 @@ function mapCardToRow(card: ThyroidPatientCardDto): PatientRow {
   };
 }
 
-const sortKeyMap: Partial<
-  Record<Exclude<keyof PatientRow, "id" | "avatarText" | "statusTone">, string>
+const thyroidSortKeyMap: Partial<
+  Record<Exclude<keyof PatientRow, "id" | "avatarText" | "statusTone" | "patientCardId">, string>
 > = {
   fullName: "patient__last_name",
   policyNumber: "patient__personal_policy",
@@ -86,25 +156,48 @@ const sortKeyMap: Partial<
   statusLabel: "patient__is_active",
 };
 
-export type CreateUziPatientWithCardBody = {
+/* ─── Shared ─── */
+
+type GetDoctorPatientsArgs = {
   doctorId: string;
-  surname: string;
-  name: string;
-  patronymic: string;
-  email: string;
-  policy: string;
-  birth_date: string;
-  active: boolean;
-  malignancy: boolean;
-  diagnosis: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortKey?: keyof PatientRow | null;
+  sortOrder?: PatientListSortOrder;
 };
 
-export type CreateMedPatientResponse = {
-  id: string;
+type GetDoctorPatientsResult = {
+  rows: PatientRow[];
+  total: number;
 };
 
 export const patientsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    /** Med: POST `/med/patient` */
+    createMedPatient: builder.mutation<CreateMedPatientResponse, CreateMedPatientBody>({
+      query: (body) => ({
+        url: `/med/patient`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: (raw: { id?: string | number }) => ({
+        id: String(raw?.id ?? ""),
+      }),
+      invalidatesTags: () => [{ type: "Patient", id: "LIST" }],
+    }),
+
+    /** Med: POST `/med/card` */
+    createMedPatientCard: builder.mutation<unknown, CreateMedCardBody>({
+      query: (body) => ({
+        url: `/med/card`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: () => [{ type: "Patient", id: "LIST" }],
+    }),
+
+    /** Thyroid: POST `/patient/create/{doctorId}` */
     createUziPatientWithCard: builder.mutation<
       CreateMedPatientResponse,
       CreateUziPatientWithCardBody
@@ -147,12 +240,30 @@ export const patientsApi = baseApi.injectEndpoints({
 
     getDoctorPatients: builder.query<GetDoctorPatientsResult, GetDoctorPatientsArgs>({
       query: ({ doctorId, search, page, pageSize, sortKey, sortOrder }) => {
+        if (isThyroidBackend()) {
+          const mappedSortKey = sortKey
+            ? (thyroidSortKeyMap[sortKey as keyof typeof thyroidSortKeyMap] ?? undefined)
+            : undefined;
+          return {
+            url: `/med_worker/patients/${doctorId}`,
+            params: {
+              search: search || undefined,
+              page,
+              page_size: pageSize,
+              ordering:
+                mappedSortKey && sortOrder
+                  ? `${sortOrder === "descend" ? "-" : ""}${mappedSortKey}`
+                  : undefined,
+            },
+          };
+        }
+
         const mappedSortKey = sortKey
-          ? (sortKeyMap[sortKey as keyof typeof sortKeyMap] ?? undefined)
+          ? (medSortKeyMap[sortKey as keyof typeof medSortKeyMap] ?? String(sortKey))
           : undefined;
 
         return {
-          url: `/med_worker/patients/${doctorId}`,
+          url: `/med/doctor/${doctorId}/patients`,
           params: {
             search: search || undefined,
             page,
@@ -165,16 +276,31 @@ export const patientsApi = baseApi.injectEndpoints({
         };
       },
       transformResponse: (response: unknown): GetDoctorPatientsResult => {
-        const cards = normalizeCardsPayload(response);
+        if (isThyroidBackend()) {
+          const cards = normalizeThyroidCardsPayload(response);
+          const totalFromEnvelope =
+            response &&
+            typeof response === "object" &&
+            typeof (response as { count?: unknown }).count === "number"
+              ? (response as { count: number }).count
+              : cards.length;
+
+          return {
+            rows: cards.map(mapThyroidCardToRow),
+            total: totalFromEnvelope,
+          };
+        }
+
+        const list = normalizeMedPatientsPayload(response);
         const totalFromEnvelope =
           response &&
           typeof response === "object" &&
           typeof (response as { count?: unknown }).count === "number"
             ? (response as { count: number }).count
-            : cards.length;
+            : list.length;
 
         return {
-          rows: cards.map(mapCardToRow),
+          rows: list.map(mapMedPatientToRow),
           total: totalFromEnvelope,
         };
       },
@@ -185,5 +311,7 @@ export const patientsApi = baseApi.injectEndpoints({
 
 export const {
   useGetDoctorPatientsQuery,
+  useCreateMedPatientMutation,
+  useCreateMedPatientCardMutation,
   useCreateUziPatientWithCardMutation,
 } = patientsApi;
