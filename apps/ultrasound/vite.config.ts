@@ -45,6 +45,10 @@ export default defineConfig(({ mode }) => {
 					__dirname,
 					'../../domains/patient_view/src',
 				),
+				'@medml/subscriptions': path.resolve(
+					__dirname,
+					'../../domains/subscriptions/src',
+				),
 			},
 		},
 		server: {

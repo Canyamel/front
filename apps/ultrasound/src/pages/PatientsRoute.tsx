@@ -18,8 +18,8 @@ import {
   useCreateMedPatientMutation,
   useCreateUziPatientWithCardMutation,
   useGetDoctorPatientsQuery,
-} from "@/lib/patientsApi";
-import { useDoctorId } from "@/lib/useDoctorId";
+} from "@/api/patientsApi";
+import { useDoctorId } from "@/api/hooks/useDoctorId";
 
 export default function PatientsRoute() {
   const navigate = useNavigate();

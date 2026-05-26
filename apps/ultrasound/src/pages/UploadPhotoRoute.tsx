@@ -7,10 +7,10 @@ import type { UploadFile, UploadProps } from "antd";
 import { ConfigurableSplitUpload, type UploadSchemaField } from "@medml/ui";
 
 import { isThyroidBackend } from "@/lib/apiBackend";
-import { useGetDoctorPatientsQuery } from "@/lib/patientsApi";
-import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/lib/uziApi";
+import { useGetDoctorPatientsQuery } from "@/api/patientsApi";
+import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/api/uziApi";
 import { getRtkErrorMessage } from "@/lib/rtkErrorMessage";
-import { useDoctorId } from "@/lib/useDoctorId";
+import { useDoctorId } from "@/api/hooks/useDoctorId";
 
 const { Dragger } = Upload;
 

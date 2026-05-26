@@ -7,9 +7,8 @@ import { ArrowLeftOutlined } from "@ant-design/icons";
 import type { RootState } from "@medml/store";
 
 import { isThyroidBackend } from "@/lib/apiBackend";
-import ThyroidResultsPage from "@/pages/ResultPage/ResultsPage";
-import UziView from "@/uzi_view/UziView/UziView";
-import { store as uziViewStore } from "@/uzi_view/store/store";
+import { ThyroidResultsPage } from "@/features/thyroid-results";
+import { UziView, uziViewStore } from "@/features/uzi-view";
 
 /**
  * Просмотр и редактирование снимка УЗИ.

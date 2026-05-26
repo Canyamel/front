@@ -7,6 +7,8 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
+      "@/api/*": ["./src/api/*"],
+      "@/features/*": ["./src/features/*"],
       "@medml/ui": ["../../lib/ui/src"],
       "@medml/store": ["../../lib/store/src"],
       "@medml/patient_list": ["../../domains/patient_list/src"],
@@ -14,6 +16,7 @@
       "@medml/auth": ["../../domains/auth/src"],
       "@medml/layout": ["../../domains/layout/src"],
       "@medml/shared": ["../../lib/shared/src"],
+      "@medml/subscriptions": ["../../domains/subscriptions/src"],
       "@medml/viewers": ["../../lib/viewers/src"]
     }
   },

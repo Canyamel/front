@@ -12,9 +12,9 @@ import {
   useGetPatientUziStudiesQuery,
   uziStudyStatusTagColor,
   type PatientUziStudyRow,
-} from "@/lib/patientProfileApi";
-import { useGetUziDevicesQuery } from "@/lib/uziApi";
-import { useDoctorId } from "@/lib/useDoctorId";
+} from "@/api/patientProfileApi";
+import { useGetUziDevicesQuery } from "@/api/uziApi";
+import { useDoctorId } from "@/api/hooks/useDoctorId";
 
 function useUziTableColumns(deviceMap: Map<string, string>): ColumnsType<PatientUziStudyRow> {
   return React.useMemo(

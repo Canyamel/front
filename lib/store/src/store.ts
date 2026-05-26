@@ -5,6 +5,8 @@ import { baseApi } from './api/baseApi';
 import authSlice from './slices/authSlice';
 import loadingSlice from './slices/loadingSlice';
 import errorSlice from './slices/errorSlice';
+import subscriptionSlice from './slices/subscriptionSlice';
+import './api/billingApi';
 import errorMiddleware from './middleware/errorMiddleware';
 import loadingMiddleware from './middleware/loadingMiddleware';
 
@@ -16,6 +18,7 @@ const makeStore = () => {
     reducer: {
       [baseApi.reducerPath]: baseApi.reducer,
       auth: authSlice.reducer,
+      subscription: subscriptionSlice.reducer,
       loading: loadingSlice.reducer,
       error: errorSlice.reducer,
     },

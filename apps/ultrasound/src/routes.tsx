@@ -10,6 +10,7 @@ import PatientProfileRoute from "@/pages/PatientProfileRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
 import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
+import SubscriptionRoute from "@/pages/SubscriptionRoute";
 
 const routes: RouteObject[] = [
   {
@@ -33,6 +34,14 @@ const routes: RouteObject[] = [
         element: (
           <RequireAuth>
             <FaqRoute />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "subscription",
+        element: (
+          <RequireAuth>
+            <SubscriptionRoute />
           </RequireAuth>
         ),
       },

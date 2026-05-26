@@ -18,6 +18,7 @@
     "@medml/patient_list": "*",
     "@medml/patient_view": "*",
     "@medml/shared": "*",
+    "@medml/subscriptions": "*",
     "@medml/store": "*",
     "@medml/ui": "*",
     "@recogito/annotorious-openseadragon": "^2.7.18",

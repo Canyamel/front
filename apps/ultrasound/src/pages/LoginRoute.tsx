@@ -16,7 +16,7 @@ import {
   useAppDispatch,
 } from "@medml/store";
 
-import { useLoginMutation } from "@/lib/authApi";
+import { useLoginMutation } from "@/api/authApi";
 import { setAuthToken, setRefreshToken } from "@/lib/tokenStorage";
 
 export default function LoginRoute() {
