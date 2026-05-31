@@ -4,13 +4,10 @@ import { ISegmentRedux } from "@/uzi_view/types/segments";
 import { IPoint } from "@/uzi_view/UziView/UziViewer/Viewer/interfaces/queries";
 import { IUziPage } from "../../types/uzi";
 
-import { DOWNLOAD_UZI } from "../../types/consts";
-
 import { useAppDispatch, useAppSelector } from "@/uzi_view/store/hook";
 
 import { downloadUziImage } from "@/uzi_view/service/download";
 
-import { addLoading, deleteLoading } from "../../store/utilsSlice";
 import {
   addSegmentToNode,
   changeSegment,
@@ -37,7 +34,6 @@ const UziViewer: React.FC<UziViewerProps> = ({
   uziIds,
 }) => {
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
 
   const dispatch = useAppDispatch();
   const accessToken = useAppSelector((state) => state.auth.accessToken);
@@ -112,38 +108,37 @@ const UziViewer: React.FC<UziViewerProps> = ({
   }, [imageId]);
 
   useEffect(() => {
-    if (isLoading) {
-      dispatch(addLoading(DOWNLOAD_UZI));
-    } else {
-      dispatch(deleteLoading(DOWNLOAD_UZI));
+    if (!uziIds?.length || !uziIds[index]?.id) {
+      return;
     }
-  }, [dispatch, isLoading]);
 
-  useEffect(() => {
-    if (uziIds) {
-      const downloadHandler = async () => {
-        setIsLoading(true);
-        return await downloadUziImage(uziId, uziIds[index].id, accessToken);
-      };
+    let cancelled = false;
+    const imageIdForPage = uziIds[index].id;
 
-      downloadHandler()
-        .then((response) => {
-          const nextImageUrl = typeof response === "string" ? response : response?.imageUrl ?? null;
-          if (nextImageUrl) {
-            const lastImageUrl = imageUrl;
-            setImageUrl(nextImageUrl);
-            if (lastImageUrl !== "") {
-              window.URL.revokeObjectURL(lastImageUrl);
+    void downloadUziImage(uziId, imageIdForPage, accessToken)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const nextImageUrl =
+          typeof response === "string" ? response : response?.imageUrl ?? null;
+        if (nextImageUrl) {
+          setImageUrl((prev) => {
+            if (prev) {
+              window.URL.revokeObjectURL(prev);
             }
-          }
-        })
-        .catch((error) => {
-          console.error(error);
-        });
+            return nextImageUrl;
+          });
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
 
-      setIsLoading(false);
-    }
-  }, [uziIds, index]);
+    return () => {
+      cancelled = true;
+    };
+  }, [uziIds, index, uziId, accessToken]);
 
   return (
     <SharedUziViewer

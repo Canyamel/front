@@ -32,11 +32,10 @@ export default defineConfig(({ mode }) => {
     env.VITE_ULTRASOUND_PROXY_TARGET ??
     env.ULTRASOUND_API_PROXY_TARGET ??
     "http://localhost:8080";
-
   return {
     plugins: [processPolyfillPlugin(mode), react()],
     resolve: {
-      dedupe: ["react", "react-dom"],
+      dedupe: ["react", "react-dom", "@annotorious/react", "@annotorious/core", "@annotorious/openseadragon"],
       alias: {
         "@": path.resolve(__dirname, "src"),
         "@medml/ui": path.resolve(__dirname, "../../lib/ui/src"),

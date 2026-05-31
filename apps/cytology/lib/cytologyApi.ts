@@ -1,5 +1,8 @@
 import { ApiFormRequestError, apiFormRequest, baseApi } from "@medml/store";
+import type { AuthState } from "@medml/store";
 import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import type { CytologyStagedCreateFields } from "@medml/cytology-upload";
+import { CYTOLOGY_STAGED_CREATE_URL, formatCytologyUploadApiError } from "@medml/cytology-upload";
 
 /** Строка для multipart — как `.toString()` в OLD CYTO, без Number(). */
 export function cytologyFormFieldToString(value: unknown): string {
@@ -33,17 +36,7 @@ export function buildCreateCytologyFormData(body: CreateCytologyBody): FormData 
 }
 
 export function formatCreateCytologyError(error: unknown): string {
-  if (error && typeof error === "object") {
-    if ("data" in error && (error as { data?: unknown }).data != null) {
-      const data = (error as { data: unknown }).data;
-      if (typeof data === "object") return `Не удалось отправить снимок: ${JSON.stringify(data)}`;
-      return `Не удалось отправить снимок: ${String(data)}`;
-    }
-    if ("error" in error && typeof (error as { error?: string }).error === "string") {
-      return `Не удалось отправить снимок: ${(error as { error: string }).error}`;
-    }
-  }
-  return "Не удалось отправить снимок";
+  return formatCytologyUploadApiError(error);
 }
 
 export function mapUploadValuesToCreateCytologyBody(
@@ -252,19 +245,69 @@ export const cytologyApi = baseApi.injectEndpoints({
       },
       invalidatesTags: () => [{ type: "Cytology", id: "LIST" }],
     }),
+    createCytologyFromStaged: builder.mutation<CreateCytologyResponse, CytologyStagedCreateFields>({
+      async queryFn(body, api) {
+        try {
+          const state = api.getState() as { auth: AuthState };
+          const token = state.auth?.accessToken;
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+
+          const response = await fetch(CYTOLOGY_STAGED_CREATE_URL, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          });
+
+          const text = await response.text();
+          let data: unknown = null;
+          if (text.length > 0) {
+            try {
+              data = JSON.parse(text);
+            } catch {
+              data = text;
+            }
+          }
+
+          if (!response.ok) {
+            return {
+              error: {
+                status: response.status,
+                data,
+              } satisfies FetchBaseQueryError,
+            };
+          }
+
+          return { data: data as CreateCytologyResponse };
+        } catch (error) {
+          return {
+            error: {
+              status: "FETCH_ERROR",
+              error: String(error),
+            } satisfies FetchBaseQueryError,
+          };
+        }
+      },
+      invalidatesTags: () => [{ type: "Cytology", id: "LIST" }],
+    }),
     getCytologyInfo: builder.query<CytologyInfoResponse, string>({
       query: (id) => `/cytology/${encodeURIComponent(id)}`,
       transformResponse: (raw: CytologyInfoRawResponse): CytologyInfoResponse => {
         const group = raw.info?.image_group;
+        const original = raw.original_image;
         return {
-          id: group?.id ?? raw.original_image?.id,
+          id: group?.id ?? original?.id,
           diagnostic_marking: group?.diagnostic_marking,
           diagnostic_number: group?.diagnostic_number,
           diagnos_date: group?.diagnos_date,
           material_type: group?.material_type,
           details: group?.details,
-          file_path: raw.original_image?.file_path,
-          image: raw.original_image?.image,
+          file_path: original?.file_path,
+          image: original?.image ?? original?.file_path,
           info: {
             id: group?.id,
             patient_card: group?.patient_card,
@@ -347,6 +390,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 
 export const {
   useCreateCytologyMutation,
+  useCreateCytologyFromStagedMutation,
   useGetCytologyInfoQuery,
   useGetCytologyTypesQuery,
   useLazyGetCytologySegmentsByTypeQuery,

@@ -9,7 +9,6 @@ interface ImageViewerProps {
   tool: UziDrawingTool;
   needPopup?: boolean;
   imageUrl: string;
-  zoomScale?: number;
   onDeleteSegment?: (segmentId: string) => void;
   onUndoDeleteSegment?: (segmentId: string) => void;
 }
@@ -19,7 +18,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   tool,
   needPopup = true,
   imageUrl,
-  zoomScale = 1,
   onDeleteSegment,
   onUndoDeleteSegment,
 }) => {
@@ -30,9 +28,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         tool={tool}
         userSelectAction={!drawingEnable ? UserSelectAction.SELECT : UserSelectAction.EDIT}
       >
-        <div className="uzi-image-zoom-layer" style={{ transform: `scale(${zoomScale})` }}>
-          <img src={imageUrl} alt="" />
-        </div>
+        <img src={imageUrl} alt="" draggable={false} className="uzi-viewer-image" />
       </ImageAnnotator>
 
       {needPopup && (

@@ -1,0 +1,29 @@
+.cytology-icons {
+    font-size: 30px;
+}
+
+.cytology-toolbox {
+    width: 50%;
+}
+
+.cytology-viewer {
+    height: 100%;
+}
+
+.cytology-viewer-wrapper {
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.viewer {
+    width: 200px;
+}
+
+.left {
+    margin-right: auto;
+}
+
+.right {
+    margin-left: auto;
+}

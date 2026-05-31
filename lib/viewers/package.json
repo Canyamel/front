@@ -9,8 +9,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@annotorious/openseadragon": "^3.3.2",
-    "@annotorious/react": "^3.1.0",
+    "@annotorious/openseadragon": "^3.0.20",
+    "@annotorious/react": "^3.0.20",
     "@medml/shared": "*",
     "@ant-design/icons": "^6.0.0",
     "antd": "^5.27.0"

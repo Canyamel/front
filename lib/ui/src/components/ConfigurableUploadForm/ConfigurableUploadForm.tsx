@@ -4,9 +4,10 @@ import * as React from "react";
 import { Button, Form, Space, Typography, Upload, message } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import type { UploadFile, UploadProps } from "antd";
+import { uploadFileInChunks, type ChunkedUploadConfig } from "@medml/shared";
 
 import { UploadSchemaFieldItems } from "./UploadSchemaFieldItems";
-import type { ChunkedUploadConfig, ConfigurableUploadFormProps } from "./uploadSchemaTypes";
+import type { ConfigurableUploadFormProps } from "./uploadSchemaTypes";
 
 export type {
   UploadSchemaFieldOption,
@@ -18,73 +19,6 @@ export type {
 } from "./uploadSchemaTypes";
 
 const { Dragger } = Upload;
-
-const defaultChunkedStartPayload = (file: File, chunkSize: number) => {
-  const totalChunks = Math.ceil(file.size / chunkSize);
-  const fileId = `${file.name}-${file.size}-${Date.now()}`;
-  return {
-    fileName: file.name,
-    fileSize: file.size,
-    totalChunks,
-    chunkSize,
-    fileId,
-  };
-};
-
-const uploadFileInChunks = async (file: File, config: ChunkedUploadConfig) => {
-  const chunkSize = (config.chunkSizeMb ?? 20) * 1024 * 1024;
-  const startPayload = config.getStartPayload?.(file) ?? defaultChunkedStartPayload(file, chunkSize);
-  const totalChunks = Math.ceil(file.size / chunkSize);
-  const fileId = String((startPayload as { fileId?: unknown }).fileId ?? `${file.name}-${Date.now()}`);
-
-  const startResponse = await fetch(config.startUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(startPayload),
-  });
-  if (!startResponse.ok) {
-    throw new Error("Failed to start upload session");
-  }
-
-  const startData = (await startResponse.json()) as { uploadId?: string };
-
-  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
-    const start = chunkIndex * chunkSize;
-    const end = Math.min(start + chunkSize, file.size);
-    const chunk = file.slice(start, end);
-
-    const formData = new FormData();
-    formData.append("file", chunk);
-    formData.append("chunkIndex", String(chunkIndex));
-    formData.append("totalChunks", String(totalChunks));
-    formData.append("fileId", fileId);
-    formData.append("fileName", file.name);
-    if (startData.uploadId) formData.append("uploadId", startData.uploadId);
-
-    const chunkResponse = await fetch(config.chunkUrl, {
-      method: "POST",
-      body: formData,
-    });
-    if (!chunkResponse.ok) {
-      throw new Error(`Failed uploading chunk ${chunkIndex + 1}/${totalChunks}`);
-    }
-  }
-
-  const completeResponse = await fetch(config.completeUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fileId,
-      fileName: file.name,
-      uploadId: startData.uploadId,
-    }),
-  });
-  if (!completeResponse.ok) {
-    throw new Error("Failed to complete upload session");
-  }
-
-  return completeResponse.json();
-};
 
 export function ConfigurableUploadForm({
   title = "Upload",
@@ -101,6 +35,7 @@ export function ConfigurableUploadForm({
   const [form] = Form.useForm<Record<string, unknown>>();
   const [file, setFile] = React.useState<File | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState(0);
 
   const uploadEnabled = upload?.enabled ?? true;
   const maxCount = upload?.maxCount ?? 1;
@@ -125,7 +60,7 @@ export function ConfigurableUploadForm({
     maxCount,
     beforeUpload: (nextFile) => {
       if (nextFile.size > maxSizeBytes) {
-        message.error(`File must be smaller than ${upload?.maxSizeMb ?? 10240}MB`);
+        message.error(`Файл должен быть меньше ${upload?.maxSizeMb ?? 10240} МБ`);
         return Upload.LIST_IGNORE;
       }
       setFile(nextFile as File);
@@ -133,6 +68,7 @@ export function ConfigurableUploadForm({
     },
     onRemove: () => {
       setFile(null);
+      setUploadProgress(0);
     },
     showUploadList: true,
     fileList,
@@ -140,15 +76,18 @@ export function ConfigurableUploadForm({
 
   const handleFinish = async (values: Record<string, unknown>) => {
     if (uploadEnabled && !file) {
-      message.error("Choose file before submit");
+      message.error("Выберите файл перед отправкой");
       return;
     }
 
     setUploading(true);
+    setUploadProgress(0);
     try {
       let uploadedFileMeta: unknown;
       if (file && upload?.chunked?.mode === "chunked") {
-        uploadedFileMeta = await uploadFileInChunks(file, upload.chunked);
+        uploadedFileMeta = await uploadFileInChunks(file, upload.chunked, {
+          onProgress: setUploadProgress,
+        });
       }
 
       await onSubmit({
@@ -175,15 +114,19 @@ export function ConfigurableUploadForm({
         >
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             {uploadEnabled ? (
-              <Dragger {...uploadProps}>
+              <Dragger {...uploadProps} disabled={uploading}>
                 <p className="ant-upload-drag-icon">
                   <InboxOutlined />
                 </p>
                 <p className="ant-upload-text">
-                  {upload?.draggerDescription ?? "Click or drag file to this area"}
+                  {upload?.draggerDescription ?? "Нажмите или перетащите файл в эту область"}
                 </p>
-                <p className="ant-upload-hint">{upload?.draggerHint ?? "Single file upload supported"}</p>
+                <p className="ant-upload-hint">{upload?.draggerHint ?? "Поддерживается загрузка одного файла"}</p>
               </Dragger>
+            ) : null}
+
+            {uploading && upload?.chunked?.mode === "chunked" && uploadProgress > 0 ? (
+              <Typography.Text type="secondary">Загрузка файла: {uploadProgress}%</Typography.Text>
             ) : null}
 
             <UploadSchemaFieldItems fields={fields} disabled={uploading} />
@@ -195,7 +138,9 @@ export function ConfigurableUploadForm({
                 </Button>
               ) : null}
               <Button type="primary" htmlType="submit" loading={uploading}>
-                {submitText}
+                {uploading && upload?.chunked?.mode === "chunked"
+                  ? `Загрузка… ${uploadProgress}%`
+                  : submitText}
               </Button>
             </Space>
           </Space>
@@ -204,4 +149,3 @@ export function ConfigurableUploadForm({
     </div>
   );
 }
-

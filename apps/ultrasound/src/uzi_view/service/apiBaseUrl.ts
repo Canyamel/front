@@ -4,5 +4,5 @@ export function getApiBaseUrl(): string {
   if (typeof v === "string" && v.length > 0) {
     return v.endsWith("/") ? v : `${v}/`;
   }
-  return "http://194.226.121.145:8080/api/v1/";
+  return "/api/v1/";
 }

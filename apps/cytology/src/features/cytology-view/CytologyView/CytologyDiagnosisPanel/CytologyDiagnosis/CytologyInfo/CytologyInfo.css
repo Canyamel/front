@@ -1,0 +1,11 @@
+.info-link-button {
+    justify-content: start !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: fit-content;
+}
+
+.info-link-button * {
+    margin-bottom: 0 !important;
+    color: #1677ff !important;
+}

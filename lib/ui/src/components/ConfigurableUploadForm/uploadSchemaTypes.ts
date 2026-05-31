@@ -16,14 +16,8 @@ export type UploadSchemaField = {
   disabled?: boolean;
 };
 
-export type ChunkedUploadConfig = {
-  mode: "chunked";
-  startUrl: string;
-  chunkUrl: string;
-  completeUrl: string;
-  chunkSizeMb?: number;
-  getStartPayload?: (file: File) => Record<string, unknown>;
-};
+export type { ChunkedUploadConfig } from "@medml/shared";
+import type { ChunkedUploadConfig } from "@medml/shared";
 
 export type UploadConfig = {
   enabled?: boolean;

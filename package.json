@@ -13,7 +13,9 @@
     "dev:mri": "turbo dev --filter=mri-app",
     "build:mri": "turbo build --filter=mri-app",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "check:boundaries": "node tools/scripts/check-boundaries.mjs",
+    "workspaces:list": "node tools/scripts/list-workspaces.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

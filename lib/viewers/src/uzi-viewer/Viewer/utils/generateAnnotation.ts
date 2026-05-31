@@ -1,4 +1,4 @@
-import { ShapeType } from "@annotorious/openseadragon";
+import { ShapeType } from "@annotorious/annotorious";
 import { UziViewerSegment } from "../../types";
 
 import { getMaxType } from "./getMaxType";

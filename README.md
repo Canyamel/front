@@ -6,24 +6,17 @@
 
 ```
 medml-front/
-├── apps/                    # Приложения
-│   ├── ultrasound/         # Приложение УЗИ
-│   ├── ct/                 # Приложение КТ
-│   ├── mri/                # Приложение МРТ
-│   └── cytology/           # Приложение Цитология
-│
-├── domain/                # Доменные модули
-│   ├── patients/          # Домен "Пациенты"
-│   └── auth/              # Домен "Авторизация"
-│
-├── lib/                   # Технические библиотеки
-│   ├── shared/            # Сквозные утилиты, типы, константы
-│   ├── ui/                # UI компоненты (Ant Design обёртки)
-│   └── viewers/           # Интерфейсы viewer'ов
-│
-├── configs/               # Конфигурационные файлы
-└── build/                 # Инфраструктура (Docker и т.д.)
+├── apps/                    # Прикладные приложения (УЗИ, КТ, МРТ, цитология)
+├── domains/                 # Доменные пакеты (auth, patients, layout, …)
+├── lib/                     # Инфраструктура и модули визуализации
+├── configs/                 # Общие пресеты TypeScript, Vite, ESLint
+├── docs/                    # Архитектурная документация платформы
+├── tools/                   # Скрипты проверки границ и workspaces
+├── build/                   # Docker, Nginx, поставка
+└── .github/workflows/       # CI (lint, check:boundaries)
 ```
+
+Подробнее: [docs/architecture/overview.md](docs/architecture/overview.md).
 
 ## Установка
 
@@ -53,6 +46,8 @@ npm run build:mri
 npm run build:cytology
 ```
 
+Docker-образ со статикой и прокси `/api` на бэкенд: см. [build/README.md](build/README.md) (`API_BACKEND_URL`).
+
 ## Workspaces
 
 Проект использует npm workspaces для управления зависимостями между пакетами.
@@ -71,5 +66,13 @@ npm run build:cytology
 ## Turborepo
 
 Для управления задачами используется Turborepo с кэшированием сборок.
+
+## Качество и границы пакетов
+
+```bash
+npm run check:boundaries   # проверка правил зависимостей apps → domains → lib
+npm run workspaces:list    # карта @medml/* зависимостей
+npm run lint
+```
 
 

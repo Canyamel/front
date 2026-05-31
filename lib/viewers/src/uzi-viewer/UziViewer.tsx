@@ -57,7 +57,7 @@ const UziViewer: React.FC<UziViewerProps> = ({
   }, [isEditMode]);
 
   return (
-    <Annotorious>
+    <Annotorious key={imageUrl || "empty"}>
       <>
         {isEditMode && (
           <EditPanel tool={tool} setTool={setTool} onHeightChange={onToolPanelHeightChange} />
@@ -78,7 +78,6 @@ const UziViewer: React.FC<UziViewerProps> = ({
                 imageUrl={imageUrl}
                 segments={currentImageSegments}
                 drawingEnabled={canDrawOnSelectedNode}
-                selected={!!selectedNode}
                 needPopup
                 addSegment={onAddSegment}
                 changeSegment={onChangeSegment}

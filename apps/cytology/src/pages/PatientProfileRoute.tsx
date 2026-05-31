@@ -15,7 +15,6 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import type { MenuProps } from "antd";
 import dayjs from "dayjs";
-
 import {
   PatientCreateModal,
   stripPolicyDigits,
@@ -23,13 +22,11 @@ import {
 } from "@medml/patient_create";
 import { PatientProfileView } from "@medml/patient_view";
 
-import { useGetMedWorkerPatientsQuery } from "@/lib/patientsApi";
 import {
   useGetPatientShotsByCardIdQuery,
   useUpdatePatientCardMutation,
   type CytologyStudyRow,
 } from "@/lib/patientProfileApi";
-import { useDoctorId } from "@/lib/useDoctorId";
 
 const { Search } = Input;
 
@@ -93,7 +90,6 @@ export default function PatientProfileRoute() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const cardId = params.get("id")?.trim() ?? "";
-  const { doctorId, status } = useDoctorId();
 
   const [search, setSearch] = React.useState("");
   const [editOpen, setEditOpen] = React.useState(false);
@@ -104,36 +100,18 @@ export default function PatientProfileRoute() {
     skip: !cardId,
   });
 
-  const { data: listData } = useGetMedWorkerPatientsQuery(
-    { doctorId },
-    { skip: !doctorId || status !== "authenticated" }
-  );
+  const [updatePatientCard, { isLoading: isUpdating }] = useUpdatePatientCardMutation();
 
-  const [updatePatient, { isLoading: isUpdating }] = useUpdatePatientCardMutation();
-
-  const cardFromList = React.useMemo(
-    () => listData?.cards.find((c) => c.cardId === cardId),
-    [listData?.cards, cardId]
-  );
-
-  const patient = React.useMemo(() => {
-    if (!data?.patient) return null;
-    const diagnosis =
-      cardFromList?.diagnosis?.trim() ||
-      (data.patient.diagnosis !== "Не обнаружено" ? data.patient.diagnosis : "") ||
-      "Не обнаружено";
-    return { ...data.patient, diagnosis };
-  }, [data?.patient, cardFromList?.diagnosis]);
+  const patient = data?.patient ?? null;
 
   const editInitialValues = React.useMemo(() => {
     if (!data?.editDefaults) return undefined;
-    const diagnosis =
-      cardFromList?.diagnosis ?? data.editDefaults.diagnosis ?? data.patient?.diagnosis ?? "";
+    const diagnosis = data.editDefaults.diagnosis ?? data.patient?.diagnosis ?? "";
     return {
       ...data.editDefaults,
       diagnosis: diagnosis === "Не обнаружено" ? "" : diagnosis,
     };
-  }, [data?.editDefaults, cardFromList?.diagnosis, data?.patient?.diagnosis]);
+  }, [data?.editDefaults, data?.patient?.diagnosis]);
 
   const studyColumns = useStudyColumns();
 
@@ -156,7 +134,7 @@ export default function PatientProfileRoute() {
   const handleEditFinish = async (values: PatientCreateValuesCytology) => {
     if (!cardId) return;
     try {
-      await updatePatient({
+      await updatePatientCard({
         cardId,
         payload: {
           patient: {
@@ -186,7 +164,7 @@ export default function PatientProfileRoute() {
     <Layout style={{ minHeight: "100vh", background: "transparent" }}>
       <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: "0 auto", width: "100%" }}>
         {!cardId ? (
-          <Typography.Text type="danger">Не указан идентификатор карты пациента (?id=)</Typography.Text>
+          <Typography.Text type="danger">Не указан идентификатор карты (?id=)</Typography.Text>
         ) : (
           <>
             <PatientProfileView
