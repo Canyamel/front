@@ -4,10 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { CytologyUploadPhoto } from "@medml/cytology_upload";
 
-import {
-  mapUploadValuesToCreateCytologyBody,
-  useCreateCytologyMutation,
-} from "@/lib/cytologyApi";
+import { mapUploadValuesToCytologyStagedBody } from "@medml/cytology_upload";
+
+import { useCreateCytologyFromStagedMutation } from "@/lib/cytologyApi";
 import { useGetMedWorkerPatientsQuery } from "@/lib/patientsApi";
 import { useDoctorId } from "@/lib/useDoctorId";
 
@@ -22,7 +21,7 @@ export default function UploadPhotoRoutePage() {
     { skip: !doctorId || status !== "authenticated" }
   );
 
-  const [createCytology, { isLoading }] = useCreateCytologyMutation();
+  const [createCytologyFromStaged, { isLoading }] = useCreateCytologyFromStagedMutation();
 
   const patientOptions =
     data?.cards.map((card) => ({
@@ -36,8 +35,8 @@ export default function UploadPhotoRoutePage() {
       patientOptions={patientOptions}
       patientsLoading={isFetching}
       isSubmitting={isLoading}
-      onCreate={({ file, values }) =>
-        createCytology(mapUploadValuesToCreateCytologyBody(file, values)).unwrap()
+      onCreate={({ values, uploadedFileMeta }) =>
+        createCytologyFromStaged(mapUploadValuesToCytologyStagedBody(values, uploadedFileMeta)).unwrap()
       }
       onSuccess={(id) => router.push(`/diagnostic_is_running/${encodeURIComponent(String(id))}`)}
     />

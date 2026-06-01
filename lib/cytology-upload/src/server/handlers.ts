@@ -195,6 +195,9 @@ export async function proxyStagedCytologyCreate(
   }
 
   const fileStats = await stat(finalPath);
+  console.info(
+    `[cytology-upload] proxy staged create: ${fileName} (${fileStats.size} bytes) -> ${resolveCytologyCreateUrl(apiProxyTarget, cytologyCreatePath).href}`
+  );
   const formData = new FormDataNode();
   formData.append("image", createReadStream(finalPath), {
     filename: fileName,
