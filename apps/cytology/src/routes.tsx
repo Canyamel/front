@@ -7,6 +7,7 @@ import FaqRoute from "@/pages/FaqRoute";
 import LoginRoute from "@/pages/LoginRoute";
 import PatientProfileRoute from "@/pages/PatientProfileRoute";
 import PatientsRoute from "@/pages/PatientsRoute";
+import DiagnosticIsRunningRoute from "@/pages/DiagnosticIsRunningRoute";
 import PlaceholderRoute from "@/pages/PlaceholderRoute";
 import RegisterRoute from "@/pages/RegisterRoute";
 import UploadPhotoRoute from "@/pages/UploadPhotoRoute";
@@ -63,7 +64,7 @@ const routes: RouteObject[] = [
         path: "diagnostic_is_running/:id",
         element: (
           <RequireAuth>
-            <PlaceholderRoute title="Снимок анализируется" />
+            <DiagnosticIsRunningRoute />
           </RequireAuth>
         ),
       },
