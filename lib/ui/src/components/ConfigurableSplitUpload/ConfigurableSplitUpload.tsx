@@ -20,6 +20,8 @@ export type ConfigurableSplitUploadProps = {
   requireFile?: boolean;
   /** Чанковая загрузка перед onSubmit (как OLD CYTO). */
   chunked?: ChunkedUploadConfig;
+  /** Текст второй фазы после сборки чанков (отправка на API). */
+  postUploadStatusLabel?: React.ReactNode;
   onCancel?: () => void;
   onSubmit: (payload: {
     values: Record<string, unknown>;
@@ -40,6 +42,7 @@ export function ConfigurableSplitUpload({
   file,
   requireFile = true,
   chunked,
+  postUploadStatusLabel = "Отправка на сервер диагностики…",
   onCancel,
   onSubmit,
 }: ConfigurableSplitUploadProps) {
@@ -47,6 +50,7 @@ export function ConfigurableSplitUpload({
   const form = formProp ?? innerForm;
   const [submitting, setSubmitting] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [submitPhase, setSubmitPhase] = React.useState<"chunks" | "api" | null>(null);
 
   const handleFinish = async (values: Record<string, unknown>) => {
     if (requireFile && !file) {
@@ -56,17 +60,21 @@ export function ConfigurableSplitUpload({
 
     setSubmitting(true);
     setUploadProgress(0);
+    setSubmitPhase(chunked?.mode === "chunked" ? "chunks" : "api");
     try {
       let uploadedFileMeta: unknown;
       if (file && chunked?.mode === "chunked") {
         uploadedFileMeta = await uploadFileInChunks(file, chunked, {
           onProgress: setUploadProgress,
         });
+        setSubmitPhase("api");
       }
 
       await onSubmit({ values, uploadedFileMeta });
     } finally {
       setSubmitting(false);
+      setSubmitPhase(null);
+      setUploadProgress(0);
     }
   };
 
@@ -93,10 +101,17 @@ export function ConfigurableSplitUpload({
             <div style={{ flex: "1 1 280px", minWidth: 0 }}>{uploadSlot}</div>
           </Flex>
 
-          {submitting && chunked?.mode === "chunked" && uploadProgress > 0 ? (
+          {submitting && submitPhase === "chunks" && uploadProgress > 0 ? (
             <div style={{ marginTop: 16 }}>
               <Progress percent={uploadProgress} status="active" />
               <Typography.Text type="secondary">Загрузка файла: {uploadProgress}%</Typography.Text>
+            </div>
+          ) : null}
+
+          {submitting && submitPhase === "api" ? (
+            <div style={{ marginTop: 16 }}>
+              <Progress percent={100} status="active" showInfo={false} />
+              <Typography.Text type="secondary">{postUploadStatusLabel}</Typography.Text>
             </div>
           ) : null}
 
@@ -107,9 +122,11 @@ export function ConfigurableSplitUpload({
               </Button>
             ) : null}
             <Button type="primary" htmlType="submit" loading={submitting}>
-              {submitting && chunked?.mode === "chunked"
+              {submitting && submitPhase === "chunks"
                 ? `Загрузка… ${uploadProgress}%`
-                : submitText}
+                : submitting && submitPhase === "api"
+                  ? postUploadStatusLabel
+                  : submitText}
             </Button>
           </Space>
         </Form>

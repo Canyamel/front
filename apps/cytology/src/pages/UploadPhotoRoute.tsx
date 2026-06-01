@@ -2,10 +2,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { CytologyUploadPhoto } from "@medml/cytology_upload";
 
-import {
-  mapUploadValuesToCreateCytologyBody,
-  useCreateCytologyMutation,
-} from "@/lib/cytologyApi";
+import { mapUploadValuesToCytologyStagedBody } from "@medml/cytology_upload";
+
+import { useCreateCytologyFromStagedMutation } from "@/lib/cytologyApi";
 import { useGetMedWorkerPatientsQuery } from "@/lib/patientsApi";
 import { useDoctorId } from "@/lib/useDoctorId";
 
@@ -20,7 +19,7 @@ export default function UploadPhotoRoute() {
     { skip: !doctorId || status !== "authenticated" }
   );
 
-  const [createCytology, { isLoading }] = useCreateCytologyMutation();
+  const [createCytologyFromStaged, { isLoading }] = useCreateCytologyFromStagedMutation();
 
   const patientOptions =
     data?.cards.map((card) => ({
@@ -34,8 +33,8 @@ export default function UploadPhotoRoute() {
       patientOptions={patientOptions}
       patientsLoading={isFetching}
       isSubmitting={isLoading}
-      onCreate={({ file, values }) =>
-        createCytology(mapUploadValuesToCreateCytologyBody(file, values)).unwrap()
+      onCreate={({ values, uploadedFileMeta }) =>
+        createCytologyFromStaged(mapUploadValuesToCytologyStagedBody(values, uploadedFileMeta)).unwrap()
       }
       onSuccess={(id) => navigate(`/diagnostic_is_running/${encodeURIComponent(String(id))}`)}
     />

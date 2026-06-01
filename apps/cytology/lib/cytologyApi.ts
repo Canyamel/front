@@ -66,9 +66,17 @@ export type CreateCytologyBody = {
   patient_card: string;
 };
 
+export type CytologyProcessingStatus = "pending" | "processing" | "ready" | "failed";
+
+export type CytologyProcessingStatusResponse = {
+  image_id: number;
+  processing_status: CytologyProcessingStatus;
+};
+
 export type CreateCytologyResponse = {
   id?: string | number;
   image_id?: number;
+  processing_status?: CytologyProcessingStatus;
 };
 
 export type CytologyInfoResponse = {
@@ -385,6 +393,9 @@ export const cytologyApi = baseApi.injectEndpoints({
       query: (id) => `/cytology/history/${encodeURIComponent(id)}/`,
       providesTags: (_result, _error, id) => [{ type: "Cytology", id: `history:${id}` }],
     }),
+    getProcessingStatus: builder.query<CytologyProcessingStatusResponse, string>({
+      query: (id) => `/cytology/${encodeURIComponent(id)}/processing-status/`,
+    }),
   }),
 });
 
@@ -400,6 +411,7 @@ export const {
   useAddReviseCopyMutation,
   usePatchCytologyInfoMutation,
   useGetCytologyHistoryQuery,
+  useGetProcessingStatusQuery,
 } = cytologyApi;
 
 export const useAddNewReviseMutation = useAddReviseCopyMutation;

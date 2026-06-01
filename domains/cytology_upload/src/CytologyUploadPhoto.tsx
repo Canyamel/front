@@ -26,10 +26,10 @@ export type CytologyUploadPhotoProps = {
   patientOptions: CytologyPatientOption[];
   patientsLoading?: boolean;
   isSubmitting?: boolean;
-  /** POST multipart на API (через Vite proxy `/api/v3/cytology/create/`), как в OLD CYTO. */
+  /** Создание исследования по уже собранному на сервере файлу (без повторной загрузки из браузера). */
   onCreate: (params: {
-    file: File;
     values: Record<string, unknown>;
+    uploadedFileMeta: ChunkedUploadCompleteMeta;
   }) => Promise<{ id?: string | number; image_id?: string | number; pk?: string | number }>;
   onSuccess: (id: string | number) => void;
 };
@@ -116,7 +116,10 @@ export function CytologyUploadPhoto({
     }
 
     try {
-      const result = await onCreate({ file, values });
+      const result = await onCreate({
+        values,
+        uploadedFileMeta: uploadedFileMeta as ChunkedUploadCompleteMeta,
+      });
       const nextId = resolveCytologyCreateId(result);
       if (nextId == null) {
         throw new Error("No cytology id in response");
