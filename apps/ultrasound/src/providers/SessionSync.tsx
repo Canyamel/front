@@ -9,7 +9,7 @@ import {
   useAppSelector,
 } from "@medml/store";
 
-import { getSessionConfig, useGetSessionQuery, useRefreshTokenMutation } from "@/lib/authApi";
+import { getSessionConfig, useGetSessionQuery, useRefreshTokenMutation } from "@/api/authApi";
 import {
   clearAuthTokens,
   setAuthToken,

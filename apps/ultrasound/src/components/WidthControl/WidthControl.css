@@ -1,0 +1,12 @@
+.width-control {
+  width: 100%;
+  background-color: inherit;
+}
+
+.width-control__inner {
+  width: min(100%, 1280px);
+  margin: 0 auto;
+  padding: 0 20px;
+  box-sizing: border-box;
+  background-color: inherit;
+}

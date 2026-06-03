@@ -12,19 +12,28 @@ import {
 import { PatientsPage } from "@medml/patient_list";
 import type { PatientListSort } from "@medml/patient_list";
 
+import { isThyroidBackend } from "@/lib/apiBackend";
 import {
   useCreateMedPatientCardMutation,
   useCreateMedPatientMutation,
+  useCreateUziPatientWithCardMutation,
   useGetDoctorPatientsQuery,
-} from "@/lib/patientsApi";
-import { useDoctorId } from "@/lib/useDoctorId";
+} from "@/api/patientsApi";
+import { useDoctorId } from "@/api/hooks/useDoctorId";
 
 export default function PatientsRoute() {
   const navigate = useNavigate();
   const { doctorId, status } = useDoctorId();
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
-  const [createPatient, { isLoading: isCreatingPatient }] = useCreateMedPatientMutation();
-  const [createCard, { isLoading: isCreatingCard }] = useCreateMedPatientCardMutation();
+  const [createThyroidPatient, { isLoading: isCreatingThyroid }] =
+    useCreateUziPatientWithCardMutation();
+  const [createMedPatient, { isLoading: isCreatingMedPatient }] =
+    useCreateMedPatientMutation();
+  const [createMedCard, { isLoading: isCreatingMedCard }] =
+    useCreateMedPatientCardMutation();
+  const isCreatingPatient = isThyroidBackend()
+    ? isCreatingThyroid
+    : isCreatingMedPatient || isCreatingMedCard;
 
   const [search, setSearch] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -57,24 +66,44 @@ export default function PatientsRoute() {
     }
     const birth_date = dayjs(values.birthDate).format("YYYY-MM-DD");
     const policy = stripPolicyDigits(values.policy);
-    const created = await createPatient({
-      email: values.email.trim(),
-      fullname: buildFullNameUzi(values),
-      policy,
-      active: values.active,
-      malignancy: values.malignancy,
-      birth_date,
-    }).unwrap();
-    const patientId = typeof created === "object" && created && "id" in created ? String((created as { id: string }).id) : "";
-    if (!patientId) {
-      message.error("Сервер не вернул идентификатор пациента");
-      return;
+    if (isThyroidBackend()) {
+      const created = await createThyroidPatient({
+        doctorId,
+        surname: values.surname.trim(),
+        name: values.name.trim(),
+        patronymic: values.patronymic.trim(),
+        email: values.email.trim(),
+        policy,
+        active: values.active,
+        malignancy: values.malignancy,
+        birth_date,
+        diagnosis: values.diagnosis.trim(),
+      }).unwrap();
+      if (!created.id) {
+        message.error("Сервер не вернул идентификатор пациента");
+        return;
+      }
+    } else {
+      const created = await createMedPatient({
+        email: values.email.trim(),
+        fullname: buildFullNameUzi(values),
+        policy,
+        active: values.active,
+        malignancy: values.malignancy,
+        birth_date,
+      }).unwrap();
+      const patientId =
+        typeof created === "object" && created?.id ? String(created.id) : "";
+      if (!patientId) {
+        message.error("Сервер не вернул идентификатор пациента");
+        return;
+      }
+      await createMedCard({
+        patient_id: patientId,
+        doctor_id: doctorId,
+        diagnosis: values.diagnosis.trim(),
+      }).unwrap();
     }
-    await createCard({
-      patient_id: patientId,
-      doctor_id: doctorId,
-      diagnosis: values.diagnosis.trim(),
-    }).unwrap();
     message.success("Пациент создан");
     setCreateModalOpen(false);
   };
@@ -106,7 +135,7 @@ export default function PatientsRoute() {
         variant="uzi"
         onCancel={() => setCreateModalOpen(false)}
         onFinish={(vals) => void handleCreateFinish(vals as PatientCreateValuesUzi)}
-        confirmLoading={isCreatingPatient || isCreatingCard}
+        confirmLoading={isCreatingPatient}
       />
     </>
   );

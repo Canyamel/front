@@ -39,6 +39,8 @@ export type CtSegmentConfig = {
 };
 
 export type CtVolumeViewerProps = {
+  /** Полный базовый URL к данным, например "https://example.com/pacs/ID1/P1/E1". Если не задан, используется window.location.origin + pacsBasePath */
+  baseUrl?: string;
   /** Базовый путь к PACS */
   pacsBasePath: string;
 
@@ -77,9 +79,10 @@ export type CtVolumeViewerProps = {
 };
 
 export function CtVolumeViewer(props: CtVolumeViewerProps) {
-  const { pacsBasePath, series, initialSeriesId, modality, defaultWindow, enableCrosshairs } = props;
+  const { baseUrl, pacsBasePath, series, initialSeriesId, modality, defaultWindow, enableCrosshairs } = props;
 
   const config: CtViewerConfig = {
+    baseUrl,
     pacsBasePath,
     series,
     initialSeriesId,

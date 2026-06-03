@@ -9,6 +9,7 @@ import {
 } from "@medml/store";
 
 import App from "./App";
+import "./api/uziApi";
 import {
   clearAuthToken,
   clearRefreshToken,

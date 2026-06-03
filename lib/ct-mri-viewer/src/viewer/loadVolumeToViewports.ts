@@ -40,7 +40,7 @@ export async function loadVolumeToViewports(
   if (!re) return;
 
   const volId = volumeIdForSeries(seriesId);
-  const baseUrl = `${window.location.origin}${ctx.pacsBasePath}/${seriesId}`;
+  const baseUrl = ctx.config.baseUrl ?? `${window.location.origin}${ctx.pacsBasePath}/${seriesId}`;
   const prefix = seriesItem.slicePrefix ?? "I";
   const postfix = seriesItem.slicePostfix ?? "";
   const imageIds = Array.from(
@@ -74,8 +74,11 @@ export async function loadVolumeToViewports(
   const windowRange = voiRangeFromImage(refImage, policy);
   ctx.seriesInitialVoiRef.current.set(seriesId, windowRange);
 
-  const volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
-  await volume.load();
+  let volume = cache.getVolume(volId);
+  if (!volume) {
+    volume = await volumeLoader.createAndCacheVolumeFromImages(volId, imageIds);
+    await volume.load();
+  }
   ctx.seriesVolumeIdsRef.current.set(seriesId, volId);
 
   const removeFallback = registerVolumeImagePlaneFallback(volId);
@@ -181,4 +184,27 @@ export function defaultMprAssignments(): VolumeViewportAssignment[] {
     { viewportId: VIEWPORT_IDS.CT_SAGITTAL as ViewportId, orientation: 1 },
     { viewportId: VIEWPORT_IDS.CT_CORONAL as ViewportId, orientation: 2 },
   ];
+}
+
+/**
+ * Очищает кэш томов, оставляя только указанные серии.
+ * Полезно для управления памятью при загрузке новых серий.
+ */
+export function purgeVolumeCache(keepSeriesIds: string[]): void {
+  const volumesToKeep = new Set(keepSeriesIds.map(volumeIdForSeries));
+  const volumesToRemove: string[] = [];
+
+  cache.getVolumes().forEach((volume, volumeId) => {
+    if (!volumesToKeep.has(volumeId.toString())) {
+      volumesToRemove.push(volumeId.toString());
+    }
+  });
+
+  volumesToRemove.forEach(volumeId => {
+    try {
+      cache.removeVolumeLoadObject(volumeId);
+    } catch (error) {
+      console.warn(`Failed to remove volume ${volumeId} from cache:`, error);
+    }
+  });
 }

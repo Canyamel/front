@@ -9,9 +9,8 @@ import type { CtLayoutId } from "../layout";
 import { DEFAULT_CT_LAYOUT } from "../layout";
 import { MprControlBar } from "./mpr/MprControlBar";
 import { MprViewportGrid } from "./mpr/MprViewportGrid";
-import { RenderingEngine, Enums, init as coreInit, getRenderingEngine } from "@cornerstonejs/core";
+import { RenderingEngine, Enums, getRenderingEngine, cache } from "@cornerstonejs/core";
 import * as polySeg from "@cornerstonejs/polymorphic-segmentation";
-import { init as dicomImageLoaderInit } from "@cornerstonejs/dicom-image-loader";
 import type { PublicViewportInput } from "@cornerstonejs/core/types";
 import * as cornerstoneTools from "@cornerstonejs/tools";
 import {
@@ -20,10 +19,11 @@ import {
   VIEWPORT_IDS,
   VIEWPORT_MIN_SIZE_PX,
   toolGroupIdForSeries,
+  volumeIdForSeries,
 } from "../viewer/constants";
 import type { MprSlotState } from "../viewer/types";
 import { registerCacheBasedMetadataProvider } from "../viewer/metadataProviders";
-import { loadVolumeToViewports, defaultMprAssignments } from "../viewer/loadVolumeToViewports";
+import { loadVolumeToViewports, defaultMprAssignments, purgeVolumeCache } from "../viewer/loadVolumeToViewports";
 import { resizeEngineAfterLayout, resizeEnginePreserveViewPresentationSync } from "../viewer/resizeViewports";
 import { useMprVoiSync } from "./hooks/useMprVoiSync";
 import {
@@ -35,6 +35,7 @@ import {
   WindowLevelTool,
   MouseBindings,
 } from "../viewer/toolGroup";
+import { initializeCornerstone } from "../viewer/cornerstoneInit";
 
 const {
   init: toolsInit,
@@ -69,6 +70,7 @@ export function CtViewer({ config }: CtViewerProps) {
   const [activeSeriesId, setActiveSeriesId] = useState<string | null>(config.initialSeriesId ?? null);
   const [isLoadingSeries, setIsLoadingSeries] = useState(false);
   const loadTokenRef = useRef(0);
+  const mountedRef = useRef(true);
   const [activeTool, setActiveToolState] = useState<CtToolId>("WindowLevel");
   const [layout, setLayout] = useState<CtLayoutId>(DEFAULT_CT_LAYOUT);
   const layoutRef = useRef<CtLayoutId>(DEFAULT_CT_LAYOUT);
@@ -214,8 +216,15 @@ export function CtViewer({ config }: CtViewerProps) {
       setIsLoadingSeries(true);
       try {
         if (myToken !== loadTokenRef.current) return;
+        if (!mountedRef.current) return;
+
+        // Очистить кэш предыдущих томов, кроме текущего (но для повторной загрузки очистить и текущий)
+        const currentSeriesIds = slots.map(s => s.seriesId).filter(Boolean).filter(id => id !== seriesId) as string[];
+        purgeVolumeCache(currentSeriesIds);
+
         await loadVolumeAndAssignToSlots(seriesId);
         if (myToken !== loadTokenRef.current) return;
+        if (!mountedRef.current) return;
         messageApi.success(`Загружено: ${label}`, 2);
       } catch (err) {
         console.error("Load volume error:", err);
@@ -272,22 +281,8 @@ export function CtViewer({ config }: CtViewerProps) {
         setError(null);
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-        await coreInit({
-          rendering: { renderingEngineMode: Enums.RenderingEngineModeEnum.ContextPool },
-          debug: { statsOverlay: false },
-        });
-        dicomImageLoaderInit({ maxWebWorkers: navigator.hardwareConcurrency ?? 1 });
+        await initializeCornerstone();
         cacheMetadataCleanupRef.current = registerCacheBasedMetadataProvider(config);
-
-        toolsInit({ addons: { polySeg } });
-        addTool(StackScrollTool);
-        addTool(WLTool);
-        addTool(PanTool);
-        addTool(ZoomTool);
-        addTool(CHtool);
-        addTool(LenTool);
-        addTool(RectTool);
-        addTool(EllTool);
 
         const renderingEngine = new RenderingEngine(RENDERING_ENGINE_ID);
         const viewerInput: PublicViewportInput[] = [
@@ -328,6 +323,7 @@ export function CtViewer({ config }: CtViewerProps) {
 
         cleanupRef.current = () => {
           disposed = true;
+          mountedRef.current = false;
           setCornerstoneReady(false);
           cacheMetadataCleanupRef.current?.();
           cacheMetadataCleanupRef.current = null;

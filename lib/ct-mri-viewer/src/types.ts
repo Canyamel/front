@@ -22,6 +22,8 @@ export type SeriesConfig = {
 };
 
 export type CtViewerConfig = {
+  /** Полный базовый URL к данным, например "https://example.com/pacs/ID1/P1/E1". Если не задан, используется window.location.origin + pacsBasePath */
+  baseUrl?: string;
   /** Базовый путь к данным, например "/pacs/ID1/P1/E1" */
   pacsBasePath: string;
   /** Список серий с индексами и количеством срезов */

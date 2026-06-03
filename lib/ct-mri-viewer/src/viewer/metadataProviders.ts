@@ -14,6 +14,11 @@ export function registerCacheBasedMetadataProvider(config: CtViewerConfig): () =
     if (!imageId) return undefined;
     const image = cache.getImage(imageId);
     if (!image) return undefined;
+
+    // Check if real DICOM metadata exists
+    const existingMetadata = metaData.get(type, imageId);
+    if (existingMetadata) return undefined; // Don't override real DICOM data
+
     const pixelData = image.getPixelData();
     const ctor = pixelData?.constructor?.name ?? "";
     const bitsAllocated = ctor.includes("16") ? 16 : ctor.includes("8") ? 8 : 16;

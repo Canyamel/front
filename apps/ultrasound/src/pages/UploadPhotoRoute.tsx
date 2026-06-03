@@ -6,10 +6,11 @@ import type { UploadFile, UploadProps } from "antd";
 
 import { ConfigurableSplitUpload, type UploadSchemaField } from "@medml/ui";
 
-import { useGetDoctorPatientsQuery } from "@/lib/patientsApi";
-import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/lib/uziApi";
+import { isThyroidBackend } from "@/lib/apiBackend";
+import { useGetDoctorPatientsQuery } from "@/api/patientsApi";
+import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/api/uziApi";
 import { getRtkErrorMessage } from "@/lib/rtkErrorMessage";
-import { useDoctorId } from "@/lib/useDoctorId";
+import { useDoctorId } from "@/api/hooks/useDoctorId";
 
 const { Dragger } = Upload;
 
@@ -35,10 +36,12 @@ export default function UploadPhotoRoute() {
 
   const fields = React.useMemo<UploadSchemaField[]>(() => {
     const deviceOptions = devices.map((d) => ({ value: d.id, label: d.name }));
-    const patientOptions = patients.map((p) => ({
-      value: String(p.id),
-      label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
-    }));
+    const patientOptions = patients
+      .filter((p) => (isThyroidBackend() ? p.patientCardId : p.id))
+      .map((p) => ({
+        value: String(isThyroidBackend() ? p.patientCardId : p.id),
+        label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
+      }));
 
     return [
       {
@@ -106,10 +109,10 @@ export default function UploadPhotoRoute() {
       return;
     }
     const projection = String(values.projection ?? "");
-    const patientId = String(values.patient ?? "");
+    const patientRefId = String(values.patient ?? "");
     const deviceId = String(values.device ?? "");
     try {
-      await uploadUzi({ file, projection, patientId, deviceId }).unwrap();
+      await uploadUzi({ file, projection, patientRefId, deviceId }).unwrap();
       message.success("Снимок отправлен на диагностику");
       navigate("/patients");
     } catch (e) {
@@ -121,10 +124,13 @@ export default function UploadPhotoRoute() {
   const pageBusy =
     status === "authenticated" && (!doctorId || devicesLoading || patientsLoading);
 
-  const uploadInitialValues = React.useMemo(
-    () => (presetPatientId ? { patient: presetPatientId } : undefined),
-    [presetPatientId]
-  );
+  const uploadInitialValues = React.useMemo(() => {
+    if (!presetPatientId) return undefined;
+    const row = patients.find((p) => String(p.id) === presetPatientId);
+    if (!row) return undefined;
+    const value = isThyroidBackend() ? row.patientCardId : row.id;
+    return value ? { patient: String(value) } : undefined;
+  }, [presetPatientId, patients]);
 
   return (
     <Layout style={{ minHeight: "100vh", background: "transparent" }}>
