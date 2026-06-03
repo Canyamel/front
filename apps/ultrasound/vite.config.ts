@@ -37,7 +37,13 @@ export default defineConfig(({ mode }) => {
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
-			dedupe: ['react', 'react-dom'],
+			dedupe: [
+				'react',
+				'react-dom',
+				'@annotorious/react',
+				'@annotorious/core',
+				'@annotorious/openseadragon',
+			],
 			alias: {
 				'@': path.resolve(__dirname, 'src'),
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),

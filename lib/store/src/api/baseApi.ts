@@ -21,20 +21,6 @@ const getViteApiBaseUrl = (): string | undefined => {
 	}
 }
 
-const getRefreshPath = (): string => {
-	try {
-		const env = (import.meta as { env?: Record<string, string | undefined> })
-			.env
-		const custom = env?.VITE_AUTH_REFRESH_PATH
-		if (typeof custom === 'string' && custom.length > 0) {
-			return custom.startsWith('/') ? custom : `/${custom}`
-		}
-	} catch {
-		/* ignore */
-	}
-	return '/auth/token/refresh/'
-}
-
 const getBaseUrl = (): string => {
 	const viteUrl = getViteApiBaseUrl()
 	if (viteUrl) return viteUrl.endsWith('/') ? viteUrl : `${viteUrl}/`
@@ -56,6 +42,20 @@ const joinBase = (base: string, path: string): string => {
 	const p = path.startsWith('/') ? path : `/${path}`
 	return `${b}${p}`
 }
+
+const getViteEnv = (): Record<string, string | undefined> | undefined => {
+	try {
+		return (import.meta as { env?: Record<string, string | undefined> }).env
+	} catch {
+		return undefined
+	}
+}
+
+const getAuthRefreshPath = (): string =>
+	getViteEnv()?.VITE_AUTH_REFRESH_PATH ?? '/auth/token/refresh/'
+
+const refreshUsesTokenHeader = (): boolean =>
+	getViteEnv()?.VITE_AUTH_REFRESH_HEADER_TOKEN === 'true'
 
 const rawBaseQuery = fetchBaseQuery({
 	baseUrl: getBaseUrl(),
@@ -95,11 +95,17 @@ export const baseQueryWithReauth: BaseQueryFn<
 
 	refreshSingleton ??= (async () => {
 		const baseUrl = getBaseUrl()
-		const res = await fetch(joinBase(baseUrl, getRefreshPath()), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ refresh, refresh_token: refresh }),
-		})
+		const refreshPath = getAuthRefreshPath()
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+		const fetchInit: RequestInit = { method: 'POST', headers }
+
+		if (refreshUsesTokenHeader()) {
+			headers.token = refresh
+		} else {
+			fetchInit.body = JSON.stringify({ refresh, refresh_token: refresh })
+		}
+
+		const res = await fetch(joinBase(baseUrl, refreshPath), fetchInit)
 		if (!res.ok) {
 			api.dispatch(setToken(undefined))
 			return

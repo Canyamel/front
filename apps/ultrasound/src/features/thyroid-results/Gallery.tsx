@@ -57,7 +57,9 @@ const Gallery = ({
 		(() => Promise<void>) | null
 	>(null)
 	const tool: 'polygon' = 'polygon'
-	const usesGeneratedSlides = isTiffUrl(link1) || isDicomUrl(link1)
+	const usesGeneratedSlides = link1
+		? isTiffUrl(link1) || isDicomUrl(link1)
+		: false
 
 	const handleSaveClick = async () => {
 		await flushPendingSelection?.()

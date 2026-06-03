@@ -15,6 +15,8 @@ export type PatientCreateModalProps = {
   onCancel: () => void;
   /** Вызывается после успешной валидации формы; отправка API — в родителе */
   onFinish: FormProps["onFinish"];
+  /** Предзаполнение (режим редактирования карты) */
+  initialValues?: FormProps["initialValues"];
   okText?: string;
   cancelText?: string;
   width?: number;
@@ -27,6 +29,7 @@ export function PatientCreateModal({
   confirmLoading,
   onCancel,
   onFinish,
+  initialValues,
   okText = "Создать",
   cancelText = "Отменить",
   width = 600,
@@ -36,8 +39,12 @@ export function PatientCreateModal({
   React.useEffect(() => {
     if (!open) {
       form.resetFields();
+      return;
     }
-  }, [open, form]);
+    if (initialValues) {
+      form.setFieldsValue(initialValues);
+    }
+  }, [open, form, initialValues]);
 
   return (
     <Modal

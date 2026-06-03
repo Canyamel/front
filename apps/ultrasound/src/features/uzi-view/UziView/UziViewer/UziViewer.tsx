@@ -121,33 +121,46 @@ const UziViewer: React.FC<UziViewerProps> = ({
   }, [dispatch, isLoading]);
 
   useEffect(() => {
-    if (uziIds) {
-      const downloadHandler = async () => {
-        setIsLoading(true);
-        const slideId = isThyroidBackend()
-          ? String(index + 1)
-          : uziIds[index].id;
-        return await downloadUziImage(uziId, slideId, accessToken);
-      };
-
-      downloadHandler()
-        .then((response) => {
-          const nextImageUrl = typeof response === "string" ? response : response?.imageUrl ?? null;
-          if (nextImageUrl) {
-            const lastImageUrl = imageUrl;
-            setImageUrl(nextImageUrl);
-            if (lastImageUrl !== "") {
-              window.URL.revokeObjectURL(lastImageUrl);
-            }
-          }
-        })
-        .catch((error) => {
-          console.error(error);
-        });
-
-      setIsLoading(false);
+    if (!uziIds?.length || !uziIds[index]?.id) {
+      return;
     }
-  }, [uziIds, index]);
+
+    let cancelled = false;
+    const slideId = isThyroidBackend()
+      ? String(index + 1)
+      : uziIds[index].id;
+
+    setIsLoading(true);
+
+    void downloadUziImage(uziId, slideId, accessToken)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const nextImageUrl =
+          typeof response === "string" ? response : response?.imageUrl ?? null;
+        if (nextImageUrl) {
+          setImageUrl((prev) => {
+            if (prev) {
+              window.URL.revokeObjectURL(prev);
+            }
+            return nextImageUrl;
+          });
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uziIds, index, uziId, accessToken]);
 
   return (
     <SharedUziViewer

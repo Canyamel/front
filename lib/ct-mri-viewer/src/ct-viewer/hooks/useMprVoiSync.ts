@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { MutableRefObject } from "react";
 import { EVENTS, getRenderingEngine } from "@cornerstonejs/core";
-import { ALL_VIEWPORT_IDS, RENDERING_ENGINE_ID, seriesIdFromVolumeId } from "../../viewer/constants";
+import { ALL_VIEWPORT_IDS, RENDERING_ENGINE_ID } from "../../viewer/constants";
 
 type VoiDetail = {
   viewportId: string;
@@ -19,10 +18,7 @@ type VpWithVoi = {
  * Один том на три MPR, но WindowLevel по умолчанию меняет только активный viewport.
  * Дублируем VOI на остальные ортогональные окна по событию CORNERSTONE_VOI_MODIFIED.
  */
-export function useMprVoiSync(
-  cornerstoneReady: boolean,
-  seriesWindowRef: MutableRefObject<Map<string, [number, number]>>
-): void {
+export function useMprVoiSync(cornerstoneReady: boolean): void {
   const applyingRef = useRef(false);
 
   useEffect(() => {
@@ -38,10 +34,6 @@ export function useMprVoiSync(
 
       applyingRef.current = true;
       try {
-        const sid = seriesIdFromVolumeId(d.volumeId);
-        if (sid) {
-          seriesWindowRef.current.set(sid, [d.range.lower, d.range.upper]);
-        }
         for (const id of ALL_VIEWPORT_IDS) {
           if (id === d.viewportId) continue;
           const vp = re.getViewport(id) as unknown as VpWithVoi;
@@ -65,5 +57,5 @@ export function useMprVoiSync(
     }
 
     return () => cleanups.forEach((fn) => fn());
-  }, [cornerstoneReady, seriesWindowRef]);
+  }, [cornerstoneReady]);
 }

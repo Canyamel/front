@@ -17,13 +17,16 @@
     "dev:mri": "turbo dev --filter=mri-app",
     "build:mri": "turbo build --filter=mri-app",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "check:boundaries": "node tools/scripts/check-boundaries.mjs",
+    "workspaces:list": "node tools/scripts/list-workspaces.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@ant-design/nextjs-registry": "^1.0.1",
     "@reduxjs/toolkit": "^2.0.0",
     "antd": "^5.12.0",
+    "form-data": "^4.0.5",
     "openseadragon": "^4.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

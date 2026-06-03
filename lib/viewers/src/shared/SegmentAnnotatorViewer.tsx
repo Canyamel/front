@@ -26,7 +26,6 @@ export interface SegmentAnnotatorViewerProps {
   imageUrl: string;
   drawingEnabled?: boolean;
   selected?: boolean;
-  zoomScale?: number;
   className?: string;
   annotations?: Annotation[];
   styleSelector?: (annotation: Annotation, state: AnnotationState | undefined) => DrawingStyle | undefined;
@@ -78,27 +77,28 @@ function resolveSegmentId(annotation: Annotation): string {
   return annotation.id;
 }
 
-export default function SegmentAnnotatorViewer({
-  viewerType,
-  tool,
-  imageUrl,
-  drawingEnabled = false,
-  selected = false,
-  zoomScale = 1,
-  className,
-  annotations = [],
+type AnnotatorBindingsProps = {
+  imageUrl: string;
+  annotationList: Annotation[];
+  styleSelector?: SegmentAnnotatorViewerProps["styleSelector"];
+  drawModeEnabled: boolean;
+  onCreateContour?: (contour: SegmentContourPoint[]) => void;
+  onUpdateContour?: (annotationId: string, contour: SegmentContourPoint[]) => void;
+};
+
+/**
+ * Должен быть потомком ImageAnnotator / OpenSeadragonAnnotator — иначе useAnnotator() пустой
+ * и сегменты не отображаются (регрессия после выноса в @medml/viewers).
+ */
+function useAnnotatorBindings({
+  annotationList,
   styleSelector,
-  needPopup = false,
-  popupRenderer,
+  drawModeEnabled,
   onCreateContour,
   onUpdateContour,
-}: SegmentAnnotatorViewerProps) {
+  imageUrl,
+}: AnnotatorBindingsProps) {
   const annotator = useAnnotator();
-  const classes = `viewer-wrapper ${className ?? ""}`.trim();
-  const drawModeEnabled = drawingEnabled && selected && tool !== "move";
-  const drawTool = drawModeEnabled ? tool : null;
-  const imageTool = drawModeEnabled ? tool : undefined;
-  const annotationList = useMemo(() => annotations, [annotations]);
 
   useEffect(() => {
     if (!annotator) {
@@ -153,13 +153,59 @@ export default function SegmentAnnotatorViewer({
       withOff.off?.("updateAnnotation", handleUpdate as (...args: unknown[]) => void);
     };
   }, [annotator, drawModeEnabled, onCreateContour, onUpdateContour]);
+}
+
+function ImageAnnotatorBindings(props: AnnotatorBindingsProps) {
+  useAnnotatorBindings(props);
+  return (
+    <img
+      src={props.imageUrl}
+      alt=""
+      draggable={false}
+      className="uzi-viewer-image"
+    />
+  );
+}
+
+function OsdAnnotatorBindings(props: AnnotatorBindingsProps) {
+  useAnnotatorBindings(props);
+  return null;
+}
+
+export default function SegmentAnnotatorViewer({
+  viewerType,
+  tool,
+  imageUrl,
+  drawingEnabled = false,
+  selected = false,
+  className,
+  annotations = [],
+  styleSelector,
+  needPopup = false,
+  popupRenderer,
+  onCreateContour,
+  onUpdateContour,
+}: SegmentAnnotatorViewerProps) {
+  const classes = `viewer-wrapper ${className ?? ""}`.trim();
+  const drawModeEnabled = drawingEnabled && selected && tool !== "move";
+  const drawTool = drawModeEnabled ? tool : null;
+  const imageTool = drawModeEnabled ? tool : undefined;
+  const annotationList = useMemo(() => annotations, [annotations]);
+
+  const bindingProps: AnnotatorBindingsProps = {
+    imageUrl,
+    annotationList,
+    styleSelector,
+    drawModeEnabled,
+    onCreateContour,
+    onUpdateContour,
+  };
 
   return (
     <div className={classes}>
       {viewerType === "osd" ? (
         imageUrl !== "" ? (
           <OpenSeadragonAnnotator
-            key={`osd-${drawModeEnabled ? "edit" : "select"}-${tool}-${selected ? "1" : "0"}`}
             drawingEnabled={drawModeEnabled}
             tool={drawTool}
             userSelectAction={!drawModeEnabled ? UserSelectAction.SELECT : UserSelectAction.EDIT}
@@ -171,10 +217,14 @@ export default function SegmentAnnotatorViewer({
                   url: imageUrl,
                 },
                 prefixUrl: "/openseadragon-images/",
-                gestureSettingsMouse: { clickToZoom: false },
+                gestureSettingsMouse: {
+                  clickToZoom: false,
+                  dragToPan: !drawModeEnabled,
+                },
               }}
               className="osd"
             />
+            <OsdAnnotatorBindings {...bindingProps} />
             {needPopup && popupRenderer ? (
               <OpenSeadragonAnnotationPopup popup={popupRenderer} />
             ) : null}
@@ -182,20 +232,19 @@ export default function SegmentAnnotatorViewer({
         ) : (
           <p style={{ width: "100%", height: "100%", margin: 0 }}>Изображение отсутствует</p>
         )
-      ) : (
+      ) : imageUrl !== "" ? (
         <>
           <ImageAnnotator
-            key={`img-${drawModeEnabled ? "edit" : "select"}-${tool}-${selected ? "1" : "0"}`}
             drawingEnabled={drawModeEnabled}
-            tool={imageTool}
+            tool={imageTool ?? tool}
             userSelectAction={!drawModeEnabled ? UserSelectAction.SELECT : UserSelectAction.EDIT}
           >
-            <div className="uzi-image-zoom-layer" style={{ transform: `scale(${zoomScale})` }}>
-              <img src={imageUrl} alt="" />
-            </div>
+            <ImageAnnotatorBindings {...bindingProps} />
           </ImageAnnotator>
           {needPopup && popupRenderer ? <ImageAnnotationPopup popup={popupRenderer} /> : null}
         </>
+      ) : (
+        <p style={{ width: "100%", height: "100%", margin: 0 }}>Изображение отсутствует</p>
       )}
     </div>
   );

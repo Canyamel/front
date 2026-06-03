@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   OpenSeadragonAnnotationPopup,
   OpenSeadragonAnnotator,
   OpenSeadragonViewer,
+  UserSelectAction,
 } from "@annotorious/react";
 
 import CommentPopup from "../CommentPopup/CommentPopup";
@@ -10,7 +11,6 @@ import { UziDrawingTool } from "../../../types";
 
 interface OSDViewerProps {
   drawingEnable?: boolean;
-  selected?: boolean;
   needPopup?: boolean;
   tool: UziDrawingTool;
   imageUrl: string;
@@ -20,28 +20,34 @@ interface OSDViewerProps {
 
 const OSDViewer: React.FC<OSDViewerProps> = ({
   drawingEnable = false,
-  selected = false,
   needPopup = false,
   tool,
   imageUrl,
   onDeleteSegment,
   onUndoDeleteSegment,
 }) => {
+  const viewerOptions = useMemo(
+    () => ({
+      tileSources: {
+        type: "image" as const,
+        url: imageUrl,
+      },
+      prefixUrl: "/openseadragon-images/",
+      gestureSettingsMouse: {
+        clickToZoom: false,
+        dragToPan: !drawingEnable,
+      },
+    }),
+    [imageUrl, drawingEnable]
+  );
+
   return imageUrl !== "" ? (
     <OpenSeadragonAnnotator
-      drawingEnabled={drawingEnable && selected}
-      tool={drawingEnable && selected ? tool : null}
+      drawingEnabled={drawingEnable}
+      tool={drawingEnable ? tool : undefined}
+      userSelectAction={!drawingEnable ? UserSelectAction.SELECT : UserSelectAction.EDIT}
     >
-      <OpenSeadragonViewer
-        options={{
-          tileSources: imageUrl,
-          prefixUrl: "/openseadragon-images/",
-          gestureSettingsMouse: {
-            clickToZoom: false,
-          },
-        }}
-        className="osd"
-      />
+      <OpenSeadragonViewer options={viewerOptions} className="osd" />
       {needPopup && (
         <OpenSeadragonAnnotationPopup
           popup={(props) => (

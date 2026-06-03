@@ -26,7 +26,7 @@ type CytologyMedWorkerDto = {
   fathers_name?: string;
 };
 
-type GetMedWorkerPatientsApiResponseLegacy = {
+type GetMedWorkerPatientsEnvelope = {
   count?: number;
   results?: {
     cards?: CytologyCardDto[];
@@ -34,7 +34,46 @@ type GetMedWorkerPatientsApiResponseLegacy = {
   };
 };
 
-type GetMedWorkerPatientsApiResponse = CytologyPatientDto[] | GetMedWorkerPatientsApiResponseLegacy;
+/** Ответ бэкенда: `{ cards, med_worker }` без пагинационной обёртки. */
+type GetMedWorkerPatientsDirect = {
+  cards?: CytologyCardDto[];
+  med_worker?: CytologyMedWorkerDto;
+};
+
+type GetMedWorkerPatientsApiResponse =
+  | CytologyPatientDto[]
+  | GetMedWorkerPatientsDirect
+  | GetMedWorkerPatientsEnvelope;
+
+function extractCardsAndMedWorker(response: GetMedWorkerPatientsApiResponse): {
+  cards: CytologyCardDto[];
+  medWorker?: CytologyMedWorkerDto;
+  count?: number;
+} {
+  if (Array.isArray(response)) {
+    return {
+      cards: response.map((patient) => ({
+        id: String(patient.id ?? ""),
+        patient,
+        diagnosis: "",
+      })),
+    };
+  }
+
+  if (Array.isArray(response.cards)) {
+    return {
+      cards: response.cards,
+      medWorker: response.med_worker,
+    };
+  }
+
+  const envelope = response.results;
+  return {
+    cards: envelope?.cards ?? [],
+    medWorker: envelope?.med_worker,
+    count: response.count,
+  };
+}
 
 export type CytologyPatientCard = {
   cardId: string;
@@ -59,6 +98,21 @@ type GetMedWorkerPatientsArgs = {
   search?: string;
   sortOrder?: PatientListSortOrder;
   sortKey?: keyof PatientRow | null;
+};
+
+export type AddPatientPayload = {
+  patient: {
+    first_name: string;
+    last_name: string;
+    fathers_name: string;
+    personal_policy: string;
+    email: string;
+    birth_date: string;
+    is_active?: boolean;
+  };
+  card: {
+    diagnosis: string;
+  };
 };
 
 function normalizeName(item: CytologyPatientDto): string {
@@ -92,22 +146,24 @@ function applyClientSort(
 
 export const patientsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
+    addPatient: builder.mutation<void, { medWorkerId: string; payload: AddPatientPayload }>({
+      query: ({ medWorkerId, payload }) => ({
+        url: `/patient/create/${encodeURIComponent(medWorkerId)}`,
+        method: "POST",
+        body: payload,
+      }),
+      invalidatesTags: () => [{ type: "Patient", id: "LIST" }, { type: "MedWorker", id: "SELF" }],
+    }),
     getMedWorkerPatients: builder.query<GetMedWorkerPatientsResult, GetMedWorkerPatientsArgs>({
       query: ({ doctorId }) => ({
-        url: `/med/doctor/${encodeURIComponent(doctorId)}/patients`,
+        url: `/med_worker/patients/${encodeURIComponent(doctorId)}`,
       }),
       transformResponse: (
         response: GetMedWorkerPatientsApiResponse,
         _meta,
         arg
       ): GetMedWorkerPatientsResult => {
-        const cardsRaw = Array.isArray(response)
-          ? response.map((patient) => ({
-              id: String(patient.id ?? ""),
-              patient,
-              diagnosis: "",
-            }))
-          : (response.results?.cards ?? []);
+        const { cards: cardsRaw, medWorker, count } = extractCardsAndMedWorker(response);
         const cards: CytologyPatientCard[] = cardsRaw.map((item) => ({
           cardId: String(item.id),
           patientId: String(item.patient?.id ?? ""),
@@ -142,17 +198,13 @@ export const patientsApi = baseApi.injectEndpoints({
 
         const rows = applyClientSort(rowsUnsorted, arg.sortKey, arg.sortOrder);
 
-        const total = Array.isArray(response)
-          ? filtered.length
-          : filtered.length || response.count || 0;
+        const total = count ?? filtered.length;
 
         return {
           rows,
           cards,
           total,
-          medWorkerName: Array.isArray(response)
-            ? ""
-            : normalizeMedWorkerName(response.results?.med_worker),
+          medWorkerName: normalizeMedWorkerName(medWorker),
         };
       },
       providesTags: () => [{ type: "Patient", id: "LIST" }, { type: "MedWorker", id: "SELF" }],
@@ -160,4 +212,4 @@ export const patientsApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useGetMedWorkerPatientsQuery } = patientsApi;
+export const { useGetMedWorkerPatientsQuery, useAddPatientMutation } = patientsApi;
