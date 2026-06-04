@@ -1,0 +1,31 @@
+.diagnostic-is-running {
+  min-height: 60vh;
+}
+
+.diagnostic-is-running__spacer {
+  height: 50px;
+}
+
+.diagnostic-is-running__spacer--top {
+  height: 100px;
+}
+
+.diagnostic-is-running__spacer--small {
+  height: 30px;
+}
+
+.diagnostic-is-running__title {
+  margin: 0 !important;
+  text-align: center;
+  font-family: Arial, serif;
+  font-weight: bold !important;
+}
+
+.diagnostic-is-running__description {
+  margin: 0 !important;
+  font-size: 16px;
+  font-family: Arial, serif;
+  max-width: 500px;
+  text-align: center;
+  line-height: 30px;
+}
