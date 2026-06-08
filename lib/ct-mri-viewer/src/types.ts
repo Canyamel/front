@@ -36,5 +36,7 @@ export type CtViewerConfig = {
   defaultWindow?: [number, number];
   /** Включать ли инструмент и переключатель «Линии уровня» (Crosshairs). По умолчанию true */
   enableCrosshairs?: boolean;
+  /** Встроенный режим внутри карточки платформы (не на весь экран) */
+  embedded?: boolean;
 };
 

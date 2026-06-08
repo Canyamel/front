@@ -23,7 +23,7 @@ export default function CytologyViewPage() {
 
   return (
     <Provider store={store}>
-      <div style={{ padding: 24, maxWidth: 1600, margin: "0 auto", width: "100%" }}>
+      <div className="cytology-view-page-shell">
         <CytologyView generalCytologyId={cytologyId} />
       </div>
     </Provider>

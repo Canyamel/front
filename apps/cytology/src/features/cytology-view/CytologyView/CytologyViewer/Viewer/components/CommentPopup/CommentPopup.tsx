@@ -12,6 +12,19 @@ import "./CommentPopup.css";
 
 const { Title, Text } = Typography;
 
+const SEGMENT_DETAIL_FIELDS = [
+    { key: "area", label: "Area" },
+    { key: "min_d", label: "Min D" },
+    { key: "max_d", label: "Max D" },
+    { key: "aspect_ratio", label: "Aspect ratio" },
+    { key: "circularity", label: "Circularity" },
+    { key: "nuclear_cytoplasmic_ratio", label: "Nuclear cytoplasmic ratio" },
+] as const;
+
+function hasSegmentDetailValue(value: unknown): boolean {
+    return value !== null && value !== undefined && value !== "";
+}
+
 interface CommentPopupProps extends PopupProps {
     needInput?: boolean;
     isEditingMode?: boolean;
@@ -82,6 +95,12 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
     //     }
     // }, [annotation.bodies, comment, onCreateBody, onUpdateBody]);
 
+    const filledDetailFields = response?.details
+        ? SEGMENT_DETAIL_FIELDS.filter((field) =>
+              hasSegmentDetailValue(response.details?.[field.key])
+          )
+        : [];
+
     return (
         <>
             {response && (
@@ -109,46 +128,18 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
                             deleted={response.toDelete}
                         />
                     )}
-                    {response.details && (
-                        <Flex vertical>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Area
-                                </Title>
-                                <Text>{response.details.area}</Text>
-                            </Flex>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Min D
-                                </Title>
-                                <Text>{response.details.min_d}</Text>
-                            </Flex>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Max D
-                                </Title>
-                                <Text>{response.details.max_d}</Text>
-                            </Flex>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Aspect ratio
-                                </Title>
-                                <Text>{response.details.aspect_ratio}</Text>
-                            </Flex>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Circularity
-                                </Title>
-                                <Text>{response.details.circularity}</Text>
-                            </Flex>
-                            <Flex vertical>
-                                <Title level={5} className="mb-0">
-                                    Nuclear cytoplasmic ratio
-                                </Title>
-                                <Text>{response.details.nuclear_cytoplasmic_ratio}</Text>
-                            </Flex>
+                    {filledDetailFields.length > 0 ? (
+                        <Flex vertical gap={8}>
+                            {filledDetailFields.map((field) => (
+                                <Flex vertical key={field.key}>
+                                    <Title level={5} className="mb-0">
+                                        {field.label}
+                                    </Title>
+                                    <Text>{response.details?.[field.key]}</Text>
+                                </Flex>
+                            ))}
                         </Flex>
-                    )}
+                    ) : null}
                     {/* {
                         needInput &&
                         <Flex vertical gap={10}>

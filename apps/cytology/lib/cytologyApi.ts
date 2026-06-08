@@ -79,6 +79,33 @@ export type CreateCytologyResponse = {
   processing_status?: CytologyProcessingStatus;
 };
 
+export type CytologyPatientDto = {
+  id?: string | number;
+  fullname?: string;
+  first_name?: string;
+  last_name?: string;
+  fathers_name?: string;
+  email?: string;
+  policy?: string;
+  personal_policy?: string;
+  active?: boolean;
+  is_active?: boolean;
+  birth_date?: string;
+};
+
+export type CytologyPatientCardDto = {
+  id?: string | number;
+  diagnosis?: string;
+  patient?: number;
+  acceptance_datetime?: string;
+};
+
+export type CytologyInfoDetailsDto = {
+  probs?: number[];
+  cell_characteristics?: Record<string, number>;
+  cluster_characteristics?: Record<string, number>;
+};
+
 export type CytologyInfoResponse = {
   id?: string | number;
   status?: string;
@@ -86,44 +113,51 @@ export type CytologyInfoResponse = {
   diagnostic_number?: string | number;
   diagnos_date?: string;
   material_type?: string;
-  details?: {
-    probs?: number[];
-  };
+  details?: CytologyInfoDetailsDto | null;
   file_path?: string;
   image?: string;
-  info?: {
-    id?: string | number;
-    patient_card?: string | number;
-    diagnosis?: string;
-    calcitonin?: number;
-    calcitonin_in_flush?: number;
-    thyroglobulin?: number;
-  };
-};
-
-type CytologyInfoRawResponse = {
   original_image?: {
     id?: string | number;
     image?: string;
     file_path?: string;
   };
   info?: {
-    image_group?: {
-      id?: string | number;
-      diagnostic_marking?: string;
-      diagnostic_number?: string | number;
-      diagnos_date?: string;
-      material_type?: string;
-      details?: {
-        probs?: number[];
-      };
-      patient_card?: string | number;
-      diagnosis?: string;
-      calcitonin?: number;
-      calcitonin_in_flush?: number;
-      thyroglobulin?: number;
-    };
+    id?: string | number;
+    patient?: CytologyPatientDto;
+    patient_card?: string | number | CytologyPatientCardDto;
+    diagnosis?: string;
+    is_last?: boolean;
+    calcitonin?: number;
+    calcitonin_in_flush?: number;
+    thyroglobulin?: number;
   };
+};
+
+type CytologyInfoGroupDto = {
+  id?: string | number;
+  diagnostic_marking?: string;
+  diagnostic_number?: string | number;
+  diagnos_date?: string;
+  material_type?: string;
+  details?: CytologyInfoDetailsDto | null;
+  diagnosis?: string;
+  calcitonin?: number;
+  calcitonin_in_flush?: number;
+  thyroglobulin?: number;
+  is_last?: boolean;
+  prev?: string | number | null;
+  parent_prev?: string | number | null;
+  original_image?: number | null;
+};
+
+type CytologyInfoRawResponse = {
+  original_image?: CytologyInfoResponse["original_image"];
+  info?: {
+    patient?: CytologyPatientDto;
+    patient_card?: string | number | CytologyPatientCardDto;
+    patient_card_id?: string | number;
+    image_group?: CytologyInfoGroupDto;
+  } & CytologyInfoGroupDto;
 };
 
 export type CytologyPoint = {
@@ -211,13 +245,20 @@ export type PatchCytologyInfoPayload = {
   [key: string]: unknown;
 };
 
+export type ReviseCopyResponse = {
+  id: string | number;
+  pk?: string | number;
+};
+
 export type CytologyHistoryItem = {
-  id: number;
+  id: string | number;
   diagnos_date?: string;
   diagnostic_marking?: string;
   diagnostic_number?: number;
   material_type?: string;
   is_last?: boolean;
+  prev?: string | number | null;
+  details?: CytologyInfoDetailsDto | null;
   [key: string]: unknown;
 };
 
@@ -305,21 +346,31 @@ export const cytologyApi = baseApi.injectEndpoints({
     getCytologyInfo: builder.query<CytologyInfoResponse, string>({
       query: (id) => `/cytology/${encodeURIComponent(id)}`,
       transformResponse: (raw: CytologyInfoRawResponse): CytologyInfoResponse => {
-        const group = raw.info?.image_group;
         const original = raw.original_image;
+        const info = raw.info;
+        const nestedGroup = info?.image_group;
+        const flatGroup = info && !nestedGroup ? info : undefined;
+        const group = nestedGroup ?? flatGroup;
+        const patientCard = info?.patient_card;
+        const patientCardRecord =
+          patientCard && typeof patientCard === "object" ? patientCard : undefined;
+
         return {
           id: group?.id ?? original?.id,
           diagnostic_marking: group?.diagnostic_marking,
           diagnostic_number: group?.diagnostic_number,
           diagnos_date: group?.diagnos_date,
           material_type: group?.material_type,
-          details: group?.details,
+          details: group?.details ?? null,
           file_path: original?.file_path,
-          image: original?.image ?? original?.file_path,
+          image: original?.file_path ?? original?.image,
+          original_image: original,
           info: {
             id: group?.id,
-            patient_card: group?.patient_card,
-            diagnosis: group?.diagnosis,
+            patient: info?.patient,
+            patient_card: patientCardRecord?.id ?? info?.patient_card_id ?? patientCard,
+            diagnosis: patientCardRecord?.diagnosis ?? group?.diagnosis,
+            is_last: group?.is_last,
             calcitonin: group?.calcitonin,
             calcitonin_in_flush: group?.calcitonin_in_flush,
             thyroglobulin: group?.thyroglobulin,
@@ -373,13 +424,23 @@ export const cytologyApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [{ type: "Segments" }],
     }),
-    addReviseCopy: builder.mutation<{ id: number }, string | number>({
+    addReviseCopy: builder.mutation<ReviseCopyResponse, number>({
       query: (pk) => ({
         url: "/cytology/copy/",
         method: "POST",
-        body: { pk: Number(pk) },
+        body: { pk },
       }),
-      invalidatesTags: [{ type: "Cytology", id: "LIST" }],
+      invalidatesTags: (result, _error, cytologyId) => [
+        { type: "Cytology", id: "LIST" },
+        { type: "Cytology", id: String(cytologyId) },
+        { type: "Cytology", id: `history:${cytologyId}` },
+        ...(result?.id
+          ? [
+              { type: "Cytology" as const, id: String(result.id) },
+              { type: "Cytology" as const, id: `history:${result.id}` },
+            ]
+          : []),
+      ],
     }),
     patchCytologyInfo: builder.mutation<void, { id: string | number; body: PatchCytologyInfoPayload }>({
       query: ({ id, body }) => ({

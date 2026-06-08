@@ -11,10 +11,10 @@ export const annotationTypesStyles: IAnnotationStylesConfig = {
     },
     add: {
         stroke: "#00d995",
-        fill: "rgba(0, 255, 179, 0.28)",
+        fill: "#00d99547",
         hover: {
             stroke: "#00d995",
-            fill: "rgba(103, 210, 181, 0.43)",
+            fill: "#67d2b56e",
         },
     },
     delete: {

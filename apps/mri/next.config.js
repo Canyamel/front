@@ -3,7 +3,13 @@ const { configureWebpack } = require('@medml/config/next');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-  transpilePackages: ['@medml/ct-mri-viewer'],
+  transpilePackages: [
+    "@medml/ct-mri-viewer",
+    "@medml/ui",
+    "@medml/layout",
+    "@medml/store",
+    "@medml/shared",
+  ],
   async headers() {
     return [
       {

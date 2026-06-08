@@ -7,9 +7,31 @@ export function getDziApiBaseUrl(): string {
   return "/api/bid/v1/dzi";
 }
 
-/** Путь к тайлам из поля original_image.image API. */
+/** Нормализует путь из API для tiler (без /media/ и без origin). */
+export function normalizeDziImagePath(imageUrl: string): string {
+  const trimmed = imageUrl.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const { pathname } = new URL(trimmed);
+      return pathname.replace(/^\/media\//, "").replace(/^\//, "");
+    } catch {
+      return trimmed.replace(/^\/media\//, "").replace(/^\//, "");
+    }
+  }
+
+  return trimmed.replace(/^\/media\//, "").replace(/^\//, "");
+}
+
+/** Путь к тайлам из поля original_image.file_path / image API. */
 export function buildDziTileSources(imageUrl: string): string {
+  const path = normalizeDziImagePath(imageUrl);
+  if (!path) {
+    return "";
+  }
   const base = getDziApiBaseUrl();
-  const path = imageUrl.replace(/^\/media\//, "").replace(/^\//, "");
   return `${base}/${path}`;
 }

@@ -17,5 +17,15 @@ export default function DiagnosticIsRunningPage() {
     [router]
   );
 
-  return <DiagnosticIsRunningView cytologyId={cytologyId} onReady={onReady} />;
+  const onUploadAgain = useCallback(() => {
+    router.push("/upload_photo");
+  }, [router]);
+
+  return (
+    <DiagnosticIsRunningView
+      cytologyId={cytologyId}
+      onReady={onReady}
+      onUploadAgain={onUploadAgain}
+    />
+  );
 }

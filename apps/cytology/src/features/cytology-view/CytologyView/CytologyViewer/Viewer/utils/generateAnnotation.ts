@@ -14,6 +14,7 @@ export const generateAnnotation = (segment: ISegmentStack) => {
                 purpose: "tagging",
                 value: JSON.stringify({
                     ai: segment.is_ai,
+                    seg_type: segment.seg_type,
                     toDelete: segment.isDeleted,
                     toUpdate: segment.isEdited,
                     toAdd: segment.isNew,

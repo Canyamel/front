@@ -415,8 +415,8 @@ export function CtViewer({ config }: CtViewerProps) {
           display: "flex",
           flexDirection: "row",
           width: "100%",
-          minHeight: Math.max(VIEWPORT_MIN_SIZE_PX + 120, 560),
-          height: "calc(100vh - 120px)",
+          minHeight: config.embedded ? 520 : Math.max(VIEWPORT_MIN_SIZE_PX + 120, 560),
+          height: config.embedded ? "100%" : "calc(100vh - 120px)",
         }}
       >
         <StudyListSidebar

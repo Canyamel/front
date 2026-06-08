@@ -68,6 +68,9 @@ export type CtVolumeViewerProps = {
   /** Показывать ли левую панель с сериями */
   showStudySidebar?: boolean;
 
+  /** Встроенный режим (карточка платформы, без высоты на весь viewport) */
+  embedded?: boolean;
+
   /** Список сегментов для отображения */
   segments?: CtSegmentConfig[];
 
@@ -79,7 +82,16 @@ export type CtVolumeViewerProps = {
 };
 
 export function CtVolumeViewer(props: CtVolumeViewerProps) {
-  const { baseUrl, pacsBasePath, series, initialSeriesId, modality, defaultWindow, enableCrosshairs } = props;
+  const {
+    baseUrl,
+    pacsBasePath,
+    series,
+    initialSeriesId,
+    modality,
+    defaultWindow,
+    enableCrosshairs,
+    embedded,
+  } = props;
 
   const config: CtViewerConfig = {
     baseUrl,
@@ -89,6 +101,7 @@ export function CtVolumeViewer(props: CtVolumeViewerProps) {
     modality,
     defaultWindow,
     enableCrosshairs,
+    embedded,
   };
 
   // Пока что всё поведение реализовано внутри CtViewer,

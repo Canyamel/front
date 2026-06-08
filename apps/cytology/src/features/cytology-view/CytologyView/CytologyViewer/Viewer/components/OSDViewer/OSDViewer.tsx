@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 
 import {
     OpenSeadragonAnnotationPopup,
@@ -27,24 +27,30 @@ const OSDViewer: React.FC<OSDViewerProps> = ({
     selected,
     needInputPopup = false,
 }) => {
+    const tileSources = buildDziTileSources(imageUrl);
+    const drawModeEnabled = drawingEnable && tool !== "move" && selected;
+    const drawTool = drawModeEnabled ? tool : null;
+
+    const viewerOptions = useMemo(
+        () => ({
+            tileSources,
+            prefixUrl: "/openseadragon-images/",
+            gestureSettingsMouse: {
+                clickToZoom: false,
+            },
+        }),
+        [tileSources]
+    );
+
     return (
         <>
-            {imageUrl !== "" ? (
+            {tileSources ? (
                 <OpenSeadragonAnnotator
-                    drawingEnabled={drawingEnable && tool !== "move" && selected}
-                    tool={tool !== "move" ? tool : null}
+                    drawingEnabled={drawModeEnabled}
+                    tool={drawTool}
                 >
-                    <OpenSeadragonViewer
-                        options={{
-                            tileSources: buildDziTileSources(imageUrl),
-                            prefixUrl: "/openseadragon-images/",
-                            gestureSettingsMouse: {
-                                clickToZoom: false,
-                            },
-                        }}
-                        className="osd"
-                    />
-                    {needPopup && (
+                    <OpenSeadragonViewer options={viewerOptions} className="osd" />
+                    {needPopup ? (
                         <OpenSeadragonAnnotationPopup
                             popup={(props) => (
                                 <CommentPopup
@@ -54,7 +60,7 @@ const OSDViewer: React.FC<OSDViewerProps> = ({
                                 />
                             )}
                         />
-                    )}
+                    ) : null}
                 </OpenSeadragonAnnotator>
             ) : (
                 <p style={{ width: "100%", height: "100%", margin: 0 }}>Изображение отсутствует</p>

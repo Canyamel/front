@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import {
     AnnotoriousOpenSeadragonAnnotator,
     PolygonGeometry,
@@ -6,6 +6,7 @@ import {
     useAnnotator,
 } from "@annotorious/react";
 
+import { useAppSelector } from "@cytology/core/hooks";
 import { Tools } from "@cytology/core/types/basic";
 import { ISegmentStack } from "@cytology/core/types/segments";
 import { IPoint } from "./interfaces/queries";
@@ -13,7 +14,7 @@ import { IPoint } from "./interfaces/queries";
 import OSDViewer from "./components/OSDViewer/OSDViewer";
 import ImageViewer from "./components/ImageViewer/ImageViewer";
 
-import { selectStyleFromConfig } from "./utils/selectStyleFromConfig";
+import { createSelectStyleFromConfig } from "./utils/selectStyleFromConfig";
 import { generateAnnotation } from "./utils/generateAnnotation";
 
 import "./viewer.scss";
@@ -28,6 +29,7 @@ interface ViewerProps {
     selected: boolean;
     className?: string;
     segments?: ISegmentStack[];
+    segmentTypeColors?: Record<string, string>;
     addSegment: (contour: IPoint[]) => void;
     changeSegment: (segmentId: string, contour: IPoint[]) => void;
 }
@@ -41,109 +43,119 @@ const Viewer: React.FC<ViewerProps> = ({
     selected,
     className = undefined,
     segments = [],
+    segmentTypeColors = {},
     addSegment,
     changeSegment,
 }) => {
     const classes = `viewer-wrapper ${className ? className : ""}`;
     const annotator = useAnnotator<AnnotoriousOpenSeadragonAnnotator>();
+    const currentSegment = useAppSelector((state) => state.segment.currentSegment);
+    const styleSelector = useMemo(
+        () =>
+            createSelectStyleFromConfig(segmentTypeColors, {
+                isEditMode: drawingEnabled,
+                activeSegmentType: currentSegment,
+            }),
+        [segmentTypeColors, drawingEnabled, currentSegment]
+    );
 
     useEffect(() => {
-        if (annotator) {
-            annotator.clearAnnotations();
-            annotator.setStyle(selectStyleFromConfig);
+        if (!annotator) {
+            return;
         }
 
-        if (annotator && segments.length > 0) {
+        annotator.clearAnnotations();
+        annotator.setStyle(styleSelector);
+
+        if (segments.length > 0) {
             annotator.setAnnotations(
                 segments.flatMap((segment) => generateAnnotation(segment)),
                 true
             );
         }
-    }, [annotator, imageUrl, segments]);
+    }, [annotator, imageUrl, segments, styleSelector]);
 
     useEffect(() => {
-        if (annotator) {
-            // annotator.on("selectionChanged", (annotations) => {
-            //     if (annotations.length > 0) {
-            //         const selectedStyles = selectStyleFromConfig(
-            //             annotations[0] as Annotation,
-            //             undefined
-            //         );
-
-            //         if (selectedStyles) {
-            //             document.body.style.setProperty(
-            //                 "--stroke-color",
-            //                 String(selectedStyles.stroke)
-            //             );
-            //         } else {
-            //             document.body.style.setProperty("--stroke-color", "");
-            //         }
-            //     } else {
-            //         document.body.style.setProperty("--stroke-color", "");
-            //     }
-            // });
-
-            annotator.on("createAnnotation", (annotation) => {
-                let geometry: RectangleGeometry | PolygonGeometry | null = null;
-                const contour: IPoint[] = [];
-
-                if (annotation.target.selector.type === "RECTANGLE") {
-                    geometry = annotation.target.selector.geometry as RectangleGeometry;
-                    contour.push(
-                        { x: Math.round(geometry.x), y: Math.round(geometry.y) },
-                        { x: Math.round(geometry.x + geometry.w), y: Math.round(geometry.y) },
-                        {
-                            x: Math.round(geometry.x + geometry.w),
-                            y: Math.round(geometry.y + geometry.h),
-                        },
-                        { x: Math.round(geometry.x), y: Math.round(geometry.y + geometry.h) }
-                    );
-                } else if (annotation.target.selector.type === "POLYGON") {
-                    geometry = annotation.target.selector.geometry as PolygonGeometry;
-                    contour.push(
-                        ...geometry.points.map((point) => ({
-                            x: Math.round(point[0]),
-                            y: Math.round(point[1]),
-                        }))
-                    );
-                }
-
-                if (geometry) {
-                    addSegment(contour);
-                }
-            });
-
-            annotator.on("updateAnnotation", (annotation) => {
-                let geometry: RectangleGeometry | PolygonGeometry | null = null;
-                const contour: IPoint[] = [];
-
-                if (annotation.target.selector.type === "RECTANGLE") {
-                    geometry = annotation.target.selector.geometry as RectangleGeometry;
-                    contour.push(
-                        { x: Math.round(geometry.x), y: Math.round(geometry.y) },
-                        { x: Math.round(geometry.x + geometry.w), y: Math.round(geometry.y) },
-                        {
-                            x: Math.round(geometry.x + geometry.w),
-                            y: Math.round(geometry.y + geometry.h),
-                        },
-                        { x: Math.round(geometry.x), y: Math.round(geometry.y + geometry.h) }
-                    );
-                } else if (annotation.target.selector.type === "POLYGON") {
-                    geometry = annotation.target.selector.geometry as PolygonGeometry;
-                    contour.push(
-                        ...geometry.points.map((point) => ({
-                            x: Math.round(point[0]),
-                            y: Math.round(point[1]),
-                        }))
-                    );
-                }
-
-                if (geometry) {
-                    changeSegment(annotation.id, contour);
-                }
-            });
+        if (!annotator) {
+            return;
         }
-    }, [annotator]);
+
+        const handleCreate = (annotation: {
+            target: { selector: { type: string; geometry: RectangleGeometry | PolygonGeometry } };
+        }) => {
+            let geometry: RectangleGeometry | PolygonGeometry | null = null;
+            const contour: IPoint[] = [];
+
+            if (annotation.target.selector.type === "RECTANGLE") {
+                geometry = annotation.target.selector.geometry as RectangleGeometry;
+                contour.push(
+                    { x: Math.round(geometry.x), y: Math.round(geometry.y) },
+                    { x: Math.round(geometry.x + geometry.w), y: Math.round(geometry.y) },
+                    {
+                        x: Math.round(geometry.x + geometry.w),
+                        y: Math.round(geometry.y + geometry.h),
+                    },
+                    { x: Math.round(geometry.x), y: Math.round(geometry.y + geometry.h) }
+                );
+            } else if (annotation.target.selector.type === "POLYGON") {
+                geometry = annotation.target.selector.geometry as PolygonGeometry;
+                contour.push(
+                    ...geometry.points.map((point) => ({
+                        x: Math.round(point[0]),
+                        y: Math.round(point[1]),
+                    }))
+                );
+            }
+
+            if (geometry) {
+                addSegment(contour);
+            }
+        };
+
+        const handleUpdate = (annotation: {
+            id: string;
+            target: { selector: { type: string; geometry: RectangleGeometry | PolygonGeometry } };
+        }) => {
+            let geometry: RectangleGeometry | PolygonGeometry | null = null;
+            const contour: IPoint[] = [];
+
+            if (annotation.target.selector.type === "RECTANGLE") {
+                geometry = annotation.target.selector.geometry as RectangleGeometry;
+                contour.push(
+                    { x: Math.round(geometry.x), y: Math.round(geometry.y) },
+                    { x: Math.round(geometry.x + geometry.w), y: Math.round(geometry.y) },
+                    {
+                        x: Math.round(geometry.x + geometry.w),
+                        y: Math.round(geometry.y + geometry.h),
+                    },
+                    { x: Math.round(geometry.x), y: Math.round(geometry.y + geometry.h) }
+                );
+            } else if (annotation.target.selector.type === "POLYGON") {
+                geometry = annotation.target.selector.geometry as PolygonGeometry;
+                contour.push(
+                    ...geometry.points.map((point) => ({
+                        x: Math.round(point[0]),
+                        y: Math.round(point[1]),
+                    }))
+                );
+            }
+
+            if (geometry) {
+                changeSegment(annotation.id, contour);
+            }
+        };
+
+        annotator.on("createAnnotation", handleCreate);
+        annotator.on("updateAnnotation", handleUpdate);
+
+        return () => {
+            const withOff = annotator as unknown as {
+                off?: (event: string, handler: (...args: unknown[]) => void) => void;
+            };
+            withOff.off?.("createAnnotation", handleCreate as (...args: unknown[]) => void);
+            withOff.off?.("updateAnnotation", handleUpdate as (...args: unknown[]) => void);
+        };
+    }, [annotator, addSegment, changeSegment]);
 
     return (
         <div className={classes}>

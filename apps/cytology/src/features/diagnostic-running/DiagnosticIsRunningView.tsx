@@ -1,5 +1,6 @@
-import { useEffect } from "react";
-import { ConfigProvider, Flex, Result, Spin, Typography } from "antd";
+import { useEffect, useState } from "react";
+import { MedicineBoxOutlined } from "@ant-design/icons";
+import { Button, Card, Result, Space, Typography } from "antd";
 
 import { useGetProcessingStatusQuery } from "@/lib/cytologyApi";
 
@@ -8,18 +9,33 @@ import "./DiagnosticIsRunningView.css";
 export type DiagnosticIsRunningViewProps = {
   cytologyId: string;
   onReady: (id: string) => void;
+  onUploadAgain?: () => void;
 };
 
 export function DiagnosticIsRunningView({
   cytologyId,
   onReady,
+  onUploadAgain,
 }: DiagnosticIsRunningViewProps) {
-  const { data, isError, isFetching } = useGetProcessingStatusQuery(cytologyId, {
+  const [stopPolling, setStopPolling] = useState(false);
+
+  useEffect(() => {
+    setStopPolling(false);
+  }, [cytologyId]);
+
+  const { data, isError } = useGetProcessingStatusQuery(cytologyId, {
     skip: !cytologyId,
-    pollingInterval: 3000,
+    refetchOnMountOrArgChange: true,
+    pollingInterval: stopPolling ? 0 : 3000,
   });
 
   const status = data?.processing_status;
+
+  useEffect(() => {
+    if (isError || status === "failed" || status === "ready") {
+      setStopPolling(true);
+    }
+  }, [isError, status]);
 
   useEffect(() => {
     if (status === "ready") {
@@ -29,21 +45,43 @@ export function DiagnosticIsRunningView({
 
   if (!cytologyId) {
     return (
-      <Result
-        status="warning"
-        title="Не указан идентификатор исследования"
-        subTitle="Вернитесь к загрузке снимка и повторите попытку."
-      />
+      <div className="diagnostic-is-running-page">
+        <Card className="diagnostic-is-running-card">
+          <Result
+            status="warning"
+            title="Не указан идентификатор исследования"
+            subTitle="Вернитесь к загрузке снимка и повторите попытку."
+            extra={
+              onUploadAgain ? (
+                <Button type="primary" onClick={onUploadAgain}>
+                  Загрузить снимок
+                </Button>
+              ) : null
+            }
+          />
+        </Card>
+      </div>
     );
   }
 
   if (isError || status === "failed") {
     return (
-      <Result
-        status="error"
-        title="Не удалось выполнить диагностику"
-        subTitle="Попробуйте загрузить снимок ещё раз или обратитесь в поддержку."
-      />
+      <div className="diagnostic-is-running-page">
+        <Card className="diagnostic-is-running-card">
+          <Result
+            status="error"
+            title="Диагностика не выполнена"
+            subTitle="Не удалось обработать снимок. Попробуйте загрузить его ещё раз или обратитесь в поддержку."
+            extra={
+              onUploadAgain ? (
+                <Button type="primary" onClick={onUploadAgain}>
+                  Загрузить снимок снова
+                </Button>
+              ) : null
+            }
+          />
+        </Card>
+      </div>
     );
   }
 
@@ -52,27 +90,27 @@ export function DiagnosticIsRunningView({
   }
 
   return (
-    <ConfigProvider
-      theme={{
-        components: {
-          Spin: {
-            dotSizeLG: 80,
-          },
-        },
-      }}
-    >
-      <Flex className="diagnostic-is-running" vertical align="center">
-        <div className="diagnostic-is-running__spacer diagnostic-is-running__spacer--top" />
-        <Spin size="large" spinning={isFetching || !status} />
-        <div className="diagnostic-is-running__spacer" />
-        <Typography.Title level={1} className="diagnostic-is-running__title">
-          Проводится диагностика
-        </Typography.Title>
-        <div className="diagnostic-is-running__spacer diagnostic-is-running__spacer--small" />
-        <Typography.Paragraph className="diagnostic-is-running__description">
-          Анализ снимка занимает некоторое время
-        </Typography.Paragraph>
-      </Flex>
-    </ConfigProvider>
+    <div className="diagnostic-is-running-page">
+      <Card className="diagnostic-is-running-card">
+        <Space direction="vertical" size={20} className="diagnostic-is-running-content">
+          <div className="diagnostic-is-running-icon" aria-hidden>
+            <MedicineBoxOutlined />
+          </div>
+
+          <div className="diagnostic-is-running-text">
+            <Typography.Title level={2} className="diagnostic-is-running-title">
+              В процессе обследования
+            </Typography.Title>
+            <Typography.Paragraph type="secondary" className="diagnostic-is-running-description">
+              Снимок анализируется автоматически. Обычно это занимает несколько минут — как только
+              результат будет готов, вы перейдёте к просмотру.
+            </Typography.Paragraph>
+            <Typography.Text type="secondary" className="diagnostic-is-running-hint">
+              Пожалуйста, не закрывайте эту вкладку
+            </Typography.Text>
+          </div>
+        </Space>
+      </Card>
+    </div>
   );
 }

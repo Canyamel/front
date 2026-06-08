@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Flex, Radio, Typography } from "antd";
 import type { CheckboxGroupProps } from "antd/es/checkbox";
 
-import { useAppDispatch } from "@cytology/core/hooks";
+import { useAppDispatch, useAppSelector } from "@cytology/core/hooks";
 import { setToolPanelHeight } from "@cytology/core/store";
 import { Tools } from "@cytology/core/types/basic";
 
@@ -18,6 +18,7 @@ interface EditPanelProps {
 }
 
 const EditPanel: React.FC<EditPanelProps> = ({ tool, setTool }) => {
+    const currentSegment = useAppSelector((state) => state.segment.currentSegment);
     const toolOptions: CheckboxGroupProps<Tools>["options"] = [
         {
             label: (
@@ -64,6 +65,11 @@ const EditPanel: React.FC<EditPanelProps> = ({ tool, setTool }) => {
     return (
         <Flex vertical align="center" ref={toolPanelRef}>
             <Title level={5}>Инструменты для рисования</Title>
+            {!currentSegment ? (
+                <Typography.Text type="secondary" className="cytology-toolbox-hint">
+                    Выберите группу сегментов справа, чтобы рисовать
+                </Typography.Text>
+            ) : null}
             <Flex vertical className="cytology-toolbox" justify="center">
                 <Radio.Group
                     block

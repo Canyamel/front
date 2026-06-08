@@ -22,7 +22,7 @@ export interface ICytologyInfo {
     acceptance_datetime: string;
     diagnosis: string;
     patient_card_id: number;
-    id: number;
+    id: number | string;
     is_last: boolean;
     diagnos_date: string;
     details: ICytologyInfoDetails | null;
@@ -90,16 +90,16 @@ export type ICytologyHistory = IPaginated<ICytologyHistoryItem>;
 export interface ICytologyHistoryItem {
     calcitonin: number;
     calcitonin_in_flush: number;
-    details: ICytologyInfoDetails;
+    details: ICytologyInfoDetails | null;
     diagnos_date: string;
     diagnostic_marking: DiagnosisMarking;
     diagnostic_number: number;
-    id: number;
+    id: number | string;
     is_last: boolean;
     material_type: MaterialType;
     original_image: number;
-    parent_prev: number;
+    parent_prev: number | string | null;
     patient_card: number;
-    prev: number | null;
+    prev: number | string | null;
     thyroglobulin: number;
 }

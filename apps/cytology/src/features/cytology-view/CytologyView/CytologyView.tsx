@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Col, Row } from "antd";
+import React, { useEffect, useMemo, useState } from "react";
+import { Tag, Typography } from "antd";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@cytology/core/hooks";
@@ -7,6 +7,7 @@ import {
     setCytologyId,
     setCytologyInfo,
     setEditedCytologyInfo,
+    setCurrentSegment,
     setInitSegments,
     setSegmentsStack,
 } from "@cytology/core/store";
@@ -17,6 +18,7 @@ import {
 } from "@cytology/core/service/cytology";
 import { Modes } from "@cytology/core/types/basic";
 
+import CytologyInfo from "./CytologyDiagnosisPanel/CytologyDiagnosis/CytologyInfo/CytologyInfo";
 import CytologyDiagnosisPanel from "./CytologyDiagnosisPanel/CytologyDiagnosisPanel";
 import CytologyViewer from "./CytologyViewer/CytologyViewer";
 import {
@@ -53,6 +55,12 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
 
     useEffect(() => {
         dispatch(setCytologyId(generalCytologyId));
+        setMode("view");
+        dispatch(setCurrentSegment(null));
+        dispatch(setEditedCytologyInfo(null));
+        dispatch(setInitSegments([]));
+        dispatch(setSegmentsStack([]));
+        setViewSegments([]);
     }, [dispatch, generalCytologyId]);
 
     useEffect(() => {
@@ -123,31 +131,88 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
             });
     }, [mode, accessToken, currentSegment, generalCytologyId, getSegmentsByType]);
 
+    const segmentTypeColors = useMemo(() => {
+        if (!segmentTypesData?.length) {
+            return {};
+        }
+        return Object.fromEntries(
+            (segmentTypesData as ISegmentType[]).map((type) => [type.code, type.color])
+        );
+    }, [segmentTypesData]);
+
+    const studyTitle = useMemo(() => {
+        const info = cytologyInfoData?.info;
+        if (!info) {
+            return null;
+        }
+        return `${info.diagnostic_marking}-${info.diagnostic_number}`;
+    }, [cytologyInfoData?.info]);
+
+    const studyDate = useMemo(() => {
+        const date = cytologyInfoData?.info?.diagnos_date;
+        if (!date) {
+            return null;
+        }
+        const parsed = new Date(date);
+        return Number.isNaN(parsed.getTime())
+            ? date
+            : parsed.toLocaleDateString("ru-RU", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+              });
+    }, [cytologyInfoData?.info?.diagnos_date]);
+
     return (
-        <>
-            <Row className="cytology-view" gutter={24}>
-                <Col span={16} className="cytology-viewer-wrapper">
-                    <CytologyViewer
-                        isEditMode={mode === "edit"}
-                        segments={
-                            mode === "edit"
-                                ? (segmentStack ?? []).flatMap((item) =>
-                                    item.seg_type === currentSegment ? item.segments : []
-                                )
-                                : viewSegments
-                        }
-                        imageUrl={cytologyInfoData?.original_image.image}
-                    />
-                </Col>
-                <Col span={8} className="cytology-diagnosis">
-                    <CytologyDiagnosisPanel
-                        mode={mode}
-                        segments={segmentStack}
-                        changeMode={setMode}
-                    />
-                </Col>
-            </Row>
-        </>
+        <div className="cytology-view-page">
+            <section className="cytology-view-surface cytology-summary-card">
+                <div className="cytology-summary-card__header">
+                    <div>
+                        <Typography.Title level={3} className="cytology-summary-card__title">
+                            {studyTitle ? `Исследование ${studyTitle}` : "Просмотр исследования"}
+                        </Typography.Title>
+                        {studyDate ? (
+                            <Typography.Text type="secondary" className="cytology-summary-card__meta">
+                                от {studyDate}
+                            </Typography.Text>
+                        ) : null}
+                    </div>
+                    {mode === "edit" ? <Tag color="processing">Режим редактирования</Tag> : null}
+                </div>
+                <CytologyInfo layout="banner" />
+            </section>
+
+            <div className="cytology-view-workspace">
+                <div className="cytology-view-main">
+                    <div className="cytology-view-surface cytology-viewer-surface">
+                        <CytologyViewer
+                            isEditMode={mode === "edit"}
+                            segments={
+                                mode === "edit"
+                                    ? (segmentStack ?? []).flatMap((item) =>
+                                          item.seg_type === currentSegment ? item.segments : []
+                                      )
+                                    : viewSegments
+                            }
+                            segmentTypeColors={segmentTypeColors}
+                            imageUrl={cytologyInfoData?.original_image.image}
+                        />
+                    </div>
+                </div>
+
+                <aside className="cytology-view-sidebar cytology-diagnosis">
+                    <div className="cytology-view-surface cytology-sidebar-surface">
+                        <div className="cytology-sidebar-body">
+                            <CytologyDiagnosisPanel
+                                mode={mode}
+                                segments={segmentStack}
+                                changeMode={setMode}
+                            />
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
     );
 };
 

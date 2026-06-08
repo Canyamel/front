@@ -7,6 +7,7 @@ import FaqRoute from "@/pages/FaqRoute";
 import LoginRoute from "@/pages/LoginRoute";
 import PatientProfileRoute from "@/pages/PatientProfileRoute";
 import PatientsRoute from "@/pages/PatientsRoute";
+import DiagnosisIsCompleteRoute from "@/pages/DiagnosisIsCompleteRoute";
 import DiagnosticIsRunningRoute from "@/pages/DiagnosticIsRunningRoute";
 import PlaceholderRoute from "@/pages/PlaceholderRoute";
 import RegisterRoute from "@/pages/RegisterRoute";
@@ -73,7 +74,11 @@ const routes: RouteObject[] = [
       { path: "export", element: <PlaceholderRoute title="Экспорт" /> },
       {
         path: "diagnosis_is_complete/:id",
-        element: <PlaceholderRoute title="Статус завершения диагностики" />,
+        element: (
+          <RequireAuth>
+            <DiagnosisIsCompleteRoute />
+          </RequireAuth>
+        ),
       },
       { path: "*", element: <Navigate to="/auth/login" replace /> },
     ],

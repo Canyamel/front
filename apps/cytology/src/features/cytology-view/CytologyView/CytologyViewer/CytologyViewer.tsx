@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Annotorious } from "@annotorious/react";
-import { Flex } from "antd";
-import { DisconnectOutlined } from "@ant-design/icons";
+import { Flex, Typography } from "antd";
+import { FileImageOutlined } from "@ant-design/icons";
 
 import { useAppDispatch, useAppSelector } from "@cytology/core/hooks";
 import { addNewSegmentToStack, editPointSegment } from "@cytology/core/store";
@@ -21,9 +21,15 @@ interface CytologyViewerProps {
     imageUrl: string | undefined;
     isEditMode: boolean;
     segments: ISegmentStack[];
+    segmentTypeColors?: Record<string, string>;
 }
 
-const CytologyViewer: React.FC<CytologyViewerProps> = ({ imageUrl, isEditMode, segments }) => {
+const CytologyViewer: React.FC<CytologyViewerProps> = ({
+    imageUrl,
+    isEditMode,
+    segments,
+    segmentTypeColors = {},
+}) => {
     const dispatch = useAppDispatch();
     const currentSegment = useAppSelector((state) => state.segment.currentSegment);
     const segmentStack = useAppSelector((state) => state.segment.segmentStack);
@@ -48,53 +54,66 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({ imageUrl, isEditMode, s
                 );
             }
         },
-        [dispatch, currentSegmentRef]
+        [dispatch]
     );
 
     const handleChangeSegment = useCallback(
         (segmentId: string, contour: IPoint[]) => {
-            if (segmentStackRef) {
-                const id = Number(segmentId);
-                const currentSegments = segmentStackRef.current.find(
-                    (item) => item.seg_type === currentSegmentRef.current
-                );
-                const editedSegment = (currentSegments ? currentSegments.segments : []).find(
-                    (segment) => segment.id === id
-                );
+            const editedSegment = segmentStackRef.current
+                .flatMap((item) => item.segments)
+                .find((segment) => String(segment.id) === String(segmentId));
 
-                if (editedSegment) {
-                    dispatch(
-                        editPointSegment({ id, segType: editedSegment.seg_type, points: contour })
-                    );
-                }
+            if (editedSegment) {
+                dispatch(
+                    editPointSegment({
+                        id: editedSegment.id,
+                        segType: editedSegment.seg_type,
+                        points: contour,
+                    })
+                );
             }
         },
-        [dispatch, segmentStackRef, currentSegmentRef]
+        [dispatch]
     );
 
+    const hasImage = Boolean(imageUrl?.trim());
+
     return (
-        <Annotorious>
-            <>
-                {isEditMode && <EditPanel tool={tool} setTool={setTool} />}
-                <Flex justify="center" align="center" className="cytology-viewer">
-                    {imageUrl === undefined ? (
-                        <DisconnectOutlined style={{ fontSize: 50, color: "#8c8c8c" }} />
-                    ) : (
-                        <Viewer
-                            viewerType="osd"
-                            tool={tool}
-                            imageUrl={imageUrl}
-                            segments={segments}
-                            drawingEnabled={isEditMode}
-                            selected={!!currentSegment}
-                            needPopup={true}
-                            addSegment={handleAddSegment}
-                            changeSegment={handleChangeSegment}
-                        />
-                    )}
-                </Flex>
-            </>
-        </Annotorious>
+        <div className="cytology-viewer-root">
+            <Annotorious>
+                <>
+                    {isEditMode ? <EditPanel tool={tool} setTool={setTool} /> : null}
+                    <Flex justify="center" align="stretch" className="cytology-viewer">
+                        {!hasImage ? (
+                            <Flex
+                                vertical
+                                align="center"
+                                justify="center"
+                                className="cytology-viewer-empty"
+                            >
+                                <FileImageOutlined className="cytology-viewer-empty-icon" />
+                                <Typography.Paragraph className="cytology-viewer-empty-text">
+                                    Снимок загружается или недоступен
+                                </Typography.Paragraph>
+                            </Flex>
+                        ) : (
+                            <Viewer
+                                viewerType="osd"
+                                tool={tool}
+                                imageUrl={imageUrl!}
+                                segments={segments}
+                                segmentTypeColors={segmentTypeColors}
+                                drawingEnabled={isEditMode}
+                                selected={!!currentSegment}
+                                needPopup={true}
+                                addSegment={handleAddSegment}
+                                changeSegment={handleChangeSegment}
+                            />
+                        )}
+                    </Flex>
+                </>
+            </Annotorious>
+        </div>
     );
 };
 

@@ -17,5 +17,15 @@ export default function DiagnosticIsRunningRoute() {
     [navigate],
   );
 
-  return <DiagnosticIsRunningView cytologyId={cytologyId} onReady={onReady} />;
+  const onUploadAgain = useCallback(() => {
+    navigate("/upload_photo");
+  }, [navigate]);
+
+  return (
+    <DiagnosticIsRunningView
+      cytologyId={cytologyId}
+      onReady={onReady}
+      onUploadAgain={onUploadAgain}
+    />
+  );
 }

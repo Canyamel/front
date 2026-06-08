@@ -1,15 +1,16 @@
 "use client";
 
-import { CtVolumeViewer } from "@medml/ct-mri-viewer";
+import { CtMriView } from "@medml/ct-mri-viewer";
 import { defaultViewerConfig } from "./viewerConfig";
 
 export default function MriViewer() {
   return (
-    <CtVolumeViewer
+    <CtMriView
+      generalStudyId={defaultViewerConfig.initialSeriesId ?? "S1"}
       pacsBasePath={defaultViewerConfig.pacsBasePath}
       series={defaultViewerConfig.series}
       initialSeriesId={defaultViewerConfig.initialSeriesId}
-      modality={defaultViewerConfig.modality}
+      modality={defaultViewerConfig.modality ?? "MR"}
       enableCrosshairs
     />
   );

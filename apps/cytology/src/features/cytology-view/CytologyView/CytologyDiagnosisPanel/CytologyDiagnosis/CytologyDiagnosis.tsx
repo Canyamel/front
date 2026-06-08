@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useRef } from "react";
-import { Flex, Typography, Button, Tooltip } from "antd";
+import { Typography, Button, Tooltip } from "antd";
 import { EditOutlined, HistoryOutlined } from "@ant-design/icons";
 import { skipToken } from "@reduxjs/toolkit/query";
 
@@ -12,8 +12,6 @@ import {
 } from "@cytology/core/service/cytology";
 import { useAppSelector } from "@cytology/core/hooks";
 import { ModalContext } from "@medml/ui";
-
-import CytologyInfo from "./CytologyInfo/CytologyInfo";
 
 import "./CytologyDiagnosis.css";
 import CytologyHistory from "./CytologyHistory/CytologyHistory";
@@ -57,48 +55,49 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({
         }
     }, [historyDataRef, open]);
 
-    const isLastRevision = cytologyInfo?.is_last ?? false;
+    const isLastRevision = cytologyInfo?.is_last ?? true;
 
     return (
-        <Flex vertical className="cytology-diagnosis-wrapper">
-            <CytologyInfo />
-            <Flex vertical gap={5} className="cytology-diagnosis-cards-wrapper">
-                {segmentTypes.map((segment: ISegmentType) => (
-                    <DiagnosisCard
-                        segmentType={segment.code as SegmentType}
-                        label={segment.label}
-                        isActive={currentSegment === (segment.code as SegmentType)}
-                        onClick={() => onClickCard(segment.code as SegmentType)}
-                        key={segment.code}
-                    />
-                ))}
-            </Flex>
-            <Button className="cytology-diagnosis-edit" type="default" onClick={handleOpenHistory}>
-                <Flex gap={10} align="center">
-                    <Text className="text-inherit">История изменений</Text>
-                    <HistoryOutlined />
-                </Flex>
-            </Button>
-            <Tooltip
-                title={
-                    !isLastRevision
-                        ? "Для редактирования необходимо перейти на последнюю ревизию"
-                        : undefined
-                }
-            >
-                <Button
-                    className="cytology-diagnosis-edit"
-                    type="primary"
-                    onClick={openEdit}
-                    disabled={!isLastRevision}
-                >
-                    <Flex gap={10} align="center">
-                        <Text className="text-inherit">Редактировать</Text>
-                        <EditOutlined />
-                    </Flex>
+        <div className="cytology-diagnosis-wrapper">
+            <div className="cytology-diagnosis-groups">
+                <Text className="cytology-section-label">Группы сегментов</Text>
+                <div className="cytology-diagnosis-cards-wrapper">
+                    {segmentTypes.map((segment: ISegmentType) => (
+                        <DiagnosisCard
+                            segmentType={segment.code as SegmentType}
+                            label={segment.label}
+                            color={segment.color}
+                            isActive={currentSegment === (segment.code as SegmentType)}
+                            onClick={() => onClickCard(segment.code as SegmentType)}
+                            key={segment.code}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            <div className="cytology-diagnosis-footer">
+                <Button block icon={<HistoryOutlined />} onClick={handleOpenHistory}>
+                    История изменений
                 </Button>
-            </Tooltip>
-        </Flex>
+                <Tooltip
+                    title={
+                        !isLastRevision
+                            ? "Для редактирования необходимо перейти на последнюю ревизию"
+                            : undefined
+                    }
+                >
+                    <Button
+                        block
+                        type="primary"
+                        icon={<EditOutlined />}
+                        onClick={openEdit}
+                        disabled={!isLastRevision}
+                    >
+                        Редактировать (новая ревизия)
+                    </Button>
+                </Tooltip>
+            </div>
+        </div>
     );
 };
 

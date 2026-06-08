@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Flex, Typography, Button } from "antd";
+import { Flex, Typography, Button, message } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 
@@ -9,10 +9,12 @@ import {
     useAddNewReviseMutation,
     useAddSegmentMutation,
     useDeleteSegmentMutation,
+    useGetCytologyTypesQuery,
     useLazyGetCytologySegmentsByTypeQuery,
     usePatchCytologyInfoMutation,
     usePatchSegmentMutation,
 } from "@cytology/core/service/cytology";
+import { skipToken } from "@reduxjs/toolkit/query";
 import { prepareCytologyInfo } from "@cytology/core/functions/prepareCytologyInfo";
 
 import {
@@ -24,7 +26,6 @@ import {
 
 import DiagnosisCard from "@cytology/common/DiagnosisCard/DiagnosisCard";
 
-import BlockSpace from "../BlockSpace/BlockSpace";
 import AddSegment from "./AddSegment/AddSegment";
 import ViewEditConclusion from "../ViewEditConclusion/ViewEditConclusion";
 
@@ -48,8 +49,10 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     const navigate = useNavigate();
     const { open } = useContext(ModalContext);
     const [availableOptions, setAvailableOptions] = useState<SegmentType[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
 
     const cytologyId = useAppSelector((state) => state.cytology.cytologyId);
+    const accessToken = useAppSelector((state) => state.auth.accessToken);
     const segmentStack = useAppSelector((state) => state.segment.segmentStack);
     const initSegments = useAppSelector((state) => state.segment.initSegmentStack);
     const cytologyInfo = useAppSelector((state) => state.cytology.cytologyInfo);
@@ -64,6 +67,11 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     const [getSegmentsByType] = useLazyGetCytologySegmentsByTypeQuery();
     const [patchCytologyInfo] = usePatchCytologyInfoMutation();
 
+    const { data: segmentTypes = [] } = useGetCytologyTypesQuery(
+        accessToken && cytologyId ? cytologyId : skipToken
+    );
+    const segmentColorByCode = new Map(segmentTypes.map((type) => [type.code, type.color]));
+
     useEffect(() => {
         cytologyEditedInfoRef.current = cytologyEditedInfo;
     }, [cytologyEditedInfo]);
@@ -77,7 +85,20 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     }, [segmentStack]);
 
     const handleSave = useCallback(async () => {
-        const newReviseId = (await addNewRevise(cytologyId).unwrap()).id;
+        if (!cytologyId || isSaving) {
+            return;
+        }
+
+        setIsSaving(true);
+
+        try {
+        const revisePk = Number(cytologyInfo?.id) || Number(cytologyId);
+        if (!Number.isFinite(revisePk) || revisePk <= 0) {
+            message.error("Не удалось определить ID исследования для копирования");
+            return;
+        }
+
+        const newReviseId = (await addNewRevise(revisePk).unwrap()).id;
         const allOldSegments: ISegmentStack[] = [];
         const allNewSegments: ISegmentStack[] = [];
         const newSegmentsMap = new Map<string, ISegmentStack>();
@@ -189,10 +210,19 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
 
         await Promise.all(promises);
 
+        message.success("Ревизия сохранена");
         closeEdit();
-        navigate(`/cytology/${newReviseId}`);
+        navigate(`/cytology/${encodeURIComponent(String(newReviseId))}`);
+        } catch (error) {
+            console.error(error);
+            message.error("Не удалось сохранить ревизию");
+        } finally {
+            setIsSaving(false);
+        }
     }, [
         cytologyId,
+        cytologyInfo?.id,
+        isSaving,
         addNewRevise,
         getSegmentsByType,
         initSegments,
@@ -227,19 +257,24 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     }, [open, cytologyInfo, cytologyEditedInfoRef]);
 
     return (
-        <Flex vertical justify="space-between" gap={20} className="cytology-edit-panel">
-            <BlockSpace />
-            <Flex vertical gap={10} className="cytology-diagnosis-cards-wrapper">
-                {segments.map((segment) => (
-                    <DiagnosisCard
-                        segmentType={segment.seg_type}
-                        isActive={currentSegment === segment.seg_type}
-                        onClick={() => onClickCard(segment.seg_type)}
-                        key={segment.seg_type}
-                    />
-                ))}
-            </Flex>
-            <Flex vertical gap={30} className="cytology-diagnosis-edit-wrapper">
+        <div className="cytology-edit-panel">
+            <div className="cytology-diagnosis-groups">
+                <Text className="cytology-section-label">Группы сегментов</Text>
+                <div className="cytology-diagnosis-cards-wrapper">
+                    {segmentTypes.map((segmentType) => (
+                        <DiagnosisCard
+                            segmentType={segmentType.code as SegmentType}
+                            label={segmentType.label}
+                            color={segmentColorByCode.get(segmentType.code)}
+                            isActive={currentSegment === (segmentType.code as SegmentType)}
+                            onClick={() => onClickCard(segmentType.code as SegmentType)}
+                            key={segmentType.code}
+                            editMode
+                        />
+                    ))}
+                </div>
+            </div>
+            <div className="cytology-diagnosis-edit-wrapper">
                 {availableOptions.length > 0 && (
                     <Button className="cytology-diagnosis-button" onClick={handleAddSegmentType}>
                         <PlusOutlined />
@@ -250,15 +285,15 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
                     <Button className="cytology-diagnosis-button" onClick={handleEditConclusion}>
                         Редактировать заключение
                     </Button>
-                    <Button type="primary" onClick={handleSave}>
-                        Сохранить и вернуться в режим просмотра
+                    <Button type="primary" onClick={handleSave} loading={isSaving}>
+                        Сохранить ревизию
                     </Button>
                     <Button type="primary" onClick={closeEdit}>
                         Вернуться в режим просмотра без сохранения
                     </Button>
                 </Flex>
-            </Flex>
-        </Flex>
+            </div>
+        </div>
     );
 };
 

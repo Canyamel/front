@@ -63,11 +63,37 @@ export default defineConfig(({ mode }) => {
       ),
     },
     resolve: {
-      alias: {
-        "@": path.resolve(__dirname, "./src"),
-        "@cytology": path.resolve(__dirname, "./src/features/cytology-view"),
-        "@medml/ui/styles": path.resolve(__dirname, "../../lib/ui/src/styles"),
-      },
+      alias: [
+        {
+          find: "@",
+          replacement: path.resolve(__dirname, "./src"),
+        },
+        {
+          find: "@cytology",
+          replacement: path.resolve(__dirname, "./src/features/cytology-view"),
+        },
+        {
+          find: "@medml/ui/styles",
+          replacement: path.resolve(__dirname, "../../lib/ui/src/styles"),
+        },
+        {
+          find: "@annotorious/react/annotorious-react.css",
+          replacement: path.resolve(
+            __dirname,
+            "node_modules/@annotorious/react/dist/annotorious-react.css"
+          ),
+        },
+        {
+          find: /^@annotorious\/(react|openseadragon|annotorious|core)$/,
+          replacement: path.resolve(__dirname, "node_modules/@annotorious/$1"),
+        },
+      ],
+      dedupe: [
+        "@annotorious/react",
+        "@annotorious/openseadragon",
+        "@annotorious/annotorious",
+        "@annotorious/core",
+      ],
     },
     server: {
       port: 3001,
