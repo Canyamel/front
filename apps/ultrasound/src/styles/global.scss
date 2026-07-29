@@ -1,9 +1,9 @@
-@use "./tokens" as *;
+@use './tokens' as *;
 
 * {
-  font-family: $font-family-base;
+	font-family: $font-family-base;
 }
 
 body {
-  color: $color-text-primary;
+	color: $color-text-primary;
 }

@@ -1,14 +1,14 @@
 // Color Tokens
-$color-primary: #0047e0;
+$color-primary: #62ff00;
 $color-primary-hover: #3867df;
 $color-primary-active: #0236a5;
 $color-primary-dark: #039;
-$color-accent: #FF6B35;
+$color-accent: #ff6b35;
 
 $color-text-primary: #222831;
 $color-text-secondary: #818181;
-$color-text-secondary-header: #6B7280;
-$color-text-secondary-footer: #9CA3AF;
+$color-text-secondary-header: #6b7280;
+$color-text-secondary-footer: #9ca3af;
 $color-text-white: #ffffff;
 $color-text-black: #000000;
 
@@ -17,13 +17,35 @@ $color-background-light: #fafafa;
 $color-background-body: #f6f8fb;
 
 // Font Tokens
-$font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-  "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-  "Noto Color Emoji";
+$font-family-base:
+	'Inter',
+	-apple-system,
+	BlinkMacSystemFont,
+	'Segoe UI',
+	Roboto,
+	'Helvetica Neue',
+	Arial,
+	'Noto Sans',
+	sans-serif,
+	'Apple Color Emoji',
+	'Segoe UI Emoji',
+	'Segoe UI Symbol',
+	'Noto Color Emoji';
 
-$font-family-secondary: "SF Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-  "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-  "Noto Color Emoji";
+$font-family-secondary:
+	'SF Pro',
+	-apple-system,
+	BlinkMacSystemFont,
+	'Segoe UI',
+	Roboto,
+	'Helvetica Neue',
+	Arial,
+	'Noto Sans',
+	sans-serif,
+	'Apple Color Emoji',
+	'Segoe UI Emoji',
+	'Segoe UI Symbol',
+	'Noto Color Emoji';
 
 $font-size-base: 14px;
 $font-size-small: 12px;

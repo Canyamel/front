@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Spin } from 'antd'
 import OpenSeadragonViewer from './OpenSeadragonViewer'
-import { isTiffUrl, getImageDimensions, isDicomUrl } from '@/features/thyroid-results/imageUtils'
-import type { Segment, SegmentDraftChange } from '@/features/thyroid-results/thyroidResultsTypes'
+import {
+	isTiffUrl,
+	getImageDimensions,
+	isDicomUrl,
+} from '@/features/thyroid-results/imageUtils'
+import type {
+	Segment,
+	SegmentDraftChange,
+} from '@/features/thyroid-results/thyroidResultsTypes'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
 import { prepareTiffImageArray } from './TiffImagePreparer'
-import type { GalleryProps, ImageTile } from '@/features/thyroid-results/viewerTypes'
+import type {
+	GalleryProps,
+	ImageTile,
+} from '@/features/thyroid-results/viewerTypes'
+import { loadThyroidStructures } from '@/lib/structuresStorage'
+import type { ThyroidStructureJson } from './demoThyroidStructures'
 
 const deriveTiffSlideTemplate = (
 	link1: string,
@@ -43,6 +55,7 @@ const Gallery = ({
 	onDraftChangesChange,
 	viewerResetKey = 0,
 	viewerHeight = 600,
+	thyroidStructures,
 }: GalleryProps) => {
 	const [imgArray, setImgArray] = useState<ImageTile[]>([])
 	const [imageDimensions, setImageDimensions] = useState<{
@@ -56,6 +69,8 @@ const Gallery = ({
 	const [flushPendingSelection, setFlushPendingSelection] = useState<
 		(() => Promise<void>) | null
 	>(null)
+	const [loadedStructures, setLoadedStructures] =
+		useState<ThyroidStructureJson | null>(null)
 	const tool: 'polygon' = 'polygon'
 	const usesGeneratedSlides = link1
 		? isTiffUrl(link1) || isDicomUrl(link1)
@@ -85,6 +100,14 @@ const Gallery = ({
 			setSelectedGroup(undefined)
 		}
 	}, [currentGroup, seg])
+
+	// Загружаем структуры ЩЖ из localStorage если они были сохранены
+	useEffect(() => {
+		const structures = loadThyroidStructures(imageid)
+		if (structures) {
+			setLoadedStructures(structures)
+		}
+	}, [imageid])
 
 	const segmentOptions = useMemo(
 		() =>
@@ -187,6 +210,9 @@ const Gallery = ({
 						currentGroup={selectedGroup}
 						onDraftChangesChange={onDraftChangesChange}
 						onViewerApiReady={handleViewerApiReady}
+						thyroidStructures={
+							thyroidStructures || loadedStructures || undefined
+						}
 					/>
 				</div>
 			)}

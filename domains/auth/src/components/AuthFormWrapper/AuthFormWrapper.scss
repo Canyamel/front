@@ -1,20 +1,22 @@
 .auth-form-wrapper {
-    flex-direction: column;
-    flex: 1;
-    width: 100%;
+	flex-direction: column;
+	flex: 1;
+	width: 100%;
+	max-width: 440px;
+	margin: 0 auto;
 
-    :global(.ant-form) {
-        width: 100%;
-    }
+	:global(.ant-form) {
+		width: 100%;
+	}
 
-    :global(label) {
-        font-weight: 600;
-        font-size: 14px;
-        line-height: 17px;
-        color: #374151;
-    }
+	:global(label) {
+		font-weight: 600;
+		font-size: 14px;
+		line-height: 17px;
+		color: #374151;
+	}
 
-    :global(label::before) {
-        content: '' !important;
-    }
+	:global(label::before) {
+		content: '' !important;
+	}
 }

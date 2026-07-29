@@ -1,21 +1,72 @@
-.login-form {
-    width: 100%;
+.login-hero {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	margin-bottom: 24px;
 }
 
-.login-submit {
-    height: auto !important;
-    padding: 14px 20px !important;
+.login-logo {
+	display: flex;
+	align-items: center;
+	margin-bottom: 4px;
+
+	svg {
+		width: 140px;
+		height: auto;
+	}
 }
+
+.login-title {
+	margin: 0;
+	font-size: 28px;
+	line-height: 1.2;
+	font-weight: 700;
+	color: #0f172a;
+}
+
+.login-subtitle {
+	margin: 0;
+	font-size: 16px;
+	line-height: 1.5;
+	color: #64748b;
+}
+
+.login-form {
+	width: 100%;
+}
+
+.login-form :global(.ant-form-item-label > label) {
+	font-size: 16px !important;
+	font-weight: 600 !important;
+	color: #334155 !important;
+}
+
+// .login-submit {
+// 	height: auto !important;
+// 	padding: 14px 20px !important;
+// 	background-color: #0f172a !important;
+// 	border-color: #0f172a !important;
+// 	color: #ffffff !important;
+// }
+
+// .login-submit:hover,
+// .login-submit:focus,
+// .login-submit:active {
+// 	background-color: #0f172a !important;
+// 	border-color: #0f172a !important;
+// 	color: #ffffff !important;
+// }
 
 .login-forgot-password {
-    margin-top: 16px;
-    font-weight: 500 !important;
-    font-size: 14px !important;
-    line-height: 17px !important;
-    text-align: center !important;
-    color: #0055BB !important;
-    
-    &:hover {
-        color: #0055BB !important;
-    }
+	margin-top: 16px;
+	font-weight: 500 !important;
+	font-size: 14px !important;
+	line-height: 17px !important;
+	text-align: center !important;
+	color: #0055bb !important;
+
+	&:hover {
+		color: #0055bb !important;
+	}
 }

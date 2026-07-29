@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import OpenSeaDragon from 'openseadragon'
 import Annotorious from '@recogito/annotorious-openseadragon'
 import SelectorPack from '@recogito/annotorious-selector-pack'
 import '@recogito/annotorious-openseadragon/dist/annotorious.min.css'
 import { fromGeoJSON, toGeoJSON } from 'svg-polygon-points'
-import type { SegmentDraftChange, SegmentPoint } from '@/features/thyroid-results/thyroidResultsTypes'
+import type {
+	SegmentDraftChange,
+	SegmentPoint,
+} from '@/features/thyroid-results/thyroidResultsTypes'
 import { NODE_COLORS, TI_RADS_OPTIONS } from './ViewerConstants'
 import type { OpenSeadragonViewerProps } from '@/features/thyroid-results/viewerTypes'
+import { demoThyroidStructures } from './demoThyroidStructures'
 
 const OSD_PREFIX_URL =
-  'https://cdn.jsdelivr.net/npm/openseadragon@4.1.1/build/openseadragon/images/'
+	'https://cdn.jsdelivr.net/npm/openseadragon@4.1.1/build/openseadragon/images/'
 
 const OpenSeadragonViewer = ({
 	image,
@@ -22,14 +26,17 @@ const OpenSeadragonViewer = ({
 	currentGroup,
 	onDraftChangesChange,
 	onViewerApiReady,
+	thyroidStructures,
 }: OpenSeadragonViewerProps) => {
 	const viewerRef = useRef<any>(null)
 	const annoRef = useRef<any>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const currentGroupRef = useRef<string | number | undefined>(currentGroup)
 	const showSegmentsRef = useRef(true)
+	const showStructuresRef = useRef(true)
 	const viewerReadyRef = useRef(false)
 	const pageAnnotationsRef = useRef<Record<number, any[]>>({})
+	const pageStructureAnnotationsRef = useRef<Record<number, any[]>>({})
 	const draftChangesRef = useRef<SegmentDraftChange[]>([])
 
 	const formatProbability = useCallback((value?: number) => {
@@ -52,12 +59,16 @@ const OpenSeadragonViewer = ({
 
 	const [zoomLevel, setZoomLevel] = useState(1)
 	const [showSegments, setShowSegments] = useState(true)
+	const [showStructures, setShowStructures] = useState(true)
 	const [currentPage, setCurrentPage] = useState(0)
 	const [totalPages, setTotalPages] = useState(0)
 	const [isLoadingPage, setIsLoadingPage] = useState(false)
 	const [pageAnnotations, setPageAnnotations] = useState<Record<number, any[]>>(
 		{},
 	)
+	const [pageStructureAnnotations, setPageStructureAnnotations] = useState<
+		Record<number, any[]>
+	>({})
 
 	useEffect(() => {
 		currentGroupRef.current = currentGroup
@@ -66,6 +77,88 @@ const OpenSeadragonViewer = ({
 	useEffect(() => {
 		showSegmentsRef.current = showSegments
 	}, [showSegments])
+
+	useEffect(() => {
+		showStructuresRef.current = showStructures
+	}, [showStructures])
+
+	useEffect(() => {
+		const pageKey = String(currentPage)
+		// Используем загруженные структуры или demo данные
+		const structures = thyroidStructures || demoThyroidStructures
+		const pageData = structures[pageKey]
+		if (!pageData) {
+			pageStructureAnnotationsRef.current = {}
+			setPageStructureAnnotations({})
+			return
+		}
+
+		const source = Array.isArray(image)
+			? image[currentPage]?.url || ''
+			: typeof image === 'object' && 'url' in image
+				? image.url
+				: ''
+
+		const annotations = Object.entries(pageData).reduce<any[]>(
+			(acc, [structureName, details]) => {
+				if (!details?.coords || details.coords.length < 3) return acc
+
+				const svgPoints = fromGeoJSON(details.coords).toString()
+				const svgSelector = `<svg><polygon points="${svgPoints}"></polygon></svg>`
+				return [
+					...acc,
+					{
+						type: 'Annotation',
+						body: [
+							{
+								type: 'TextualBody',
+								value:
+									structureName === 'left_lobe'
+										? 'Левая доля'
+										: structureName === 'right_lobe'
+											? 'Правая доля'
+											: structureName === 'isthmus'
+												? 'Перешеек'
+												: structureName,
+								purpose: 'tagging',
+							},
+							{
+								type: 'TextualBody',
+								value: details.confidence
+									? `Достоверность ${(details.confidence * 100).toFixed(1)}%`
+									: 'Достоверность неизвестна',
+								purpose: 'commenting',
+							},
+							{
+								type: 'TextualBody',
+								value: '#0077CC',
+								purpose: 'color',
+							},
+						],
+						target: {
+							source,
+							selector: {
+								type: 'SvgSelector',
+								value: svgSelector,
+							},
+						},
+						'@context': 'http://www.w3.org/ns/anno.jsonld',
+						id: `structure_${structureName}_page_${pageKey}`,
+					},
+				]
+			},
+			[],
+		)
+
+		pageStructureAnnotationsRef.current = {
+			...pageStructureAnnotationsRef.current,
+			[currentPage]: annotations,
+		}
+		setPageStructureAnnotations(prev => ({
+			...prev,
+			[currentPage]: annotations,
+		}))
+	}, [currentPage, image, thyroidStructures])
 
 	const getAnnotationGroup = useCallback((annotation: any) => {
 		const groupBody = annotation?.body?.find(
@@ -182,21 +275,6 @@ const OpenSeadragonViewer = ({
 		[onDraftChangesChange],
 	)
 
-	// Получаем уникальные узлы для легенды
-	const getUniqueNodes = useCallback(() => {
-		if (!seg || !Array.isArray(seg)) return []
-
-		const nodes = seg.map((segment, index) => ({
-			id: segment.id,
-			displayIndex: index + 1,
-			color: NODE_COLORS[index % NODE_COLORS.length],
-			type: segment.details?.nodule_type || 'Unknown',
-		}))
-
-		return nodes
-	}, [seg])
-
-	// Функция для обновления аннотаций на текущей странице
 	const updateAnnotationsForPage = useCallback(
 		(
 			pageIndex: number,
@@ -207,9 +285,14 @@ const OpenSeadragonViewer = ({
 			try {
 				annoRef.current.clearAnnotations()
 
-				const annotationsForPage = annotationsMap[pageIndex] || []
+				const annotationsForPage = [
+					...(showStructuresRef.current
+						? pageStructureAnnotationsRef.current[pageIndex] || []
+						: []),
+					...(showSegmentsRef.current ? annotationsMap[pageIndex] || [] : []),
+				]
 
-				if (showSegmentsRef.current && annotationsForPage.length > 0) {
+				if (annotationsForPage.length > 0) {
 					annotationsForPage.forEach((annotation: any) => {
 						try {
 							annoRef.current.addAnnotation(annotation)
@@ -590,7 +673,13 @@ const OpenSeadragonViewer = ({
 	useEffect(() => {
 		if (!viewerReadyRef.current) return
 		updateAnnotationsForPage(currentPage, pageAnnotations)
-	}, [showSegments, currentPage, pageAnnotations, updateAnnotationsForPage])
+	}, [
+		showSegments,
+		showStructures,
+		currentPage,
+		pageAnnotations,
+		updateAnnotationsForPage,
+	])
 
 	// Функции управления
 	const goToPage = useCallback(
@@ -660,6 +749,21 @@ const OpenSeadragonViewer = ({
 	const toggleSegments = () => {
 		setShowSegments(!showSegments)
 	}
+
+	const toggleStructures = () => {
+		setShowStructures(!showStructures)
+	}
+
+	const getUniqueNodes = useCallback(() => {
+		if (!seg || !Array.isArray(seg)) return []
+
+		return seg.map((segment, index) => ({
+			id: segment.id,
+			displayIndex: index + 1,
+			type: segment.details?.nodule_type ?? '-',
+			color: NODE_COLORS[index % NODE_COLORS.length],
+		}))
+	}, [seg])
 
 	const uniqueNodes = getUniqueNodes()
 

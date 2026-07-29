@@ -3,6 +3,7 @@ import type {
 	SegmentDraftChange,
 	SegmentPoint,
 } from './thyroidResultsTypes'
+import type { ThyroidStructureJson } from './demoThyroidStructures'
 
 export interface ImageTile {
 	type: 'image'
@@ -30,6 +31,7 @@ export interface GalleryProps {
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 	viewerResetKey?: number
 	viewerHeight?: number
+	thyroidStructures?: ThyroidStructureJson
 }
 
 export interface GalleryToolbarProps {
@@ -72,6 +74,7 @@ export interface OpenSeadragonViewerProps {
 	currentGroup?: string | number
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 	onViewerApiReady?: (api: AnnotoriousViewerApi) => void
+	thyroidStructures?: ThyroidStructureJson
 }
 
 export type ViewerSegmentPoint = SegmentPoint

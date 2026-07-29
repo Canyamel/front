@@ -30,11 +30,7 @@ interface RegisterPageProps {
 	authedRedirectTo?: string
 }
 
-const RegisterPage = ({
-	onSuccess,
-	onError,
-	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
-}: RegisterPageProps) => {
+const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PATH }: RegisterPageProps) => {
 	const authApi = useAuthApi()
 	const [form] = Form.useForm<RegisterFormData>()
 	const [disabledButton, setDisabledButton] = useState(true)
@@ -107,8 +103,7 @@ const RegisterPage = ({
 				}
 			} catch (error: unknown) {
 				const err = error as { data?: { detail?: string; message?: string } }
-				const errorMsg =
-					err?.data?.detail ?? err?.data?.message ?? 'Неверные данные'
+				const errorMsg = err?.data?.detail ?? err?.data?.message ?? 'Неверные данные'
 				setHasError(true)
 				setErrorMessage(errorMsg)
 				if (onError) {
@@ -118,14 +113,7 @@ const RegisterPage = ({
 				setIsRegisterLoading(false)
 			}
 		},
-		[
-			authApi,
-			onSuccess,
-			onError,
-			setHasError,
-			setErrorMessage,
-			authedRedirectTo,
-		],
+		[authApi, onSuccess, onError, setHasError, setErrorMessage, authedRedirectTo],
 	)
 
 	const passwordRules = useCallback(
@@ -137,8 +125,7 @@ const RegisterPage = ({
 			if (
 				(ruleNumber === 1 && password.length < 8) ||
 				(ruleNumber === 2 && !/[A-Z]/.test(password)) ||
-				(ruleNumber === 3 &&
-					!/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
+				(ruleNumber === 3 && !/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
 			) {
 				return 'warning'
 			}
@@ -146,8 +133,7 @@ const RegisterPage = ({
 			if (
 				(ruleNumber === 1 && password.length >= 8) ||
 				(ruleNumber === 2 && /[A-Z]/.test(password)) ||
-				(ruleNumber === 3 &&
-					/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
+				(ruleNumber === 3 && /[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
 			) {
 				return 'success'
 			}
@@ -182,9 +168,7 @@ const RegisterPage = ({
 									.split(/\s+/)
 									.filter((word: string) => word.length > 0)
 								if (words.length < 2) {
-									return Promise.reject(
-										new Error('ФИО должно состоять минимум из двух слов'),
-									)
+									return Promise.reject(new Error('ФИО должно состоять минимум из двух слов'))
 								}
 								return Promise.resolve()
 							},
@@ -209,12 +193,7 @@ const RegisterPage = ({
 						},
 					]}
 				>
-					<Input
-						prefix={<EmailIcon />}
-						type='email'
-						size='large'
-						placeholder='Email'
-					/>
+					<Input prefix={<EmailIcon />} type='email' size='large' placeholder='Email' />
 				</Form.Item>
 
 				<Form.Item
@@ -236,23 +215,13 @@ const RegisterPage = ({
 						},
 					]}
 				>
-					<Password
-						prefix={<PasswordIcon />}
-						size='large'
-						placeholder='Пароль'
-					/>
+					<Password prefix={<PasswordIcon />} size='large' placeholder='Пароль' />
 				</Form.Item>
 
 				<Space direction='vertical' className='password-rules'>
 					<Badge status={passwordRules(1)} text='Не менее 8 символов' />
-					<Badge
-						status={passwordRules(2)}
-						text='Минимум одна заглавная буква'
-					/>
-					<Badge
-						status={passwordRules(3)}
-						text='Минимум один спецсимвол (!, %, #, и т.д.)'
-					/>
+					<Badge status={passwordRules(2)} text='Минимум одна заглавная буква' />
+					<Badge status={passwordRules(3)} text='Минимум один спецсимвол (!, %, #, и т.д.)' />
 				</Space>
 
 				<Form.Item
@@ -271,11 +240,7 @@ const RegisterPage = ({
 						}),
 					]}
 				>
-					<Password
-						prefix={<PasswordIcon />}
-						size='large'
-						placeholder='Повторите пароль'
-					/>
+					<Password prefix={<PasswordIcon />} size='large' placeholder='Повторите пароль' />
 				</Form.Item>
 				<Form.Item>
 					<Button
