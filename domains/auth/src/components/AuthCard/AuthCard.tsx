@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, Divider, Flex, Typography } from 'antd'
-import { AuthLogo, SecurityIcon } from '@medml/ui'
+import { SecurityIcon } from '@medml/ui'
 import { useAuthError } from '../../contexts/AuthErrorContext'
 
 import './AuthCard.scss'

@@ -1,7 +1,10 @@
 import { baseApi } from '@medml/store'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
-import type { ThyroidUziApiResponse } from '@/features/thyroid-results/thyroidResultsTypes'
+import type {
+	SegmentPoint,
+	ThyroidUziApiResponse,
+} from '@/features/uzi-view/model/types'
 
 function normalizeListResults<T>(response: unknown): T[] {
 	if (Array.isArray(response)) return response as T[]
@@ -17,51 +20,6 @@ export type UziDeviceDto = {
 	name: string
 }
 
-/** Кадры снимка (как в OLD UZI `IUziPage`). */
-export type UziImagePageDto = {
-	id: string
-	uzi_id: string
-	page: number
-}
-
-/** Узел с TIRADS (как в OLD `INode`). */
-export type UziNodeDto = {
-	id: string
-	uzi_id: string
-	ai: boolean
-	validation: string
-	tirads_23: number
-	tirads_4: number
-	tirads_5: number
-}
-
-export type UziSegmentDto = {
-	id: string
-	node_id: string
-	image_id: string
-	ai: boolean
-	contor: { x: number; y: number }[]
-	tirads_23: number
-	tirads_4: number
-	tirads_5: number
-}
-
-export type UziImageNodesSegmentsDto = {
-	nodes?: UziNodeDto[]
-	segments?: UziSegmentDto[]
-}
-
-export type UziInfoDto = {
-	id: string
-	projection: string
-	checked: boolean
-	external_id: string
-	author_id: string
-	device_id: number
-	status: string
-	create_at: string
-}
-
 export const uziApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		getUziDevices: builder.query<UziDeviceDto[], void>({
@@ -71,24 +29,6 @@ export const uziApi = baseApi.injectEndpoints({
 					id: String(d.id),
 					name: d.name,
 				})),
-		}),
-
-		getUziInfo: builder.query<UziInfoDto, string>({
-			query: uziId => ({ url: `/uzi/${encodeURIComponent(uziId)}` }),
-		}),
-
-		getUziImagePages: builder.query<UziImagePageDto[], string>({
-			query: uziId => ({ url: `/uzi/${encodeURIComponent(uziId)}/images` }),
-		}),
-
-		getUziNodes: builder.query<UziNodeDto[], string>({
-			query: uziId => ({ url: `/uzi/${encodeURIComponent(uziId)}/nodes` }),
-		}),
-
-		getUziImageNodesSegments: builder.query<UziImageNodesSegmentsDto, string>({
-			query: imageId => ({
-				url: `/uzi/image/${encodeURIComponent(imageId)}/nodes-segments`,
-			}),
 		}),
 
 		/** Thyroid: полный bundle для ResultsPage (`?format=json`). */
@@ -109,6 +49,58 @@ export const uziApi = baseApi.injectEndpoints({
 			invalidatesTags: (_result, _error, { uziId }) => [
 				{ type: 'Uzi', id: uziId },
 			],
+		}),
+
+		/**
+		 * Контуры сегментов. Раньше эти три запроса шли мимо RTK Query через
+		 * axios с ручным заголовком Authorization — теперь токен подставляет
+		 * baseQuery, а `invalidatesTags` сам перечитывает снимок после записи,
+		 * поэтому локальное применение черновиков больше не нужно.
+		 *
+		 * `uziId` в аргументах не участвует в URL — он нужен только для
+		 * инвалидации кэша конкретного снимка.
+		 */
+		addUziSegmentContour: builder.mutation<
+			{ id: number },
+			{ uziId: string; points: SegmentPoint[]; segmentGroup: string | number }
+		>({
+			query: ({ points, segmentGroup }) => ({
+				url: '/uzi/segment/add/',
+				method: 'POST',
+				body: { points, segment_group: segmentGroup },
+			}),
+			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
+		}),
+
+		updateUziSegmentContour: builder.mutation<
+			void,
+			{
+				uziId: string
+				contourId: string
+				points: SegmentPoint[]
+				segmentGroup?: string | number
+			}
+		>({
+			query: ({ contourId, points, segmentGroup }) => ({
+				url: `/uzi/segment/update/${encodeURIComponent(contourId)}/`,
+				method: 'PUT',
+				body: {
+					points,
+					...(segmentGroup ? { segment_group: segmentGroup } : {}),
+				},
+			}),
+			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
+		}),
+
+		deleteUziSegmentContour: builder.mutation<
+			void,
+			{ uziId: string; contourId: string }
+		>({
+			query: ({ contourId }) => ({
+				url: `/uzi/segment/update/${encodeURIComponent(contourId)}/`,
+				method: 'DELETE',
+			}),
+			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
 		}),
 		uploadUziDiagnostic: builder.mutation<
 			unknown,
@@ -158,10 +150,9 @@ export const uziApi = baseApi.injectEndpoints({
 export const {
 	useGetUziDevicesQuery,
 	useUploadUziDiagnosticMutation,
-	useGetUziInfoQuery,
-	useGetUziImagePagesQuery,
-	useGetUziNodesQuery,
-	useGetUziImageNodesSegmentsQuery,
 	useGetThyroidUziDataQuery,
 	useUpdateThyroidUziDataMutation,
+	useAddUziSegmentContourMutation,
+	useUpdateUziSegmentContourMutation,
+	useDeleteUziSegmentContourMutation,
 } = uziApi

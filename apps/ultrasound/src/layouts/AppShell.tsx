@@ -4,7 +4,7 @@ import { Footer, HeaderSpa } from "@medml/layout";
 
 import { clearAuthTokens } from "@/lib/tokenStorage";
 
-import "../../../../lib/ui/src/providers/RootProvider/RootProvider.scss";
+import "@medml/ui/providers/RootProvider/RootProvider.scss";
 import "./AppShell.scss";
 
 export default function AppShell() {

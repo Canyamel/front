@@ -1,114 +1,130 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Annotorious } from "@annotorious/react";
-import { Alert, Flex } from "antd";
-import { DisconnectOutlined } from "@ant-design/icons";
+import React, { useEffect, useMemo, useRef } from 'react'
+import { useOpenSeadragon } from './hooks/useOpenSeadragon'
+import ViewerContainer from './components/ViewerContainer'
+import type { UziViewerProps, ViewerApi, ViewerOverlayContext } from './types'
 
-import EditPanel from "./EditPanel/EditPanel";
-import NavButton from "./NavButton/NavButton";
-import Viewer from "./Viewer/Viewer";
-import { IPoint } from "./Viewer/interfaces/queries";
-import { UziDrawingTool, UziViewerImageRef, UziViewerNode, UziViewerSegment } from "./types";
+/**
+ * Главный сборочный UI-компонент 2D-вьювера (@medml/viewers/uzi-viewer).
+ *
+ * Полностью доменно-нейтрален: принимает только универсальные ViewerImage[],
+ * управляет OpenSeadragon (zoom/pan/rotate/pagination) через useOpenSeadragon
+ * и отдаёт точки расширения наружу через customToolbarSlot / overlaySlot и
+ * колбэки onInstanceReady / onInstanceWillDestroy — для доменных плагинов
+ * аннотирования (например, Annotorious), легенд, специфичных кнопок и т.д.
+ */
+const UziViewer: React.FC<UziViewerProps> = ({
+	images,
+	currentIndex,
+	onIndexChange,
+	activeTool,
+	onToolChange,
+	toolbarConfig,
+	navigationEnabled = true,
+	height = 600,
+	className,
+	emptyState,
+	onZoomChange,
+	onRotationChange,
+	onViewerReady,
+	onInstanceReady,
+	onInstanceWillDestroy,
+	customToolbarSlot,
+	overlaySlot,
+}) => {
+	// Стабильные ref-обёртки, чтобы не пересоздавать инстанс OSD при
+	// каждом ре-рендере вызывающего компонента (новые инлайн-колбэки).
+	const onInstanceReadyRef = useRef(onInstanceReady)
+	const onInstanceWillDestroyRef = useRef(onInstanceWillDestroy)
+	onInstanceReadyRef.current = onInstanceReady
+	onInstanceWillDestroyRef.current = onInstanceWillDestroy
 
-import "@annotorious/react/annotorious-react.css";
-import "./UziViewer.css";
+	const {
+		containerRef,
+		viewer,
+		currentIndex: internalIndex,
+		zoom,
+		rotation,
+		goToIndex,
+		nextIndex,
+		prevIndex,
+		zoomIn,
+		zoomOut,
+		fitToScreen,
+		rotateLeft,
+		rotateRight,
+	} = useOpenSeadragon({
+		images,
+		onOpen: (osd, container) => onInstanceReadyRef.current?.(osd, container),
+		onBeforeDestroy: osd => onInstanceWillDestroyRef.current?.(osd),
+		onPageChange: index => onIndexChange?.(index),
+		onZoomChange: level => onZoomChange?.(level),
+	})
 
-export interface UziViewerProps {
-  isEditMode: boolean;
-  imageUrl: string;
-  imageId: string;
-  selectedNode: UziViewerNode | null;
-  segments: UziViewerSegment[];
-  index: number;
-  uziIds?: UziViewerImageRef[];
-  setIndex: React.Dispatch<React.SetStateAction<number>>;
-  onAddSegment: (contour: IPoint[]) => void;
-  onChangeSegment: (segmentId: string, contour: IPoint[]) => void;
-  onDeleteSegment?: (segmentId: string) => void;
-  onUndoDeleteSegment?: (segmentId: string) => void;
-  onToolPanelHeightChange?: (height: number) => void;
+	useEffect(() => {
+		onRotationChange?.(rotation)
+	}, [rotation, onRotationChange])
+
+	// Синхронизация с контролируемым currentIndex (если задан снаружи).
+	useEffect(() => {
+		if (typeof currentIndex === 'number' && currentIndex !== internalIndex) {
+			goToIndex(currentIndex)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [currentIndex])
+
+	useEffect(() => {
+		if (!onViewerReady) return
+		const api: ViewerApi = {
+			zoomIn,
+			zoomOut,
+			fitToScreen,
+			rotateLeft,
+			rotateRight,
+			goToIndex,
+			getOpenSeadragonInstance: () => viewer,
+		}
+		onViewerReady(api)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [viewer, zoomIn, zoomOut, fitToScreen, rotateLeft, rotateRight, goToIndex])
+
+	const overlayContext: ViewerOverlayContext = useMemo(
+		() => ({
+			currentIndex: internalIndex,
+			currentImage: images[internalIndex],
+			zoom,
+			rotation,
+			osdViewer: viewer,
+			containerElement: containerRef.current,
+		}),
+		[internalIndex, images, zoom, rotation, viewer, containerRef],
+	)
+
+	return (
+		<ViewerContainer
+			height={height}
+			className={className}
+			containerRef={containerRef}
+			isEmpty={images.length === 0}
+			emptyState={emptyState}
+			overlaySlot={overlaySlot}
+			customToolbarSlot={customToolbarSlot}
+			overlayContext={overlayContext}
+			toolbarConfig={toolbarConfig}
+			zoom={zoom}
+			activeTool={activeTool}
+			onToolChange={onToolChange}
+			onZoomIn={zoomIn}
+			onZoomOut={zoomOut}
+			onFit={fitToScreen}
+			onRotateLeft={rotateLeft}
+			onRotateRight={rotateRight}
+			navigationEnabled={navigationEnabled}
+			currentIndex={internalIndex}
+			total={images.length}
+			onPrev={prevIndex}
+			onNext={nextIndex}
+		/>
+	)
 }
 
-const UziViewer: React.FC<UziViewerProps> = ({
-  isEditMode,
-  imageUrl,
-  imageId,
-  selectedNode,
-  segments,
-  setIndex,
-  index,
-  uziIds,
-  onAddSegment,
-  onChangeSegment,
-  onDeleteSegment,
-  onUndoDeleteSegment,
-  onToolPanelHeightChange,
-}) => {
-  const [tool, setTool] = useState<UziDrawingTool>("rectangle");
-  const canDrawOnSelectedNode = isEditMode && !!selectedNode && selectedNode.specialist !== "ai";
-  // OLD UZI behavior: use plain Annotorious image viewer.
-  const viewerType = "img";
-  const currentImageSegments = useMemo(
-    () => segments.filter((segment) => segment.image_id === imageId),
-    [segments, imageId]
-  );
-
-  useEffect(() => {
-    setTool("rectangle");
-  }, [isEditMode]);
-
-  return (
-    <Annotorious key={imageUrl || "empty"}>
-      <>
-        {isEditMode && (
-          <EditPanel tool={tool} setTool={setTool} onHeightChange={onToolPanelHeightChange} />
-        )}
-        <Flex justify="center" align="center" className="uzi-viewer">
-          {imageUrl === "" ? (
-            <DisconnectOutlined style={{ fontSize: 50, color: "#8c8c8c" }} />
-          ) : (
-            <>
-              <NavButton
-                disabled={!!uziIds && index === 0}
-                onClick={() => setIndex((prevState) => prevState - 1)}
-                position="left"
-              />
-              <Viewer
-                viewerType={viewerType}
-                tool={tool}
-                imageUrl={imageUrl}
-                segments={currentImageSegments}
-                drawingEnabled={canDrawOnSelectedNode}
-                needPopup
-                addSegment={onAddSegment}
-                changeSegment={onChangeSegment}
-                onDeleteSegment={onDeleteSegment}
-                onUndoDeleteSegment={onUndoDeleteSegment}
-              />
-              {!!uziIds?.length && (
-                <div className="uzi-series-counter">
-                  Снимок {index + 1} из {uziIds.length}
-                </div>
-              )}
-              {isEditMode && selectedNode && selectedNode.specialist === "ai" && (
-                <Alert
-                  className="uzi-edit-hint"
-                  type="info"
-                  showIcon
-                  message="AI-образование"
-                  description="Для AI-образований рисование и редактирование сегментов недоступно."
-                />
-              )}
-              <NavButton
-                disabled={!!uziIds && index === (uziIds.length - 1)}
-                onClick={() => setIndex((prevState) => prevState + 1)}
-                position="right"
-              />
-            </>
-          )}
-        </Flex>
-      </>
-    </Annotorious>
-  );
-};
-
-export default UziViewer;
+export default UziViewer

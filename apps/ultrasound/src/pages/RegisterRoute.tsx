@@ -1,10 +1,13 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import RegisterPage from '../../../../domains/auth/src/pages/register/page'
-import AuthLayoutSpa from '../../../../domains/auth/src/components/AuthLayoutSpa/AuthLayoutSpa'
-import { AuthApiProvider } from '../../../../domains/auth/src/contexts/AuthApiContext'
-import { DEFAULT_POST_AUTH_PATH } from '../../../../domains/auth/src/constants/routes'
-import { sanitizeInternalPath } from '../../../../domains/auth/src/utils/sanitizeCallbackUrl'
+import {
+	AuthApiProvider,
+	AuthLayoutSpa,
+	DEFAULT_POST_AUTH_PATH,
+	RegisterPage,
+	sanitizeInternalPath,
+} from '@medml/auth'
+
 import { useUltrasoundAuthApi } from '@/lib/authApiAdapter'
 
 export default function RegisterRoute() {

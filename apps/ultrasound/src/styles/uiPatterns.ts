@@ -5,6 +5,14 @@ type TokenLike = {
   colorBgLayout: string;
 };
 
+/** Акцентный цвет вторичных кнопок (был продублирован как magic value в разных местах). */
+export const ACCENT_OUTLINE_COLOR = "#194964";
+
+export const getAccentOutlineButtonStyle = (): CSSProperties => ({
+  color: ACCENT_OUTLINE_COLOR,
+  borderColor: ACCENT_OUTLINE_COLOR,
+});
+
 export const getSurfaceCardStyle = (token: TokenLike): CSSProperties => ({
   background: token.colorBgContainer || "#ffffff",
   borderRadius: 8,
