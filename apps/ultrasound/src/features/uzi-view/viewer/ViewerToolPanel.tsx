@@ -3,6 +3,7 @@ import { Button, InputNumber, Segmented, Space, Tooltip, Typography } from 'antd
 import {
 	BRUSH_TOOL,
 	PAN_TOOL,
+	RULER_TOOL,
 	type BrushMode,
 	type ViewerToolId,
 } from './constants'
@@ -35,7 +36,7 @@ const TOOLS: Array<{ value: ViewerToolId; label: string; hint: string }> = [
 	{ value: 'polygon', label: 'Контур', hint: 'Обвести узел по точкам' },
 	{ value: 'freehand', label: 'Обводка', hint: 'Векторная обводка от руки' },
 	{ value: BRUSH_TOOL, label: 'Кисть', hint: 'Закрасить область, затем «Подтвердить»' },
-	{ value: 'ruler', label: 'Линейка', hint: 'Измерить расстояние в мм' },
+	{ value: RULER_TOOL, label: 'Линейка', hint: 'Зажмите и протяните по снимку — размер покажется сразу' },
 ]
 
 /**
@@ -67,7 +68,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 			<div className='viewer-tool-panel__row'>
 				<Space size={8} wrap>
 					{TOOLS.map(tool => {
-						const disabled = tool.value === 'ruler' && rulerDisabled
+						const disabled = tool.value === RULER_TOOL && rulerDisabled
 						const button = (
 							<Button
 								key={tool.value}

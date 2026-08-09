@@ -10,9 +10,9 @@ import { useRulerMeasurements } from './useRulerMeasurements'
 import NodeLegendOverlay from './NodeLegendOverlay'
 import SegmentsVisibilityToggle from './SegmentsVisibilityToggle'
 import BrushCanvasOverlay from './BrushCanvasOverlay'
-import MeasurementLayer from './MeasurementLayer'
+import RulerOverlay from './RulerOverlay'
 import ViewerToolPanel from './ViewerToolPanel'
-import { BRUSH_TOOL, PAN_TOOL, type BrushMode, type ViewerToolId } from './constants'
+import { BRUSH_TOOL, PAN_TOOL, RULER_TOOL, type BrushMode, type ViewerToolId } from './constants'
 import { createMask, isMaskEmpty, maskToPolygon, type BrushMask } from './raster'
 import type { ThyroidAnnotatedViewerProps } from './types'
 
@@ -22,7 +22,7 @@ import type { ThyroidAnnotatedViewerProps } from './types'
  * Чистое управление OpenSeadragon живёт в `@medml/viewers`; здесь —
  * инструменты врача: разметка через Annotorious (`useThyroidAnnotator`),
  * кисть-заполнение поверх canvas (`BrushCanvasOverlay` + `raster.ts`),
- * произвольные измерения (`useRulerMeasurements` + `MeasurementLayer`).
+ * произвольные измерения (`useRulerMeasurements` + `RulerOverlay`).
  */
 const ThyroidAnnotatedViewer = ({
 	image,
@@ -73,16 +73,6 @@ const ThyroidAnnotatedViewer = ({
 		setSketchVersion(v => v + 1)
 	}, [images, currentPage])
 
-	const handleTransientLine = useCallback(
-		(annotation: unknown, tool: ViewerToolId) => {
-			if (tool === 'ruler') {
-				return ruler.addFromAnnotation(annotation, currentPage)
-			}
-			return false
-		},
-		[currentPage, ruler],
-	)
-
 	const { showSegments, toggleSegments, uniqueNodes, flushPendingSelection, addPolygonFromPoints } =
 		useThyroidAnnotator({
 			osdViewer,
@@ -94,7 +84,6 @@ const ThyroidAnnotatedViewer = ({
 			currentGroup,
 			thyroidStructures,
 			onDraftChangesChange,
-			onTransientLine: handleTransientLine,
 		})
 
 	useEffect(() => {
@@ -171,12 +160,14 @@ const ThyroidAnnotatedViewer = ({
 							<NodeLegendOverlay nodes={uniqueNodes} seg={seg} pxPerMm={pxPerMm} />
 						)}
 
-						<MeasurementLayer
+						<RulerOverlay
 							viewer={osdViewer}
+							active={!readOnly && activeTool === RULER_TOOL}
 							measurements={ruler.measurements}
 							currentPage={currentPage}
 							pxPerMm={pxPerMm}
 							labelFor={ruler.labelFor}
+							onAdd={ruler.add}
 							onRemove={ruler.remove}
 						/>
 

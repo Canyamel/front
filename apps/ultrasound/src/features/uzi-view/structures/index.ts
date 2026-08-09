@@ -2,8 +2,9 @@
 //
 // Загрузка пользовательского JSON и его хранение в localStorage удалены
 // вместе с блоком «JSON загрузки ЩЖ» на странице загрузки снимка.
-// Остались тип, аксессоры и демонстрационный набор, который вьюер
-// показывает, когда к снимку не приложены структуры.
+// Демонстрационный набор тоже убран: он подставлялся, когда к снимку не
+// приложены структуры, и мешал — на снимке появлялись чужие контуры.
+// Остались только тип и аксессоры.
 export type {
 	ThyroidStructureDetails,
 	ThyroidStructureFrame,
@@ -11,4 +12,3 @@ export type {
 } from './types'
 export { getStructureFrame, getStructureFrameKeys } from './types'
 
-export { demoThyroidStructures } from './demoData'

@@ -4,14 +4,8 @@ import SelectorPack from '@recogito/annotorious-selector-pack'
 import '@recogito/annotorious-openseadragon/dist/annotorious.min.css'
 import type { ViewerImage, ViewerInstance } from '@medml/viewers'
 import type { Segment, SegmentDraftChange, SegmentPoint } from '../model/types'
-import { demoThyroidStructures, type ThyroidStructureJson } from '../structures'
-import {
-	DRAWING_TOOLS,
-	TI_RADS_OPTIONS,
-	isDrawingTool,
-	isTransientTool,
-	type ViewerToolId,
-} from './constants'
+import type { ThyroidStructureJson } from '../structures'
+import { DRAWING_TOOLS, TI_RADS_OPTIONS, isDrawingTool, type ViewerToolId } from './constants'
 import {
 	buildSegmentAnnotationsByPage,
 	buildStructureAnnotationsForPage,
@@ -58,12 +52,6 @@ export interface UseThyroidAnnotatorOptions {
 	currentGroup?: string | number
 	thyroidStructures?: ThyroidStructureJson
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
-	/**
-	 * Нарисован служебный отрезок (калибровка или линейка). Должен вернуть
-	 * `true`, если отрезок принят — аннотация в любом случае снимается с
-	 * холста и в черновики не попадает.
-	 */
-	onTransientLine?: (annotation: unknown, tool: ViewerToolId) => boolean
 }
 
 export interface UseThyroidAnnotatorResult {
@@ -100,7 +88,6 @@ export function useThyroidAnnotator({
 	currentGroup,
 	thyroidStructures,
 	onDraftChangesChange,
-	onTransientLine,
 }: UseThyroidAnnotatorOptions): UseThyroidAnnotatorResult {
 	const annoRef = useRef<any>(null)
 	const currentGroupRef = useRef<string | number | undefined>(currentGroup)
@@ -108,9 +95,7 @@ export function useThyroidAnnotator({
 	// инструмент и колбэк калибровки читаются через ref — иначе в замыкании
 	// осталось бы значение с момента подписки.
 	const toolRef = useRef(tool)
-	const onTransientLineRef = useRef(onTransientLine)
 	toolRef.current = tool
-	onTransientLineRef.current = onTransientLine
 	const showSegmentsRef = useRef(true)
 	const pageAnnotationsRef = useRef<Record<number, any[]>>({})
 	const pageStructureAnnotationsRef = useRef<Record<number, any[]>>({})
@@ -145,30 +130,23 @@ export function useThyroidAnnotator({
 		}
 	}, [])
 
-	const upsertPageAnnotation = useCallback(
-		(annotation: any, pageIndex: number) => {
-			setPageAnnotations(prev => {
-				const next: Record<number, any[]> = {}
-				Object.entries(prev).forEach(([key, value]) => {
-					next[Number(key)] = (value || []).filter(
-						item => String(item.id) !== String(annotation.id),
-					)
-				})
-				next[pageIndex] = [...(next[pageIndex] || []), annotation]
-				pageAnnotationsRef.current = next
-				return next
+	const upsertPageAnnotation = useCallback((annotation: any, pageIndex: number) => {
+		setPageAnnotations(prev => {
+			const next: Record<number, any[]> = {}
+			Object.entries(prev).forEach(([key, value]) => {
+				next[Number(key)] = (value || []).filter(item => String(item.id) !== String(annotation.id))
 			})
-		},
-		[],
-	)
+			next[pageIndex] = [...(next[pageIndex] || []), annotation]
+			pageAnnotationsRef.current = next
+			return next
+		})
+	}, [])
 
 	const removePageAnnotation = useCallback((annotationId: string) => {
 		setPageAnnotations(prev => {
 			const next: Record<number, any[]> = {}
 			Object.entries(prev).forEach(([key, value]) => {
-				next[Number(key)] = (value || []).filter(
-					annotation => String(annotation.id) !== annotationId,
-				)
+				next[Number(key)] = (value || []).filter(annotation => String(annotation.id) !== annotationId)
 			})
 			pageAnnotationsRef.current = next
 			return next
@@ -193,10 +171,7 @@ export function useThyroidAnnotator({
 					return
 				}
 
-				next = [
-					...next,
-					{ annotationId, type: 'delete', segment_group: segmentGroup },
-				]
+				next = [...next, { annotationId, type: 'delete', segment_group: segmentGroup }]
 				draftChangesRef.current = next
 				onDraftChangesChange?.(next)
 				return
@@ -217,10 +192,7 @@ export function useThyroidAnnotator({
 	)
 
 	const updateAnnotationsForPage = useCallback(
-		(
-			pageIndex: number,
-			annotationsMap: Record<number, any[]> = pageAnnotationsRef.current,
-		) => {
+		(pageIndex: number, annotationsMap: Record<number, any[]> = pageAnnotationsRef.current) => {
 			if (!annoRef.current) return
 
 			try {
@@ -251,14 +223,10 @@ export function useThyroidAnnotator({
 		const source = images[currentPage]?.url || ''
 		// Если к снимку не приложен JSON структур — показываем демонстрационные
 		// контуры (поведение исходного вьюера).
-		const structures = thyroidStructures ?? demoThyroidStructures
+		const structures = thyroidStructures
 		pageStructureAnnotationsRef.current = {
 			...pageStructureAnnotationsRef.current,
-			[currentPage]: buildStructureAnnotationsForPage(
-				structures,
-				currentPage,
-				source,
-			),
+			[currentPage]: buildStructureAnnotationsForPage(structures, currentPage, source),
 		}
 		updateAnnotationsForPage(currentPage, pageAnnotationsRef.current)
 	}, [currentPage, images, thyroidStructures, updateAnnotationsForPage])
@@ -321,30 +289,12 @@ export function useThyroidAnnotator({
 		if (!readOnly) {
 			annotateState.on('createAnnotation', (annotation: any, overrideId: any) => {
 				try {
-					// Калибровка и линейка — не разметка узла: снимаем длину и
-					// убираем аннотацию с холста, в черновики она попасть не должна.
-					if (isTransientTool(toolRef.current)) {
-						const accepted =
-							onTransientLineRef.current?.(annotation, toolRef.current) ?? false
-						try {
-							annotateState.removeAnnotation(annotation)
-						} catch (err) {
-							console.warn('Не удалось убрать служебный отрезок:', err)
-						}
-						if (!accepted) {
-							console.warn('Отрезок слишком короткий или не распознан')
-						}
-						return
-					}
-
 					const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 					const selectedGroup = currentGroupRef.current?.toString()
 
 					if (selectedGroup && Array.isArray(annotation.body)) {
 						annotation.body = [
-							...annotation.body.filter(
-								(item: any) => !['group', 'node-id'].includes(item.purpose),
-							),
+							...annotation.body.filter((item: any) => !['group', 'node-id'].includes(item.purpose)),
 							{
 								type: 'TextualBody',
 								value: selectedGroup,
@@ -389,12 +339,7 @@ export function useThyroidAnnotator({
 			annotateState.on('deleteAnnotation', (annotation: any) => {
 				try {
 					removePageAnnotation(String(annotation.id))
-					syncDraftChanges(
-						String(annotation.id),
-						'delete',
-						[],
-						getAnnotationGroup(annotation, currentGroupRef.current),
-					)
+					syncDraftChanges(String(annotation.id), 'delete', [], getAnnotationGroup(annotation, currentGroupRef.current))
 				} catch (error) {
 					console.error('Error deleting draft annotation:', error)
 				}
@@ -472,12 +417,7 @@ export function useThyroidAnnotator({
 			}
 
 			upsertPageAnnotation(annotation, currentPage)
-			syncDraftChanges(
-				localId,
-				'create',
-				getAnnotationPoints(annotation, currentPage),
-				selectedGroup,
-			)
+			syncDraftChanges(localId, 'create', getAnnotationPoints(annotation, currentPage), selectedGroup)
 			return true
 		},
 		[currentPage, syncDraftChanges, upsertPageAnnotation],

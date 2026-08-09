@@ -1,11 +1,5 @@
 import { useCallback, useState } from 'react'
-import {
-	formatMm,
-	lineLengthPx,
-	parseLineAnnotation,
-	pxToMm,
-	type MeasuredLine,
-} from './measurement'
+import { formatMm, lineLengthPx, pxToMm, type MeasuredLine } from './measurement'
 
 export interface RulerMeasurement {
 	id: string
@@ -17,8 +11,8 @@ export interface RulerMeasurement {
 
 export interface UseRulerMeasurementsResult {
 	measurements: RulerMeasurement[]
-	/** Добавить измерение из нарисованной аннотации. `false`, если это не отрезок. */
-	addFromAnnotation: (annotation: unknown, page: number) => boolean
+	/** Добавить измерение по отрезку в координатах снимка. */
+	add: (line: MeasuredLine, page: number) => void
 	remove: (id: string) => void
 	clear: () => void
 	/** Подпись с расстоянием; `null`, пока масштаб не задан. */
@@ -34,24 +28,16 @@ export interface UseRulerMeasurementsResult {
 export function useRulerMeasurements(): UseRulerMeasurementsResult {
 	const [measurements, setMeasurements] = useState<RulerMeasurement[]>([])
 
-	const addFromAnnotation = useCallback((annotation: unknown, page: number) => {
-		const line = parseLineAnnotation(annotation)
-		if (!line) return false
-
-		const lengthPx = lineLengthPx(line)
-		// Случайный клик без протяжки измерением не считаем.
-		if (lengthPx < 2) return false
-
+	const add = useCallback((line: MeasuredLine, page: number) => {
 		setMeasurements(prev => [
 			...prev,
 			{
 				id: `ruler-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 				line,
-				lengthPx,
+				lengthPx: lineLengthPx(line),
 				page,
 			},
 		])
-		return true
 	}, [])
 
 	const remove = useCallback((id: string) => {
@@ -60,13 +46,10 @@ export function useRulerMeasurements(): UseRulerMeasurementsResult {
 
 	const clear = useCallback(() => setMeasurements([]), [])
 
-	const labelFor = useCallback(
-		(measurement: RulerMeasurement, pxPerMm: number | null) => {
-			const mm = pxToMm(measurement.lengthPx, pxPerMm)
-			return mm == null ? null : formatMm(mm)
-		},
-		[],
-	)
+	const labelFor = useCallback((measurement: RulerMeasurement, pxPerMm: number | null) => {
+		const mm = pxToMm(measurement.lengthPx, pxPerMm)
+		return mm == null ? null : formatMm(mm)
+	}, [])
 
-	return { measurements, addFromAnnotation, remove, clear, labelFor }
+	return { measurements, add, remove, clear, labelFor }
 }

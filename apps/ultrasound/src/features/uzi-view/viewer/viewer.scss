@@ -46,18 +46,18 @@
 // Хэндлы вершин контура: дефолтные ~5px, попасть по ним мышью тяжело,
 // а на сенсорном экране практически невозможно.
 .a9s-annotationlayer .a9s-handle {
-	.a9s-handle-inner,
+	// Увеличенные до 7px точки закрывали сам контур. Возвращаем компактный
+	// размер: попасть по-прежнему можно, но разметка читается.
 	.a9s-handle-outer {
-		r: 7;
-		stroke-width: 2;
-	}
-
-	.a9s-handle-outer {
+		r: 4.5;
+		stroke-width: 1.5;
 		stroke: rgba(15, 23, 42, 0.45);
 		fill: $color-bg-container;
 	}
 
 	.a9s-handle-inner {
+		r: 3.5;
+		stroke-width: 1.5;
 		stroke: $color-cyan;
 		fill: $color-bg-container;
 	}
@@ -78,18 +78,42 @@
 	}
 }
 
-// Подпись измерения над линией.
-.a9s-annotationlayer .measurement-label {
-	font-family: $font-family-data;
-	font-size: 13px;
-	font-weight: $font-weight-semibold;
-	fill: $color-text-primary;
-	paint-order: stroke;
-	stroke: rgba(255, 255, 255, 0.9);
-	stroke-width: 3px;
-	stroke-linejoin: round;
-	pointer-events: none;
-	user-select: none;
+// Слой линейки. Живёт в overlaySlot вьюера, а не внутри
+// `.a9s-annotationlayer`, поэтому селекторы здесь не вложенные.
+.ruler-layer {
+	// Подпись с расстоянием: белая, с тёмным контуром — читается и на
+	// светлых, и на тёмных участках снимка.
+	&__label {
+		font-family: $font-family-data;
+		font-size: 13px;
+		font-weight: $font-weight-semibold;
+		fill: #ffffff;
+		paint-order: stroke;
+		stroke: rgba(15, 23, 42, 0.85);
+		stroke-width: 3.5px;
+		stroke-linejoin: round;
+		pointer-events: none;
+		user-select: none;
+	}
+
+	// Подсказка у прицела — тем же приёмом, но мельче.
+	&__hint {
+		font-family: $font-family-ui;
+		font-size: 11px;
+		font-weight: $font-weight-medium;
+		fill: #ffffff;
+		paint-order: stroke;
+		stroke: rgba(15, 23, 42, 0.85);
+		stroke-width: 3px;
+		stroke-linejoin: round;
+		pointer-events: none;
+		user-select: none;
+	}
+
+	&__remove {
+		cursor: pointer;
+		pointer-events: auto;
+	}
 }
 
 // Всплывающая карточка редактирования аннотации.
