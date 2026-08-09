@@ -1,8 +1,18 @@
 import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, Layout, Space, Table, Typography } from 'antd'
+import { Button, Card, Space, Table, Typography, message } from 'antd'
+
+import dayjs from 'dayjs'
 
 import { PatientProfileView } from '@medml/patient_view'
+import { PageShell } from '@medml/layout'
+import {
+	PatientEditModal,
+	stripPolicyDigits,
+	type PatientCreateValuesUzi,
+} from '@medml/patient_create'
+
+import { useUpdateUziPatientWithCardMutation } from '@/api/patientsApi'
 
 import {
 	useGetMedPatientByIdQuery,
@@ -14,12 +24,8 @@ import { useGetUziDevicesQuery } from '@/api/uziApi'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
 import { useUziStudyColumns } from './patientProfile/uziStudyColumns'
 
-const cardStyle: React.CSSProperties = {
-	borderRadius: 12,
-	width: '100%',
-	border: '1px solid rgba(0,0,0,0.06)',
-	boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-}
+// Карточка: радиус, тень и бордер приходят из темы antd (токены дизайн-системы).
+const cardStyle: React.CSSProperties = { width: '100%' }
 
 /** Загрузка карточки пациента и его снимков + состояние пагинации таблицы. */
 function usePatientProfileData(patientId: string) {
@@ -88,6 +94,8 @@ function usePatientProfileData(patientId: string) {
 
 	return {
 		patient,
+		// id карточки нужен для редактирования (PUT /patient/update/{cardId}/)
+		cardId: cardApi?.cardId ?? null,
 		patientError,
 		patientLoading,
 		loading: (authed && !doctorId) || patientLoading,
@@ -105,6 +113,7 @@ export default function PatientProfileRoute() {
 
 	const {
 		patient,
+		cardId,
 		patientError,
 		patientLoading,
 		loading,
@@ -113,6 +122,37 @@ export default function PatientProfileRoute() {
 		uziLoading,
 		uziPagination,
 	} = usePatientProfileData(patientId)
+
+	const [editOpen, setEditOpen] = React.useState(false)
+	const [updatePatient, { isLoading: isSaving }] =
+		useUpdateUziPatientWithCardMutation()
+
+	const handleEditFinish = async (values: PatientCreateValuesUzi) => {
+		if (!cardId) {
+			message.error('Не удалось определить карту пациента')
+			return
+		}
+		try {
+			await updatePatient({
+				cardId,
+				patientId,
+				surname: values.surname.trim(),
+				name: values.name.trim(),
+				patronymic: values.patronymic.trim(),
+				email: values.email.trim(),
+				policy: stripPolicyDigits(values.policy),
+				birth_date: dayjs(values.birthDate).format('YYYY-MM-DD'),
+				active: values.active,
+				malignancy: values.malignancy,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
+			message.success('Данные пациента обновлены')
+			setEditOpen(false)
+		} catch (error: any) {
+			console.error('Error updating patient:', error)
+			message.error(error?.data?.detail || 'Не удалось сохранить изменения')
+		}
+	}
 
 	const uziColumns = useUziStudyColumns(deviceMap)
 
@@ -140,6 +180,11 @@ export default function PatientProfileRoute() {
 				loading={loading}
 				onBack={() => navigate('/patients')}
 				backLabel='Пациенты'
+				actions={
+					<Button onClick={() => setEditOpen(true)} disabled={!cardId}>
+						Редактировать
+					</Button>
+				}
 			>
 				<Space direction='vertical' size={16} style={{ width: '100%' }}>
 					<Card
@@ -168,6 +213,9 @@ export default function PatientProfileRoute() {
 							loading={uziLoading}
 							pagination={uziPagination}
 							locale={{ emptyText: 'Нет снимков' }}
+							// Шесть колонок не помещаются на планшете и телефоне —
+							// уводим в горизонтальный скролл вместо распирания страницы.
+							scroll={{ x: 720 }}
 						/>
 					</Card>
 				</Space>
@@ -176,12 +224,17 @@ export default function PatientProfileRoute() {
 	}
 
 	return (
-		<Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-			<Layout.Content
-				style={{ padding: 24, maxWidth: 1120, margin: '0 auto', width: '100%' }}
-			>
-				{renderBody()}
-			</Layout.Content>
-		</Layout>
+		<PageShell>
+			{renderBody()}
+
+			<PatientEditModal
+				open={editOpen}
+				variant='uzi'
+				patient={patient}
+				confirmLoading={isSaving}
+				onCancel={() => setEditOpen(false)}
+				onFinish={vals => void handleEditFinish(vals as PatientCreateValuesUzi)}
+			/>
+		</PageShell>
 	)
 }

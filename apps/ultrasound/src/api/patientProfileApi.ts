@@ -17,6 +17,16 @@ async function runProfileQuery(
 
 /* ─── Общие типы UI ─── */
 
+/**
+ * Карта пациента. `cardId` нужен для редактирования
+ * (`PUT /patient/update/{cardId}/`); у med-бэкенда его нет — там карта
+ * адресуется парой doctorId/patientId.
+ */
+export type PatientCardInfo = {
+  diagnosis: string;
+  cardId: string | null;
+};
+
 export type PatientUziStudyRow = {
   key: string;
   projectionLabel: string;
@@ -166,7 +176,7 @@ async function fetchMedPatientCard(
   patientId: string,
   baseQuery: ProfileBaseQuery
 ): Promise<
-  { data: { diagnosis: string } } | { error: FetchBaseQueryError }
+  { data: PatientCardInfo } | { error: FetchBaseQueryError }
 > {
   const result = await runProfileQuery(baseQuery, {
     url: `/med/card/${doctorId}/${patientId}`,
@@ -174,7 +184,7 @@ async function fetchMedPatientCard(
   if (result.error) {
     const e = result.error;
     if (e.status === 404) {
-      return { data: { diagnosis: "" } };
+      return { data: { diagnosis: "", cardId: null } };
     }
     return { error: e };
   }
@@ -182,6 +192,9 @@ async function fetchMedPatientCard(
   return {
     data: {
       diagnosis: diagnosisToDisplayString(raw?.diagnosis),
+      // У med-бэкенда карта адресуется парой doctorId/patientId,
+      // отдельного идентификатора карточки в ответе нет.
+      cardId: null,
     },
   };
 }
@@ -306,7 +319,7 @@ async function fetchThyroidPatientCard(
   patientId: string,
   baseQuery: ProfileBaseQuery
 ): Promise<
-  { data: { diagnosis: string } } | { error: FetchBaseQueryError }
+  { data: PatientCardInfo } | { error: FetchBaseQueryError }
 > {
   const listRes = await runProfileQuery(baseQuery, {
     url: `/med_worker/patients/${doctorId}`,
@@ -320,7 +333,7 @@ async function fetchThyroidPatientCard(
     (c) => c.patient?.id != null && String(c.patient.id) === String(patientId)
   );
   if (!card) {
-    return { data: { diagnosis: "" } };
+    return { data: { diagnosis: "", cardId: null } };
   }
 
   const cardRes = await runProfileQuery(baseQuery, {
@@ -329,7 +342,7 @@ async function fetchThyroidPatientCard(
   if (cardRes.error) {
     const e = cardRes.error;
     if (e.status === 404) {
-      return { data: { diagnosis: "" } };
+      return { data: { diagnosis: "", cardId: String(card.id) } };
     }
     return { error: e };
   }
@@ -338,6 +351,7 @@ async function fetchThyroidPatientCard(
   return {
     data: {
       diagnosis: diagnosisToDisplayString(raw?.card?.diagnosis),
+      cardId: String(card.id),
     },
   };
 }
@@ -373,7 +387,7 @@ export const patientProfileApi = baseApi.injectEndpoints({
     }),
 
     getMedPatientCard: builder.query<
-      { diagnosis: string },
+      PatientCardInfo,
       { doctorId: string; patientId: string }
     >({
       async queryFn({ doctorId, patientId }, _api, _extraOptions, baseQuery) {

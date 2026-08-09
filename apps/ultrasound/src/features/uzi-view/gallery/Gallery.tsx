@@ -1,20 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Spin } from 'antd'
+import { Alert, Spin } from 'antd'
 import OpenSeadragonViewer from '../viewer/ThyroidAnnotatedViewer'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
 import { useGalleryImageSource } from './useGalleryImageSource'
 import type { GalleryProps } from './types'
-import { loadThyroidStructures } from '@/features/uzi-view/structures'
-import type { ThyroidStructureJson } from '../structures'
 
-const DRAWING_TOOL = 'polygon'
-
-/**
- * Композиция области снимка: тулбар редактирования + вьюер.
- * Подготовка источника изображения вынесена в `useGalleryImageSource`,
- * работа с OpenSeadragon/Annotorious — в `OpenSeadragonViewer`.
- */
 const Gallery = ({
 	link1,
 	seg,
@@ -40,18 +31,9 @@ const Gallery = ({
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
 	const selectedGroup = currentGroup ?? pickedGroup ?? seg[0]?.id
 
-	const [flushPendingSelection, setFlushPendingSelection] = useState<
-		(() => Promise<void>) | null
-	>(null)
+	const [flushPendingSelection, setFlushPendingSelection] = useState<(() => Promise<void>) | null>(null)
 
-	// Структуры ЩЖ, сохранённые при загрузке снимка (демо-режим).
-	// Синхронное чтение localStorage — выводим через useMemo, без эффекта.
-	const loadedStructures: ThyroidStructureJson | null = useMemo(
-		() => loadThyroidStructures(imageid),
-		[imageid],
-	)
-
-	const { isLoading, imageSource } = useGalleryImageSource({
+	const { isLoading, imageSource, slidesUnavailable } = useGalleryImageSource({
 		link1,
 		image_count,
 		slide_template,
@@ -63,12 +45,9 @@ const Gallery = ({
 		await onSaveEdit?.()
 	}
 
-	const handleViewerApiReady = useCallback(
-		(api: { flushPendingSelection: () => Promise<void> }) => {
-			setFlushPendingSelection(() => api.flushPendingSelection)
-		},
-		[],
-	)
+	const handleViewerApiReady = useCallback((api: { flushPendingSelection: () => Promise<void> }) => {
+		setFlushPendingSelection(() => api.flushPendingSelection)
+	}, [])
 
 	const segmentOptions = useMemo(
 		() =>
@@ -108,20 +87,29 @@ const Gallery = ({
 				>
 					<Spin size='large' />
 				</div>
+			) : slidesUnavailable ? (
+				<div style={{ minHeight: viewerHeight, display: 'flex', alignItems: 'center' }}>
+					<Alert
+						type='warning'
+						showIcon
+						style={{ width: '100%' }}
+						message='Кадры снимка ещё не готовы'
+						description='Для TIFF и DICOM бэкенд готовит PNG-нарезку. Если снимок загружен только что — обновите страницу через минуту.'
+					/>
+				</div>
 			) : (
 				<div style={{ height: viewerHeight }}>
 					<OpenSeadragonViewer
 						key={`viewer-${viewerResetKey}-${isEditMode ? 'edit' : 'view'}`}
 						image={imageSource}
 						seg={seg}
-						tool={DRAWING_TOOL}
 						imageid={imageid}
 						height={viewerHeight}
 						readOnly={!isEditMode}
 						currentGroup={selectedGroup}
 						onDraftChangesChange={onDraftChangesChange}
 						onViewerApiReady={handleViewerApiReady}
-						thyroidStructures={thyroidStructures || loadedStructures || undefined}
+						thyroidStructures={thyroidStructures}
 					/>
 				</div>
 			)}

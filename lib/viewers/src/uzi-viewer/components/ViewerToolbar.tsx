@@ -12,12 +12,21 @@ export interface ViewerToolbarProps {
 	onFit: () => void
 	onRotateLeft: () => void
 	onRotateRight: () => void
+	/** Горизонтальная раскладка — для нижней ленты на узких экранах. */
+	horizontal?: boolean
 }
 
 const dividerStyle: React.CSSProperties = {
 	height: 1,
 	backgroundColor: '#ddd',
 	margin: '4px 0',
+}
+
+const verticalDividerStyle: React.CSSProperties = {
+	width: 1,
+	alignSelf: 'stretch',
+	backgroundColor: '#ddd',
+	margin: '0 4px',
 }
 
 /** Панель зума, поворота и выбора активного (доменного) инструмента. */
@@ -31,22 +40,31 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 	onFit,
 	onRotateLeft,
 	onRotateRight,
+	horizontal = false,
 }) => {
 	if (config === false) return null
 
 	const { showZoom = true, showFit = true, showRotate = true, tools = [] } =
 		config ?? {}
 
+	const divider = horizontal ? verticalDividerStyle : dividerStyle
+
 	return (
 		<div
 			className='medml-viewer-toolbar'
-			style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+			style={{
+				display: 'flex',
+				flexDirection: horizontal ? 'row' : 'column',
+				alignItems: 'center',
+				flexWrap: horizontal ? 'wrap' : 'nowrap',
+				gap: 8,
+			}}
 		>
 			{showZoom && (
 				<div
 					style={{
 						display: 'flex',
-						flexDirection: 'column',
+						flexDirection: horizontal ? 'row' : 'column',
 						gap: 4,
 						alignItems: 'center',
 					}}
@@ -63,7 +81,7 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 				</div>
 			)}
 
-			{showZoom && showFit && <div style={dividerStyle} />}
+			{showZoom && showFit && <div style={divider} />}
 
 			{showFit && (
 				<ViewerActionButton
@@ -76,13 +94,13 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 				</ViewerActionButton>
 			)}
 
-			{showFit && showRotate && <div style={dividerStyle} />}
+			{showFit && showRotate && <div style={divider} />}
 
 			{showRotate && (
 				<div
 					style={{
 						display: 'flex',
-						flexDirection: 'column',
+						flexDirection: horizontal ? 'row' : 'column',
 						gap: 4,
 						alignItems: 'center',
 					}}
@@ -106,10 +124,15 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 
 			{tools.length > 0 && (
 				<>
-					<div style={dividerStyle} />
+					<div style={divider} />
 					<div
 						className='medml-viewer-toolbar-tools'
-						style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+						style={{
+							display: 'flex',
+							flexDirection: horizontal ? 'row' : 'column',
+							flexWrap: horizontal ? 'wrap' : 'nowrap',
+							gap: 4,
+						}}
 					>
 						{tools.map(tool => (
 							<ViewerActionButton

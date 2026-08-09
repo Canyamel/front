@@ -11,6 +11,23 @@ export type ConfigurableSplitUploadProps = {
   description?: React.ReactNode;
   fields: UploadSchemaField[];
   uploadSlot: React.ReactNode;
+  /**
+   * Контент под полями левой колонки (например, «Добавить нового пациента»).
+   * Прижимается к низу колонки, чтобы встать на один уровень с кнопкой
+   * отправки в правой колонке — как в макете экрана загрузки.
+   */
+  formFooterSlot?: React.ReactNode;
+  /**
+   * Где показывать кнопки отправки/отмены:
+   * - `footer` (по умолчанию) — общей строкой под обеими колонками;
+   * - `upload-column` — внизу правой колонки, под зоной загрузки.
+   */
+  actionsPlacement?: "footer" | "upload-column";
+  /**
+   * Дополнительная кнопка рядом с основной (в макете — «Добавить файл»).
+   * Основная кнопка занимает свободное место, дополнительная — по контенту.
+   */
+  extraActions?: React.ReactNode;
   form?: FormInstance<Record<string, unknown>>;
   initialValues?: Record<string, unknown>;
   submitText?: React.ReactNode;
@@ -34,6 +51,9 @@ export function ConfigurableSplitUpload({
   description,
   fields,
   uploadSlot,
+  formFooterSlot,
+  actionsPlacement = "footer",
+  extraActions,
   form: formProp,
   initialValues,
   submitText = "Начать",
@@ -78,6 +98,60 @@ export function ConfigurableSplitUpload({
     }
   };
 
+  const inUploadColumn = actionsPlacement === "upload-column";
+
+  // Полоса загрузки: сначала сборка чанков, затем отправка на API.
+  const progress =
+    submitting && submitPhase === "chunks" && uploadProgress > 0 ? (
+      <div>
+        <Progress percent={uploadProgress} status="active" />
+        <Typography.Text type="secondary">Загрузка файла: {uploadProgress}%</Typography.Text>
+      </div>
+    ) : submitting && submitPhase === "api" ? (
+      <div>
+        <Progress percent={100} status="active" showInfo={false} />
+        <Typography.Text type="secondary">{postUploadStatusLabel}</Typography.Text>
+      </div>
+    ) : null;
+
+  const submitButton = (
+    <Button
+      type="primary"
+      htmlType="submit"
+      loading={submitting}
+      block={inUploadColumn}
+    >
+      {submitting && submitPhase === "chunks"
+        ? `Загрузка… ${uploadProgress}%`
+        : submitting && submitPhase === "api"
+          ? postUploadStatusLabel
+          : submitText}
+    </Button>
+  );
+
+  const actions = (
+    <Flex
+      gap={12}
+      align="center"
+      justify={inUploadColumn ? "flex-start" : "flex-end"}
+      wrap="wrap"
+      style={{ width: "100%" }}
+    >
+      {onCancel ? (
+        <Button onClick={onCancel} disabled={submitting}>
+          {cancelText}
+        </Button>
+      ) : null}
+
+      {/* Основная кнопка растягивается, дополнительная — по контенту. */}
+      <div style={inUploadColumn ? { flex: 1, minWidth: 200 } : undefined}>
+        {submitButton}
+      </div>
+
+      {extraActions}
+    </Flex>
+  );
+
   return (
     <div className={className}>
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
@@ -94,41 +168,55 @@ export function ConfigurableSplitUpload({
           initialValues={initialValues}
           onFinish={handleFinish}
         >
-          <Flex gap={24} align="flex-start" wrap="wrap">
-            <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+          {/*
+            Колонки тянутся на всю высоту (`align="stretch"`), а внутри —
+            flex-колонка с `margin-top: auto` у футера. Так нижние кнопки
+            обеих колонок оказываются на одном уровне независимо от того,
+            сколько полей в форме.
+          */}
+          <Flex gap={24} align="stretch" wrap="wrap">
+            <div
+              style={{
+                flex: "1 1 280px",
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <UploadSchemaFieldItems fields={fields} disabled={submitting} />
+              {formFooterSlot ? (
+                <div style={{ marginTop: "auto", paddingTop: 8 }}>{formFooterSlot}</div>
+              ) : null}
             </div>
-            <div style={{ flex: "1 1 280px", minWidth: 0 }}>{uploadSlot}</div>
+
+            <div
+              style={{
+                flex: "1 1 280px",
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
+            >
+              {uploadSlot}
+
+              {inUploadColumn ? (
+                // `margin-top: auto` прижимает блок к низу колонки, поэтому
+                // прогресс и кнопки едут вместе и не наезжают на список файлов.
+                <div style={{ marginTop: "auto", display: "grid", gap: 12 }}>
+                  {progress}
+                  {actions}
+                </div>
+              ) : null}
+            </div>
           </Flex>
 
-          {submitting && submitPhase === "chunks" && uploadProgress > 0 ? (
-            <div style={{ marginTop: 16 }}>
-              <Progress percent={uploadProgress} status="active" />
-              <Typography.Text type="secondary">Загрузка файла: {uploadProgress}%</Typography.Text>
-            </div>
+          {!inUploadColumn ? (
+            <>
+              {progress ? <div style={{ marginTop: 16 }}>{progress}</div> : null}
+              <div style={{ marginTop: 16 }}>{actions}</div>
+            </>
           ) : null}
-
-          {submitting && submitPhase === "api" ? (
-            <div style={{ marginTop: 16 }}>
-              <Progress percent={100} status="active" showInfo={false} />
-              <Typography.Text type="secondary">{postUploadStatusLabel}</Typography.Text>
-            </div>
-          ) : null}
-
-          <Space style={{ justifyContent: "flex-end", width: "100%", marginTop: 16 }}>
-            {onCancel ? (
-              <Button onClick={onCancel} disabled={submitting}>
-                {cancelText}
-              </Button>
-            ) : null}
-            <Button type="primary" htmlType="submit" loading={submitting}>
-              {submitting && submitPhase === "chunks"
-                ? `Загрузка… ${uploadProgress}%`
-                : submitting && submitPhase === "api"
-                  ? postUploadStatusLabel
-                  : submitText}
-            </Button>
-          </Space>
         </Form>
       </Space>
     </div>

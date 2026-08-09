@@ -1,4 +1,5 @@
 export { default as HeaderIcon } from './HeaderIcon'
+export { default as LogoMark } from './LogoMark'
 export { default as SecurityIcon } from './SecurityIcon'
 export { default as EmailIcon } from './EmailIcon'
 export { default as PasswordIcon } from './PasswordIcon'

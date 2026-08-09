@@ -13,6 +13,7 @@
       "@medml/store": ["../../lib/store/src"],
       "@medml/patient_list": ["../../domains/patient_list/src"],
       "@medml/patient_create": ["../../domains/patient_create/src"],
+      "@medml/doctor_profile": ["../../domains/doctor_profile/src"],
       "@medml/patient_view": ["../../domains/patient_view/src"],
       "@medml/auth": ["../../domains/auth/src"],
       "@medml/layout": ["../../domains/layout/src"],

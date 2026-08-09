@@ -5,7 +5,13 @@ import '@recogito/annotorious-openseadragon/dist/annotorious.min.css'
 import type { ViewerImage, ViewerInstance } from '@medml/viewers'
 import type { Segment, SegmentDraftChange, SegmentPoint } from '../model/types'
 import { demoThyroidStructures, type ThyroidStructureJson } from '../structures'
-import { TI_RADS_OPTIONS } from './constants'
+import {
+	DRAWING_TOOLS,
+	TI_RADS_OPTIONS,
+	isDrawingTool,
+	isTransientTool,
+	type ViewerToolId,
+} from './constants'
 import {
 	buildSegmentAnnotationsByPage,
 	buildStructureAnnotationsForPage,
@@ -15,17 +21,49 @@ import {
 	type UniqueNode,
 } from './thyroidAnnotations'
 
+/**
+ * Переключает инструмент рисования.
+ *
+ * Обёрнуто в try/catch намеренно: `setDrawingTool` внутри Annotorious ищет
+ * инструмент по identifier и сразу вызывает `new Tool(...)`. Неизвестный id
+ * там превращается в `new undefined()`, и падение уносило бы за собой весь
+ * вьюер. Лучше остаться на предыдущем инструменте и написать в консоль.
+ */
+function applyViewerTool(anno: any, tool: ViewerToolId, readOnly: boolean): void {
+	if (!anno) return
+
+	// В режиме навигации трекер выключен — перетаскивание двигает снимок.
+	const drawing = !readOnly && isDrawingTool(tool)
+
+	try {
+		if (drawing) {
+			anno.setDrawingTool(DRAWING_TOOLS[tool])
+		}
+		// Плагин по умолчанию ждёт зажатый Shift; включаем рисование явно,
+		// иначе выбранный инструмент visually активен, но не работает.
+		anno.setDrawingEnabled(drawing)
+	} catch (error) {
+		console.error(`Не удалось включить инструмент «${tool}»:`, error)
+	}
+}
+
 export interface UseThyroidAnnotatorOptions {
 	/** Живой инстанс движка рендера из `@medml/viewers` (onInstanceReady). */
 	osdViewer: ViewerInstance | null
 	images: ViewerImage[]
 	seg: Segment[]
-	tool: string
+	tool: ViewerToolId
 	readOnly: boolean
 	currentPage: number
 	currentGroup?: string | number
 	thyroidStructures?: ThyroidStructureJson
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
+	/**
+	 * Нарисован служебный отрезок (калибровка или линейка). Должен вернуть
+	 * `true`, если отрезок принят — аннотация в любом случае снимается с
+	 * холста и в черновики не попадает.
+	 */
+	onTransientLine?: (annotation: unknown, tool: ViewerToolId) => boolean
 }
 
 export interface UseThyroidAnnotatorResult {
@@ -33,6 +71,12 @@ export interface UseThyroidAnnotatorResult {
 	toggleSegments: () => void
 	uniqueNodes: UniqueNode[]
 	flushPendingSelection: () => Promise<void>
+	/**
+	 * Добавить контур, полученный не из Annotorious (кисть-заполнение).
+	 * Точки — в координатах изображения. Возвращает `false`, если контур
+	 * вырожденный или редактор недоступен.
+	 */
+	addPolygonFromPoints: (points: Array<{ x: number; y: number }>) => boolean
 }
 
 /**
@@ -56,9 +100,17 @@ export function useThyroidAnnotator({
 	currentGroup,
 	thyroidStructures,
 	onDraftChangesChange,
+	onTransientLine,
 }: UseThyroidAnnotatorOptions): UseThyroidAnnotatorResult {
 	const annoRef = useRef<any>(null)
 	const currentGroupRef = useRef<string | number | undefined>(currentGroup)
+	// Обработчики Annotorious вешаются один раз на инстанс, поэтому активный
+	// инструмент и колбэк калибровки читаются через ref — иначе в замыкании
+	// осталось бы значение с момента подписки.
+	const toolRef = useRef(tool)
+	const onTransientLineRef = useRef(onTransientLine)
+	toolRef.current = tool
+	onTransientLineRef.current = onTransientLine
 	const showSegmentsRef = useRef(true)
 	const pageAnnotationsRef = useRef<Record<number, any[]>>({})
 	const pageStructureAnnotationsRef = useRef<Record<number, any[]>>({})
@@ -239,7 +291,6 @@ export function useThyroidAnnotator({
 					vocabulary: TI_RADS_OPTIONS,
 				},
 			],
-			tools: ['ellipse', 'freehand', 'point'],
 			// Цвет контура/заливки из body с purpose 'color' — через встроенный
 			// formatter Annotorious, без ручного querySelector + setTimeout
 			// (в прежней версии это была гонка с перерисовкой аннотаций).
@@ -250,8 +301,17 @@ export function useThyroidAnnotator({
 			},
 		})
 
-		annotateState.setDrawingTool(tool === 'rect' ? 'rect' : 'polygon')
-		SelectorPack(annotateState)
+		// Порядок важен: SelectorPack регистрирует инструменты, а
+		// `setDrawingTool` ищет их по identifier и сразу инстанцирует
+		// (`new Tool(...)`). Если инструмент ещё не зарегистрирован, внутри
+		// Annotorious получается `new undefined()` — исключение обрывало
+		// инициализацию, и вьюер переставал реагировать вовсе.
+		//
+		// Список передаётся вторым аргументом: ключ `tools` в конфиге самого
+		// Annotorious selector-pack не читает.
+		SelectorPack(annotateState, { tools: ['ellipse', 'point', 'freehand', 'line'] })
+		applyViewerTool(annotateState, toolRef.current, readOnly)
+
 		annoRef.current = annotateState
 
 		window.setTimeout(() => {
@@ -261,6 +321,22 @@ export function useThyroidAnnotator({
 		if (!readOnly) {
 			annotateState.on('createAnnotation', (annotation: any, overrideId: any) => {
 				try {
+					// Калибровка и линейка — не разметка узла: снимаем длину и
+					// убираем аннотацию с холста, в черновики она попасть не должна.
+					if (isTransientTool(toolRef.current)) {
+						const accepted =
+							onTransientLineRef.current?.(annotation, toolRef.current) ?? false
+						try {
+							annotateState.removeAnnotation(annotation)
+						} catch (err) {
+							console.warn('Не удалось убрать служебный отрезок:', err)
+						}
+						if (!accepted) {
+							console.warn('Отрезок слишком короткий или не распознан')
+						}
+						return
+					}
+
 					const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 					const selectedGroup = currentGroupRef.current?.toString()
 
@@ -335,11 +411,13 @@ export function useThyroidAnnotator({
 				annoRef.current = null
 			}
 		}
+		// `tool` намеренно НЕ в зависимостях: смена инструмента не должна
+		// пересоздавать инстанс Annotorious (это стирало бы аннотации).
+		// Актуальное значение читается через toolRef, применяется эффектом ниже.
 	}, [
 		osdViewer,
 		readOnly,
 		currentPage,
-		tool,
 		syncDraftChanges,
 		upsertPageAnnotation,
 		removePageAnnotation,
@@ -347,12 +425,63 @@ export function useThyroidAnnotator({
 	])
 
 	useEffect(() => {
-		annoRef.current?.setDrawingTool(tool === 'rect' ? 'rect' : 'polygon')
-	}, [tool])
+		if (!annoRef.current) return
+		applyViewerTool(annoRef.current, tool, readOnly)
+	}, [tool, readOnly])
 
 	const toggleSegments = useCallback(() => setShowSegments(prev => !prev), [])
 
 	const uniqueNodes = useMemo(() => buildUniqueNodes(seg), [seg])
+
+	/**
+	 * Кисть отдаёт растровую маску, а формат хранения у нас — полигон.
+	 * Здесь готовый контур оформляется в такую же аннотацию, какую создал бы
+	 * Annotorious, и проходит обычным путём черновиков — форматы совпадают.
+	 */
+	const addPolygonFromPoints = useCallback(
+		(points: Array<{ x: number; y: number }>) => {
+			if (!annoRef.current || points.length < 3) return false
+
+			const selectedGroup = currentGroupRef.current?.toString()
+			const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+			const svgPoints = points.map(p => `${p.x},${p.y}`).join(' ')
+
+			const annotation = {
+				type: 'Annotation',
+				'@context': 'http://www.w3.org/ns/anno.jsonld',
+				id: localId,
+				body: selectedGroup
+					? [
+							{ type: 'TextualBody', value: selectedGroup, purpose: 'group' },
+							{ type: 'TextualBody', value: selectedGroup, purpose: 'node-id' },
+						]
+					: [],
+				target: {
+					selector: {
+						type: 'SvgSelector',
+						value: `<svg><polygon points="${svgPoints}"></polygon></svg>`,
+					},
+				},
+			}
+
+			try {
+				annoRef.current.addAnnotation(annotation)
+			} catch (error) {
+				console.error('Не удалось добавить контур кисти:', error)
+				return false
+			}
+
+			upsertPageAnnotation(annotation, currentPage)
+			syncDraftChanges(
+				localId,
+				'create',
+				getAnnotationPoints(annotation, currentPage),
+				selectedGroup,
+			)
+			return true
+		},
+		[currentPage, syncDraftChanges, upsertPageAnnotation],
+	)
 
 	const flushPendingSelection = useCallback(async () => {
 		if (annoRef.current?.saveSelected) {
@@ -360,5 +489,11 @@ export function useThyroidAnnotator({
 		}
 	}, [])
 
-	return { showSegments, toggleSegments, uniqueNodes, flushPendingSelection }
+	return {
+		showSegments,
+		toggleSegments,
+		uniqueNodes,
+		flushPendingSelection,
+		addPolygonFromPoints,
+	}
 }

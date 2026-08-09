@@ -7,6 +7,7 @@ import RegisterRoute from "@/pages/RegisterRoute";
 import PatientsRoute from "@/pages/PatientsRoute";
 import UploadPhotoRoute from "@/pages/UploadPhotoRoute";
 import PatientProfileRoute from "@/pages/PatientProfileRoute";
+import DoctorProfileEditRoute from "@/pages/DoctorProfileEditRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
 import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
@@ -50,6 +51,14 @@ const routes: RouteObject[] = [
         element: (
           <RequireAuth>
             <PatientsRoute />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "profile/edit",
+        element: (
+          <RequireAuth>
+            <DoctorProfileEditRoute />
           </RequireAuth>
         ),
       },

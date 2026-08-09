@@ -6,6 +6,7 @@ export type ViewerPanelPosition =
 	| 'top-right'
 	| 'bottom-left'
 	| 'bottom-right'
+	| 'bottom-bar'
 
 export interface ViewerPanelProps {
 	/** Готовая позиция панели поверх холста. */
@@ -29,6 +30,16 @@ const POSITION_STYLE: Record<ViewerPanelPosition, React.CSSProperties> = {
 	'top-right': { position: 'absolute', top: 20, right: 20 },
 	'bottom-left': { position: 'absolute', bottom: 20, left: 20 },
 	'bottom-right': { position: 'absolute', bottom: 20, right: 20 },
+	/**
+	 * Горизонтальная лента внизу — вариант тулбара для узких экранов.
+	 * Вертикальная панель справа на телефоне закрывала бы сам снимок.
+	 */
+	'bottom-bar': {
+		position: 'absolute',
+		left: 8,
+		right: 8,
+		bottom: 8,
+	},
 }
 
 /**
@@ -54,7 +65,11 @@ const ViewerPanel: React.FC<ViewerPanelProps> = ({
 			...POSITION_STYLE[position],
 			zIndex: 1000,
 			display: 'flex',
-			flexDirection: 'column',
+			// Нижняя лента раскладывает содержимое в строку с переносом.
+			flexDirection: position === 'bottom-bar' ? 'row' : 'column',
+			flexWrap: position === 'bottom-bar' ? 'wrap' : 'nowrap',
+			alignItems: 'center',
+			justifyContent: position === 'bottom-bar' ? 'center' : undefined,
 			gap: 8,
 			backgroundColor: 'rgba(255, 255, 255, 0.95)',
 			padding: '12px 8px',

@@ -238,6 +238,54 @@ export const patientsApi = baseApi.injectEndpoints({
       invalidatesTags: () => [{ type: "Patient", id: "LIST" }],
     }),
 
+    /**
+     * Редактирование пациента и его карты.
+     * `PatientAndCardUpdateView` — UpdateAPIView по id карточки,
+     * тело такое же, как при создании: `{ patient, card }`.
+     */
+    updateUziPatientWithCard: builder.mutation<
+      unknown,
+      Omit<CreateUziPatientWithCardBody, "doctorId"> & {
+        cardId: string;
+        patientId: string;
+      }
+    >({
+      query: ({
+        cardId,
+        surname,
+        name,
+        patronymic,
+        email,
+        policy,
+        birth_date,
+        active,
+        malignancy,
+        diagnosis,
+      }) => ({
+        url: `/patient/update/${encodeURIComponent(cardId)}/`,
+        method: "PATCH",
+        body: {
+          patient: {
+            last_name: surname,
+            first_name: name,
+            fathers_name: patronymic,
+            email: email.trim(),
+            personal_policy: policy,
+            birth_date,
+            is_active: active,
+          },
+          card: {
+            has_nodules: malignancy ? "T" : "F",
+            diagnosis: diagnosis.trim(),
+          },
+        },
+      }),
+      invalidatesTags: (_r, _e, { patientId }) => [
+        { type: "Patient", id: "LIST" },
+        { type: "Patient", id: patientId },
+      ],
+    }),
+
     getDoctorPatients: builder.query<GetDoctorPatientsResult, GetDoctorPatientsArgs>({
       query: ({ doctorId, search, page, pageSize, sortKey, sortOrder }) => {
         if (isThyroidBackend()) {
@@ -314,4 +362,5 @@ export const {
   useCreateMedPatientMutation,
   useCreateMedPatientCardMutation,
   useCreateUziPatientWithCardMutation,
+  useUpdateUziPatientWithCardMutation,
 } = patientsApi;

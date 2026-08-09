@@ -15,13 +15,27 @@ export interface ViewerActionButtonProps
 	compact?: boolean
 }
 
+/**
+ * Палитра кнопок вьюера.
+ *
+ * Значения повторяют токены дизайн-системы (`@medml/ui/theme/tokens`), но
+ * заданы здесь литералами намеренно: по правилам зависимостей
+ * (docs/architecture/dependency-rules.md) пакет визуализации не тянет
+ * `@medml/ui`. При изменении палитры в дизайн-системе обновить и здесь.
+ *
+ * Раньше тут была Material-палитра (#2196F3 / #FF9800 / #9C27B0 …),
+ * не совпадавшая ни с макетом, ни с темой antd.
+ */
 const TONE_COLORS: Record<ViewerActionButtonTone, string> = {
-	blue: '#2196F3',
-	orange: '#FF9800',
-	purple: '#9C27B0',
-	green: '#4CAF50',
-	red: '#f44336',
-	gray: '#607D8B',
+	/** cyan — основное действие вьюера. */
+	blue: '#06B6D4',
+	/** blue — вторичный акцент. */
+	orange: '#3B82F6',
+	/** navy — нейтральное действие на светлой панели. */
+	purple: '#334155',
+	green: '#10B981',
+	red: '#E11D48',
+	gray: '#64748B',
 }
 
 /**

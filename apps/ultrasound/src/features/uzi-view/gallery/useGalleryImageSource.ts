@@ -38,16 +38,22 @@ export interface UseGalleryImageSourceResult {
 	isLoading: boolean
 	/** Готовый источник для вьюера: массив кадров (TIFF/DICOM) либо один снимок. */
 	imageSource: ImageTile | ImageTile[]
+	/**
+	 * Снимок требует PNG-нарезки (TIFF/DICOM), но кадров нет.
+	 * Показывать сам TIFF нельзя — браузеры его не декодируют.
+	 */
+	slidesUnavailable: boolean
 }
 
 /**
  * Приводит разнородные варианты снимка (одиночный PNG, постраничная нарезка
  * TIFF/DICOM) к единому источнику для `<ThyroidAnnotatedViewer />`.
  *
- * Вынесено из `Gallery`, где загрузка размеров, подготовка кадров и разметка
- * жили в одном компоненте. Состояние пишется только из async-колбэка и
- * помечается ключом снимка, поэтому «готовность» выводится при рендере —
- * без синхронных setState внутри эффекта.
+ * Важно: у кадров нарезки проставляются реальные width/height. OpenSeadragon
+ * с `type: 'image'` умеет узнать размеры сам, но делает это асинхронно уже
+ * после построения раскладки — в постраничном режиме (`sequenceMode`) это
+ * приводило к вырожденному первому кадру («тонкая полоса»). Кадры нарезки
+ * одного размера, поэтому достаточно измерить первый и применить ко всем.
  */
 export function useGalleryImageSource({
 	link1,
@@ -59,10 +65,11 @@ export function useGalleryImageSource({
 
 	const usesGeneratedSlides = link1 ? isTiffUrl(link1) || isDicomUrl(link1) : false
 
-	// Стабилизируем список URL-ов, чтобы новый литерал массива на каждый
-	// рендер родителя не перезапускал подготовку снимка.
-	const slideUrlsKey = (slide_urls ?? []).join('|')
-	const slideTemplateKey = (slide_template ?? []).join('|')
+	// Ключи для сравнения в зависимостях: сами массивы приходят новыми
+	// литералами на каждый рендер родителя. Разделитель обязателен — иначе
+	// разные наборы ссылок могут склеиться в одну и ту же строку.
+	const slideUrlsKey = (slide_urls ?? []).join('\n')
+	const slideTemplateKey = (slide_template ?? []).join('\n')
 
 	useEffect(() => {
 		if (!link1) return
@@ -72,15 +79,33 @@ export function useGalleryImageSource({
 		const prepareImage = async () => {
 			try {
 				if (usesGeneratedSlides) {
+					// Бэкенд всегда присылает `slide_template: []`, поэтому проверяем
+					// длину, а не nullish: с `??` запасной путь не срабатывал никогда.
+					const template =
+						slide_template && slide_template.length === 3
+							? slide_template
+							: (deriveTiffSlideTemplate(link1) ?? undefined)
+
 					const tiles = prepareTiffImageArray({
-						slide_urls: slideUrlsKey ? slideUrlsKey.split('|') : [],
-						slide_template:
-							slide_template ?? deriveTiffSlideTemplate(link1) ?? undefined,
+						slide_urls,
+						slide_template: template,
 						image_count: image_count || 1,
 					})
-					if (!cancelled) {
-						setPrepared({ key: link1, tiles, dimensions: null })
-					}
+
+					// Размеры берём с первого кадра: OSD не должен достраивать
+					// раскладку асинхронно уже после инициализации.
+					const firstSize = tiles.length > 0 ? await getImageDimensions(tiles[0].url) : null
+					if (cancelled) return
+
+					const sized = firstSize
+						? tiles.map(tile => ({
+								...tile,
+								width: firstSize.width,
+								height: firstSize.height,
+							}))
+						: tiles
+
+					setPrepared({ key: link1, tiles: sized, dimensions: firstSize })
 					return
 				}
 
@@ -101,14 +126,9 @@ export function useGalleryImageSource({
 		return () => {
 			cancelled = true
 		}
-	}, [
-		link1,
-		image_count,
-		slideTemplateKey,
-		slideUrlsKey,
-		slide_template,
-		usesGeneratedSlides,
-	])
+		// slide_urls / slide_template сравниваются по строковым ключам выше.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [link1, image_count, slideTemplateKey, slideUrlsKey, usesGeneratedSlides])
 
 	const isReady = !link1 || prepared?.key === link1
 
@@ -127,5 +147,8 @@ export function useGalleryImageSource({
 		}
 	}, [isReady, link1, prepared, usesGeneratedSlides])
 
-	return { isLoading: !isReady, imageSource }
+	const slidesUnavailable =
+		usesGeneratedSlides && isReady && (prepared?.tiles.length ?? 0) === 0
+
+	return { isLoading: !isReady, imageSource, slidesUnavailable }
 }

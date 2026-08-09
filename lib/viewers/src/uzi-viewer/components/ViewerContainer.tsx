@@ -3,6 +3,7 @@ import ViewerCanvas from './ViewerCanvas'
 import ViewerToolbar from './ViewerToolbar'
 import ViewerNavigation from './ViewerNavigation'
 import ViewerPanel from './ViewerPanel'
+import { useNarrowViewport } from '../hooks/useNarrowViewport'
 import type {
 	ToolbarConfig,
 	ViewerOverlayContext,
@@ -78,6 +79,10 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 }) => {
 	const showToolbarPanel = toolbarConfig !== false
 
+	// На узких экранах вертикальная панель справа перекрывала бы снимок,
+	// поэтому инструменты переезжают в горизонтальную ленту внизу.
+	const isNarrow = useNarrowViewport()
+
 	return (
 		<div
 			className={['medml-uzi-viewer', className].filter(Boolean).join(' ')}
@@ -94,10 +99,11 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 			{showToolbarPanel && (
 				<ViewerPanel
 					className="medml-uzi-viewer-toolbar-panel"
-					position="toolbar"
-					minWidth={120}
+					position={isNarrow ? 'bottom-bar' : 'toolbar'}
+					minWidth={isNarrow ? 0 : 120}
 				>
 					<ViewerToolbar
+						horizontal={isNarrow}
 						config={toolbarConfig}
 						zoom={zoom}
 						activeTool={activeTool}
@@ -114,11 +120,11 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 					{navigationEnabled && total > 1 && (
 						<>
 							<div
-								style={{
-									height: 1,
-									backgroundColor: '#ddd',
-									margin: '4px 0',
-								}}
+								style={
+									isNarrow
+										? { width: 1, alignSelf: 'stretch', backgroundColor: '#ddd', margin: '0 4px' }
+										: { height: 1, backgroundColor: '#ddd', margin: '4px 0' }
+								}
 							/>
 							<ViewerNavigation
 								currentIndex={currentIndex}

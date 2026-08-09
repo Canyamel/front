@@ -15,6 +15,7 @@ import {
 	type TariffPlan,
 } from '@medml/subscriptions'
 import { useAppDispatch } from '@medml/store'
+import { PageShell } from '@medml/layout'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -78,7 +79,8 @@ export default function SubscriptionRoute() {
 	}
 
 	return (
-		<div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
+		// Ширину и внешние отступы держит общий каркас страницы.
+		<PageShell>
 			<Space direction='vertical' size='large' style={{ width: '100%' }}>
 				<div>
 					<Title level={2} style={{ marginBottom: 8 }}>
@@ -144,6 +146,6 @@ export default function SubscriptionRoute() {
 				checkSubscriptionStatus={checkSubscriptionStatus}
 				onSubscriptionComplete={handleSubscriptionComplete}
 			/>
-		</div>
+		</PageShell>
 	)
 }

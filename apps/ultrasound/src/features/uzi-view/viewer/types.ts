@@ -10,7 +10,6 @@ export interface AnnotoriousViewerApi {
 
 export interface ThyroidAnnotatedViewerProps {
 	image: ImageTile | ImageTile[]
-	tool: string
 	seg: Segment[]
 	imageid: string | number
 	readOnly?: boolean

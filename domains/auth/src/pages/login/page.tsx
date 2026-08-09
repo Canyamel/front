@@ -4,7 +4,7 @@ import './page.scss'
 
 import { useCallback, useState } from 'react'
 import { Button, Form, Input } from 'antd'
-import { EmailIcon, HeaderIcon, PasswordIcon } from '@medml/ui'
+import { EmailIcon, LogoMark, PasswordIcon } from '@medml/ui'
 import { validateEmail } from '../../utils/validateEmail'
 import AuthFormWrapper from '../../components/AuthFormWrapper'
 import { useAuthError } from '../../contexts/AuthErrorContext'
@@ -99,7 +99,7 @@ const LoginPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PA
 		<AuthFormWrapper>
 			<div className='login-hero'>
 				<div className='login-logo'>
-					<HeaderIcon />
+					<LogoMark />
 				</div>
 				<h1 className='login-title'>Вход в систему</h1>
 				<p className='login-subtitle'>Введите ваши данные для доступа</p>

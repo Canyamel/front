@@ -1,4 +1,12 @@
-// SF Pro Display Font Face Declarations
+// Шрифты платформы.
+//
+// Дизайн-система: Onest — display и UI, Inter — табличные данные и измерения.
+// Оба подключаются <link>-тегом в index.html приложения, а не через
+// `@import url(...)` здесь: CSS-импорт блокирует рендер и не параллелится
+// с остальной загрузкой.
+//
+// SF Pro ниже остался от прежнего оформления и используется только легаси-
+// экранами — новые экраны берут $font-family-ui из tokens.scss.
 
 // Font Family Variable
 $font-family-sf-pro: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;

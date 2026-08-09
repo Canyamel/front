@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom'
-import { Button, Layout, Space, Typography } from 'antd'
+import { Button, Typography } from 'antd'
 import { ArrowLeftOutlined } from '@ant-design/icons'
+
+import { PageShell } from '@medml/layout'
 
 import { UziViewPage } from '@/features/uzi-view'
 
@@ -13,30 +15,25 @@ export default function UziViewRoute() {
 
 	if (!uziId?.trim()) {
 		return (
-			<Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-				<Layout.Content style={{ padding: 24, width: '100%', maxWidth: '100%' }}>
-					<Typography.Text type='danger'>Не указан идентификатор снимка УЗИ.</Typography.Text>
-				</Layout.Content>
-			</Layout>
+			<PageShell>
+				<Typography.Text type='danger'>
+					Не указан идентификатор снимка УЗИ.
+				</Typography.Text>
+			</PageShell>
 		)
 	}
 
-	const backLink = (
-		<Space style={{ marginBottom: 16 }}>
-			<Link to='/patients'>
-				<Button type='text' icon={<ArrowLeftOutlined />}>
-					К списку пациентов
-				</Button>
-			</Link>
-		</Space>
-	)
-
 	return (
-		<Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-			<Layout.Content style={{ padding: 24, width: '100%', maxWidth: '100%' }}>
-				{backLink}
-				<UziViewPage uziId={uziId.trim()} />
-			</Layout.Content>
-		</Layout>
+		<PageShell
+			eyebrow='Результат диагностики'
+			title='Снимок УЗИ'
+			actions={
+				<Link to='/patients'>
+					<Button icon={<ArrowLeftOutlined />}>К списку пациентов</Button>
+				</Link>
+			}
+		>
+			<UziViewPage uziId={uziId.trim()} />
+		</PageShell>
 	)
 }

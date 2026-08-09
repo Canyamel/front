@@ -2,35 +2,55 @@
 
 import './Header.scss'
 
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Button, Card, Layout, Typography } from 'antd'
+import * as React from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Button, Drawer } from 'antd'
+import { MenuOutlined } from '@ant-design/icons'
 
 import { useAppDispatch, useAppSelector, setToken } from '@medml/store'
 import { HeaderIcon } from '@medml/ui'
 
-const { Text } = Typography
-const { Title } = Typography
-const { Header: AntHeader } = Layout
+export interface HeaderNavItem {
+	label: string
+	to: string
+	matchPaths?: string[]
+	/** Счётчик справа от подписи (непрочитанное и т.п.). */
+	badge?: number
+}
 
 export interface HeaderSpaProps {
 	/** Очистка токенов вне Redux (например localStorage refresh/access). */
 	onLogoutClearStorage?: () => void
+	navItems?: HeaderNavItem[]
+	userInitials?: string
 }
 
-export default function HeaderSpa({ onLogoutClearStorage }: HeaderSpaProps) {
+const DEFAULT_NAV_ITEMS: HeaderNavItem[] = [
+	{ label: 'Пациенты', to: '/patients', matchPaths: ['/patient_profile'] },
+	{ label: 'Добавить снимок', to: '/upload_photo' },
+	{ label: 'Помощь', to: '/faq' },
+]
+
+export default function HeaderSpa({
+	onLogoutClearStorage,
+	navItems = DEFAULT_NAV_ITEMS,
+	userInitials,
+}: HeaderSpaProps) {
 	const dispatch = useAppDispatch()
 	const navigate = useNavigate()
 	const { pathname } = useLocation()
 	const accessToken = useAppSelector(s => s.auth.accessToken)
 
+	const [menuOpen, setMenuOpen] = React.useState(false)
+
 	const isAuthenticated = Boolean(accessToken)
 	const showLoginButton = !isAuthenticated && pathname !== '/auth/login'
 	const showRegisterButton = !isAuthenticated && pathname === '/auth/login'
 
-	/** Список пациентов и карточка пациента — один раздел навигации. */
-	const isPatientsNavActive = pathname === '/patients' || pathname === '/patient_profile'
-
-	const isFaqActive = pathname === '/faq'
+	// Панель закрывается при переходе, иначе остаётся открытой поверх страницы.
+	React.useEffect(() => {
+		setMenuOpen(false)
+	}, [pathname])
 
 	const handleLogout = () => {
 		dispatch(setToken(undefined))
@@ -38,59 +58,70 @@ export default function HeaderSpa({ onLogoutClearStorage }: HeaderSpaProps) {
 		navigate('/auth/login', { replace: true })
 	}
 
+	const isItemActive = (item: HeaderNavItem) => pathname === item.to || (item.matchPaths?.includes(pathname) ?? false)
+
+	const renderNavItem = (item: HeaderNavItem) => (
+		<NavLink
+			key={item.to}
+			to={item.to}
+			className={['app-bar__nav-item', isItemActive(item) ? 'app-bar__nav-item--active' : ''].filter(Boolean).join(' ')}
+		>
+			{item.label}
+			{item.badge != null && item.badge > 0 && <span className='app-bar__badge'>{item.badge}</span>}
+		</NavLink>
+	)
+
 	return (
-		<AntHeader className='header'>
-			<div className='header-content'>
-				<NavLink to='/' className='header-icon'>
-					<HeaderIcon />
-				</NavLink>
+		<header className='app-bar'>
+			<NavLink to='/' className='app-bar__logo' aria-label='На главную'>
+				<HeaderIcon />
+			</NavLink>
 
-				<div className='header-links'>
-					<NavLink to='/upload_photo'>
-						{({ isActive }) => (
-							<Text type={isActive ? undefined : 'secondary'} className='header-nav-text'>
-								Загрузка
-							</Text>
+			{isAuthenticated && <nav className='app-bar__nav'>{navItems.map(renderNavItem)}</nav>}
+
+			<div className='app-bar__actions'>
+				{isAuthenticated && (
+					<>
+						{userInitials && (
+							<span className='app-bar__avatar' aria-hidden='true'>
+								{userInitials}
+							</span>
 						)}
+						<Button onClick={handleLogout}>Выйти</Button>
+
+						{/* На узких экранах навигация уезжает сюда (см. Header.scss). */}
+						<Button
+							className='app-bar__burger'
+							icon={<MenuOutlined />}
+							aria-label='Меню'
+							onClick={() => setMenuOpen(true)}
+						/>
+					</>
+				)}
+
+				{showLoginButton && (
+					<NavLink to='/auth/login'>
+						<Button>Вход</Button>
 					</NavLink>
+				)}
 
-					<NavLink to='/patients'>
-						<Text type={isPatientsNavActive ? undefined : 'secondary'} className='header-nav-text'>
-							Пациенты
-						</Text>
+				{showRegisterButton && (
+					<NavLink to='/auth/register'>
+						<Button>Регистрация</Button>
 					</NavLink>
-
-					<NavLink to='/faq'>
-						<Text type={isFaqActive ? undefined : 'secondary'} className='header-nav-text'>
-							FAQ
-						</Text>
-					</NavLink>
-				</div>
-
-				<div className='header-actions'>
-					{isAuthenticated && (
-						<Button type='text' onClick={handleLogout}>
-							<Text className='header-nav-text'>Выйти</Text>
-						</Button>
-					)}
-
-					{showLoginButton && (
-						<NavLink to='/auth/login'>
-							<Button className='header-button'>
-								<Text className='header-nav-text'>Вход</Text>
-							</Button>
-						</NavLink>
-					)}
-
-					{showRegisterButton && (
-						<NavLink to='/auth/register'>
-							<Button className='header-button'>
-								<Text className='header-nav-text'>Регистрация</Text>
-							</Button>
-						</NavLink>
-					)}
-				</div>
+				)}
 			</div>
-		</AntHeader>
+
+			<Drawer
+				className='app-bar-drawer'
+				title='Меню'
+				placement='right'
+				width={280}
+				open={menuOpen}
+				onClose={() => setMenuOpen(false)}
+			>
+				<nav className='app-bar-drawer__nav'>{navItems.map(renderNavItem)}</nav>
+			</Drawer>
+		</header>
 	)
 }

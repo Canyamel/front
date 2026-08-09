@@ -1,5 +1,8 @@
 export { default as UziViewer } from './UziViewer'
 
+export { elementToImagePoint, imageToElementPoint } from './coords'
+export type { PlanePoint } from './coords'
+
 export { useOpenSeadragon } from './hooks/useOpenSeadragon'
 export type {
 	UseOpenSeadragonOptions,

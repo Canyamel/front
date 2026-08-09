@@ -1,8 +1,9 @@
 'use client';
 
+import '../../styles/patient_list.scss';
+
 import * as React from 'react';
-import { EllipsisOutlined } from '@ant-design/icons';
-import { Card, Dropdown, Space, Typography, type MenuProps, Table } from 'antd';
+import { Button, Card, Space, Table } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { TableCurrentDataSource } from 'antd/es/table/interface';
 
@@ -34,6 +35,12 @@ export type PatientListPanelProps = {
   onSortChange?: (sort: PatientListSort) => void;
 
   onOpenPatientCard?: (id: PatientRow['id']) => void;
+  /**
+   * @deprecated В макете «02 — Screens · Patients» действия удаления нет:
+   * в строке осталась только кнопка «Карта пациента». Проп сохранён, чтобы не
+   * ломать вызывающий код, но обработчик сейчас не вызывается. Если удаление
+   * нужно — возвращать его надо вместе с дизайном (подтверждение, права).
+   */
   onDeletePatient?: (id: PatientRow['id']) => void;
 
   emptyText?: React.ReactNode;
@@ -88,91 +95,84 @@ export function PatientListPanel({
     [rows]
   );
 
+  // Разворачиваем `sort` до useMemo: опциональная цепочка (`sort?.key`) прямо
+  // в списке зависимостей ломает мемоизацию React Compiler.
+  const sortKey = sort?.key ?? null;
+  const sortOrder = sort?.order ?? null;
+
+  // Ширины колонок из макета: 280/200/240/140/160/212 = 1232
+  // (ширина карточки 1280 минус внутренние паддинги 24×2).
   const columns = React.useMemo<ColumnsType<PatientRow>>(
     () => [
       {
         title: 'Пациент',
         dataIndex: 'fullName',
         key: 'fullName',
+        width: 280,
+        ellipsis: { showTitle: true },
         sorter: true,
-        sortOrder: sort?.key === 'fullName' ? toTableSortOrder(sort.order) : undefined,
+        sortOrder: sortKey === 'fullName' ? toTableSortOrder(sortOrder) : undefined,
         render: (_value, row) => (
-          <Space size={10}>
-            {/* <Avatar size={28}>{row.avatarText ?? getAvatarText(row.fullName, ' ')}</Avatar> */}
-            <div style={{ lineHeight: 1.2 }}>
-              <Typography.Link strong onClick={() => onOpenPatientCard?.(row.id)}>
-                {row.fullName}
-              </Typography.Link>
-            </div>
-          </Space>
+          <span className="patients-panel__patient-name">{row.fullName}</span>
         ),
       },
       {
-        title: 'Полис пациента',
+        title: 'Полис',
         dataIndex: 'policyNumber',
         key: 'policyNumber',
-        render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
+        width: 200,
+        render: (v: string | undefined) =>
+          v ? <span className="patients-panel__numeric">{v}</span> : '—',
       },
       {
-        title: 'Эл. почта',
+        title: 'Email',
         dataIndex: 'email',
         key: 'email',
-        render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
+        width: 240,
+        ellipsis: { showTitle: true },
+        render: (v: string | undefined) => v ?? '—',
       },
       {
-        title: 'Дата рождения',
+        title: 'Дата',
         dataIndex: 'birthDate',
         key: 'birthDate',
+        width: 140,
         sorter: true,
-        sortOrder: sort?.key === 'birthDate' ? toTableSortOrder(sort.order) : undefined,
-        render: (v: string | undefined) => <Typography.Text>{v ?? '—'}</Typography.Text>,
+        sortOrder: sortKey === 'birthDate' ? toTableSortOrder(sortOrder) : undefined,
+        render: (v: string | undefined) =>
+          v ? <span className="patients-panel__numeric">{v}</span> : '—',
       },
       {
+        // В макете «Диагноз» — одна колонка с чипом TI-RADS, поэтому
+        // прежние «Диагноз» и «Статус» объединены. Фильтруем по тому же
+        // значению, что и показываем: статус приоритетнее диагноза.
         title: 'Диагноз',
         dataIndex: 'diagnosisLabel',
         key: 'diagnosisLabel',
-        filters: diagnosisFilters,
-        onFilter: (value, record) => record.diagnosisLabel === value,
-        render: (v: string | undefined) => (v ? <DiagnosisTag>{v}</DiagnosisTag> : '—'),
-      },
-      {
-        title: 'Статус',
-        dataIndex: 'statusLabel',
-        key: 'statusLabel',
-        filters: statusFilters,
-        onFilter: (value, record) => record.statusLabel === value,
-        render: (_v: string | undefined, row) =>
-          row.statusLabel ? <StatusTag tone={row.statusTone}>{row.statusLabel}</StatusTag> : '—',
+        width: 160,
+        filters: statusFilters.length > 0 ? statusFilters : diagnosisFilters,
+        onFilter: (value, record) =>
+          (record.statusLabel ?? record.diagnosisLabel) === value,
+        render: (v: string | undefined, row) =>
+          row.statusLabel ? (
+            <StatusTag tone={row.statusTone}>{row.statusLabel}</StatusTag>
+          ) : v ? (
+            <DiagnosisTag>{v}</DiagnosisTag>
+          ) : (
+            '—'
+          ),
       },
       {
         title: '',
         key: 'actions',
+        width: 212,
         align: 'right',
-        render: (_v, row) => {
-          const items: MenuProps['items'] = [
-            {
-              key: 'open',
-              label: 'Открыть',
-              onClick: () => onOpenPatientCard?.(row.id),
-            },
-            {
-              key: 'delete',
-              label: 'Удалить',
-              onClick: () => onDeletePatient?.(row.id),
-            },
-          ];
-
-          return (
-            <Dropdown menu={{ items }} trigger={['click']}>
-              <Typography.Link>
-                <EllipsisOutlined />
-              </Typography.Link>
-            </Dropdown>
-          );
-        },
+        render: (_v, row) => (
+          <Button onClick={() => onOpenPatientCard?.(row.id)}>Карта пациента</Button>
+        ),
       },
     ],
-    [diagnosisFilters, onDeletePatient, onOpenPatientCard, sort?.key, sort?.order, statusFilters]
+    [diagnosisFilters, onOpenPatientCard, sortKey, sortOrder, statusFilters]
   );
 
   const handleTableChange = React.useCallback(
@@ -210,17 +210,21 @@ export function PatientListPanel({
       total,
       showSizeChanger: true,
       pageSizeOptions: [10, 20, 50],
-      showTotal: (totalCount: number, range: [number, number]) =>
-        totalCount <= 0
-          ? '0 из 0 пациентов'
-          : `${range[0]}–${range[1]} из ${totalCount} пациентов`,
+      // По макету счётчик слева от пагинации: «Показано 6 из 42 пациентов».
+      showTotal: (totalCount: number, range: [number, number]) => (
+        <span className="patients-panel__footer-total">
+          {totalCount <= 0
+            ? 'Нет пациентов'
+            : `Показано ${range[1] - range[0] + 1} из ${totalCount} пациентов`}
+        </span>
+      ),
     }),
     [page, pageSize, total]
   );
 
   return (
-    <Card className={className} style={{ borderRadius: 12 }}>
-      <Space direction="vertical" size={14} style={{ width: '100%' }}>
+    <Card className={['patients-panel', className].filter(Boolean).join(' ')}>
+      <Space direction="vertical" size={20} style={{ width: '100%' }}>
         <PatientListHeader
           title={title}
           searchValue={searchValue}
@@ -239,6 +243,13 @@ export function PatientListPanel({
           locale={{ emptyText }}
           showSorterTooltip={{ title: 'Сортировать' }}
           size="middle"
+          tableLayout="fixed"
+          /*
+           * Колонки имеют фиксированные ширины из макета (в сумме 1232).
+           * Без `scroll.x` таблица распирала страницу на узких экранах —
+           * теперь вместо этого появляется горизонтальный скролл.
+           */
+          scroll={{ x: 1232 }}
         />
       </Space>
     </Card>

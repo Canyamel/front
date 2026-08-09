@@ -1,7 +1,7 @@
 const HeaderIcon = () => {
 	return (
 		<svg width='110' height='46' viewBox='0 0 110 46' fill='none' xmlns='http://www.w3.org/2000/svg'>
-			<g clip-path='url(#clip0_7_3)'>
+			<g clipPath='url(#clip0_7_3)'>
 				<path
 					d='M3.28963 35.3387C3.28963 39.1099 6.34685 42.1672 10.1181 42.1672V45.4568C4.53004 45.4568 0 40.9268 0 35.3387H3.28963ZM45.4568 35.3387C45.4568 40.9268 40.9268 45.4568 35.3387 45.4568V42.1672C39.1099 42.1672 42.1672 39.1099 42.1672 35.3387H45.4568ZM10.1181 3.28963C6.34685 3.28963 3.28963 6.34685 3.28963 10.1181H0C0 4.53004 4.53004 0 10.1181 0V3.28963ZM35.3387 0C40.9268 0 45.4568 4.53004 45.4568 10.1181H42.1672C42.1672 6.34685 39.1099 3.28963 35.3387 3.28963V0Z'
 					fill='#0F172A'
@@ -21,8 +21,8 @@ const HeaderIcon = () => {
 			</g>
 			<defs>
 				<linearGradient id='paint0_linear_7_3' x1='7.2' y1='22.68' x2='38.34' y2='22.68' gradientUnits='userSpaceOnUse'>
-					<stop stop-color='#3B82F6' />
-					<stop offset='1' stop-color='#06B6D4' />
+					<stop stopColor='#3B82F6' />
+					<stop offset='1' stopColor='#06B6D4' />
 				</linearGradient>
 				<clipPath id='clip0_7_3'>
 					<rect width='109.44' height='45.54' fill='white' />

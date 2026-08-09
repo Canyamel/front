@@ -1,18 +1,36 @@
+import './UploadPhotoRoute.scss'
+
 import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { InboxOutlined } from '@ant-design/icons'
-import { Card, Form, Layout, Space, Typography, Upload } from 'antd'
+import { InboxOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Card, ConfigProvider, Form, Space, Upload, message } from 'antd'
+import dayjs from 'dayjs'
 
-import { ConfigurableSplitUpload } from '@medml/ui'
+import { ConfigurableSplitUpload, accentButtonTheme } from '@medml/ui'
+import { PageShell } from '@medml/layout'
+import {
+	PatientCreateModal,
+	buildFullNameUzi,
+	stripPolicyDigits,
+	type PatientCreateValuesUzi,
+} from '@medml/patient_create'
 
-import { StructuresPreview } from '@/features/uzi-view/structures'
+import { isThyroidBackend } from '@/lib/apiBackend'
+import {
+	useCreateMedPatientCardMutation,
+	useCreateMedPatientMutation,
+	useCreateUziPatientWithCardMutation,
+} from '@/api/patientsApi'
+import { useDoctorId } from '@/api/hooks/useDoctorId'
 import { useUziUpload } from './useUziUpload'
 
 const { Dragger } = Upload
 
 /**
- * Страница загрузки снимка — только композиция и разметка.
- * Справочники, схема полей, состояние файлов и сабмит живут в `useUziUpload`.
+ * Загрузка снимка — по макету «Home · /home».
+ *
+ * Слева параметры исследования и кнопка «Добавить нового пациента»,
+ * справа зона загрузки и бирюзовая CTA «Провести диагностику».
  */
 export default function UploadPhotoRoute() {
 	const navigate = useNavigate()
@@ -20,37 +38,97 @@ export default function UploadPhotoRoute() {
 	const presetPatientId = searchParams.get('patientId')?.trim() ?? ''
 	const [form] = Form.useForm<Record<string, unknown>>()
 
-	const {
-		fields,
-		file,
-		uploadProps,
-		structuresUploadProps,
-		structuresData,
-		initialValues,
-		handleSubmit,
-		pageBusy,
-		isUploading,
-	} = useUziUpload({
-		presetPatientId,
-		onUploaded: () => navigate('/patients'),
-	})
+	const { doctorId } = useDoctorId()
+	const [createModalOpen, setCreateModalOpen] = React.useState(false)
+
+	const [createThyroidPatient, { isLoading: isCreatingThyroid }] =
+		useCreateUziPatientWithCardMutation()
+	const [createMedPatient, { isLoading: isCreatingMedPatient }] =
+		useCreateMedPatientMutation()
+	const [createMedCard, { isLoading: isCreatingMedCard }] =
+		useCreateMedPatientCardMutation()
+
+	const isCreatingPatient = isThyroidBackend()
+		? isCreatingThyroid
+		: isCreatingMedPatient || isCreatingMedCard
+
+	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } =
+		useUziUpload({
+			presetPatientId,
+			onUploaded: () => navigate('/patients'),
+		})
+
+	/**
+	 * Создание пациента прямо со страницы загрузки: по макету рядом с
+	 * выбором пациента есть кнопка «Добавить нового пациента».
+	 * Логика совпадает с экраном «Пациенты».
+	 */
+	const handleCreatePatient = async (values: PatientCreateValuesUzi) => {
+		if (!doctorId) {
+			message.warning('Не удалось определить врача')
+			return
+		}
+
+		const birth_date = dayjs(values.birthDate).format('YYYY-MM-DD')
+		const policy = stripPolicyDigits(values.policy)
+
+		if (isThyroidBackend()) {
+			const created = await createThyroidPatient({
+				doctorId,
+				surname: values.surname.trim(),
+				name: values.name.trim(),
+				patronymic: values.patronymic.trim(),
+				email: values.email.trim(),
+				policy,
+				active: values.active,
+				malignancy: values.malignancy,
+				birth_date,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
+
+			if (!created.id) {
+				message.error('Сервер не вернул идентификатор пациента')
+				return
+			}
+		} else {
+			const created = await createMedPatient({
+				email: values.email.trim(),
+				fullname: buildFullNameUzi(values),
+				policy,
+				active: values.active,
+				malignancy: values.malignancy,
+				birth_date,
+			}).unwrap()
+
+			const patientId =
+				typeof created === 'object' && created?.id ? String(created.id) : ''
+			if (!patientId) {
+				message.error('Сервер не вернул идентификатор пациента')
+				return
+			}
+
+			await createMedCard({
+				patient_id: patientId,
+				doctor_id: doctorId,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
+		}
+
+		message.success('Пациент создан')
+		setCreateModalOpen(false)
+	}
 
 	return (
-		<Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-			<Layout.Content
-				style={{ padding: 24, maxWidth: 1120, margin: '0 auto', width: '100%' }}
-			>
-				<Card style={{ borderRadius: 12 }}>
-					<Space direction='vertical' size={14} style={{ width: '100%' }}>
-						<Typography.Title level={2} style={{ margin: 0 }}>
-							Загрузка снимка
-						</Typography.Title>
-
-						<Typography.Paragraph type='secondary' style={{ marginBottom: 0 }}>
-							Для начала диагностики загрузите снимок УЗИ щитовидной железы и укажите
-							параметры слева.
-						</Typography.Paragraph>
-
+		<PageShell
+			className='upload-page'
+			eyebrow='ИИ ассистент'
+			title='Новый снимок УЗИ'
+			subtitle='Заполните параметры исследования и загрузите изображение для AI-анализа.'
+		>
+			<Card>
+				<Space direction='vertical' size={20} style={{ width: '100%' }}>
+					{/* Бирюзовая CTA — отдельный тип действия «запустить AI-диагностику». */}
+					<ConfigProvider theme={accentButtonTheme}>
 						<ConfigurableSplitUpload
 							key={presetPatientId || 'upload-default'}
 							form={form}
@@ -59,48 +137,52 @@ export default function UploadPhotoRoute() {
 							file={file}
 							requireFile
 							onSubmit={handleSubmit}
-							submitText='Начать диагностику'
+							submitText='Провести диагностику'
+							actionsPlacement='upload-column'
 							uploadSlot={
 								<Dragger {...uploadProps} disabled={pageBusy || isUploading}>
 									<p className='ant-upload-drag-icon'>
 										<InboxOutlined />
 									</p>
 									<p className='ant-upload-text'>
-										Нажмите или перетащите файл в эту область
+										Перетащите файл или нажмите для выбора
 									</p>
-									<p className='ant-upload-hint'>Форматы: .png или .tiff</p>
+									<p className='ant-upload-hint'>DICOM · TIF · JPG · PNG до 50 МБ</p>
 								</Dragger>
 							}
+							// Кнопка выбора пациента под полями левой колонки —
+							// встаёт на один уровень с «Провести диагностику».
+							formFooterSlot={
+								<Button
+									className='upload-page__add-patient'
+									icon={<PlusOutlined />}
+									onClick={() => setCreateModalOpen(true)}
+									disabled={pageBusy}
+								>
+									Добавить нового пациента
+								</Button>
+							}
+							// Белая кнопка рядом с CTA: открывает системный выбор файла
+							// тем же обработчиком, что и зона drag-and-drop.
+							extraActions={
+								<Upload {...uploadProps} showUploadList={false}>
+									<Button htmlType='button' disabled={pageBusy || isUploading}>
+										Добавить файл
+									</Button>
+								</Upload>
+							}
 						/>
+					</ConfigProvider>
+				</Space>
+			</Card>
 
-						<Typography.Paragraph style={{ marginBottom: 0, fontSize: '12px' }}>
-							Загрузите JSON файл с предварительно размеченными структурами щитовидной
-							железы. Это опционально и используется для демонстрации.
-						</Typography.Paragraph>
-
-						<Dragger {...structuresUploadProps} disabled={pageBusy}>
-							<p className='ant-upload-drag-icon'>
-								<InboxOutlined />
-							</p>
-							<p className='ant-upload-text'>Загрузить структуры ЩЖ (JSON)</p>
-							<p className='ant-upload-hint'>Формат: JSON с координатами структур</p>
-						</Dragger>
-
-						{structuresData && (
-							<>
-								<Typography.Paragraph type='success' style={{ marginBottom: 0 }}>
-									✓ Данные загружены ({structuresData.view_type})
-								</Typography.Paragraph>
-								<StructuresPreview
-									structures={structuresData}
-									width={500}
-									height={350}
-								/>
-							</>
-						)}
-					</Space>
-				</Card>
-			</Layout.Content>
-		</Layout>
+			<PatientCreateModal
+				open={createModalOpen}
+				variant='uzi'
+				onCancel={() => setCreateModalOpen(false)}
+				onFinish={vals => void handleCreatePatient(vals as PatientCreateValuesUzi)}
+				confirmLoading={isCreatingPatient}
+			/>
+		</PageShell>
 	)
 }

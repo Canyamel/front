@@ -5,7 +5,7 @@ import { PropsWithChildren } from "react";
 
 import "./AuthFormWrapper.scss";
 
-interface AuthFormWrapperProps extends PropsWithChildren {}
+type AuthFormWrapperProps = PropsWithChildren;
 
 const AuthFormWrapper = ({ children }: AuthFormWrapperProps) => {
   return (

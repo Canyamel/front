@@ -1,12 +1,17 @@
 import { Typography } from "antd";
 
-const { Title, Paragraph } = Typography;
+import { PageShell } from "@medml/layout";
 
+const { Paragraph } = Typography;
+
+/**
+ * Заглушка для разделов в разработке.
+ * Ширину и отступы задаёт общий каркас, а не собственный контейнер.
+ */
 export default function PlaceholderRoute({ title }: { title: string }) {
   return (
-    <div style={{ padding: 24, maxWidth: 1120, margin: "0 auto" }}>
-      <Title level={3}>{title}</Title>
+    <PageShell title={title}>
       <Paragraph type="secondary">Раздел в разработке.</Paragraph>
-    </div>
+    </PageShell>
   );
 }

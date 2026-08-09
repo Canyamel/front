@@ -7,14 +7,9 @@ import { useGetDoctorPatientsQuery } from '@/api/patientsApi'
 import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from '@/api/uziApi'
 import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
-import {
-	loadThyroidStructuresFromJson,
-	saveThyroidStructures,
-	type ThyroidStructureJson,
-} from '@/features/uzi-view/structures'
 import type { UploadSchemaField } from '@medml/ui'
 
-/** Один файл в antd Upload — общий вид `fileList` для обоих драггеров. */
+/** Один файл в antd Upload. */
 function singleFileList(file: File | null, uid: string): UploadFile[] {
 	return file
 		? [{ uid, name: file.name, status: 'done', originFileObj: file } as UploadFile]
@@ -27,9 +22,8 @@ export interface UseUziUploadOptions {
 }
 
 /**
- * Вся логика страницы загрузки снимка: справочники (аппараты/пациенты),
- * схема полей формы, состояние двух файловых драггеров (снимок + JSON
- * структур ЩЖ) и сабмит с сохранением структур.
+ * Логика страницы загрузки снимка: справочники (аппараты/пациенты),
+ * схема полей формы, состояние файла и отправка на диагностику.
  *
  * Вынесено из `UploadPhotoRoute`, который смешивал это всё с версткой.
  */
@@ -51,9 +45,6 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 	const patients = patientsData?.rows ?? []
 
 	const [file, setFile] = React.useState<File | null>(null)
-	const [structuresFile, setStructuresFile] = React.useState<File | null>(null)
-	const [structuresData, setStructuresData] =
-		React.useState<ThyroidStructureJson | null>(null)
 	const [projectionValue, setProjectionValue] = React.useState<string | undefined>()
 
 	const fields = React.useMemo<UploadSchemaField[]>(() => {
@@ -119,7 +110,8 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 		() => ({
 			name: 'file',
 			multiple: false,
-			accept: '.png,.tiff',
+			// Форматы из макета: DICOM · TIF · JPG · PNG.
+			accept: '.dcm,.dicom,.tif,.tiff,.jpg,.jpeg,.png',
 			maxCount: 1,
 			beforeUpload: next => {
 				setFile(next as File)
@@ -129,34 +121,6 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 			fileList: singleFileList(file, 'uzi-file'),
 		}),
 		[file],
-	)
-
-	const structuresUploadProps: UploadProps = React.useMemo(
-		() => ({
-			name: 'structures-file',
-			multiple: false,
-			accept: '.json',
-			maxCount: 1,
-			beforeUpload: async next => {
-				setStructuresFile(next as File)
-				const data = await loadThyroidStructuresFromJson(next as File)
-				if (data) {
-					setStructuresData(data)
-					message.success('Структуры ЩЖ загружены успешно')
-				} else {
-					message.error('Неверный формат JSON файла')
-					setStructuresFile(null)
-					setStructuresData(null)
-				}
-				return false
-			},
-			onRemove: () => {
-				setStructuresFile(null)
-				setStructuresData(null)
-			},
-			fileList: singleFileList(structuresFile, 'structures-file'),
-		}),
-		[structuresFile],
 	)
 
 	const handleSubmit = React.useCallback(
@@ -171,20 +135,13 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 				: undefined
 
 			try {
-				const result = await uploadUzi({
+				await uploadUzi({
 					file,
 					projection: String(values.projection ?? ''),
 					patientRefId: String(values.patient ?? ''),
 					deviceId: String(values.device ?? ''),
 					...(projectionSide ? { projectionSide } : {}),
 				}).unwrap()
-
-				if (structuresData && result && typeof result === 'object' && 'id' in result) {
-					const imageid = (result as Record<string, unknown>).id
-					if (imageid) {
-						saveThyroidStructures(String(imageid), structuresData)
-					}
-				}
 
 				message.success('Снимок отправлен на диагностику')
 				onUploaded()
@@ -193,7 +150,7 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 				console.error(e)
 			}
 		},
-		[file, onUploaded, structuresData, uploadUzi],
+		[file, onUploaded, uploadUzi],
 	)
 
 	const initialValues = React.useMemo(() => {
@@ -211,8 +168,6 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 		fields,
 		file,
 		uploadProps,
-		structuresUploadProps,
-		structuresData,
 		initialValues,
 		handleSubmit,
 		setProjectionValue,
