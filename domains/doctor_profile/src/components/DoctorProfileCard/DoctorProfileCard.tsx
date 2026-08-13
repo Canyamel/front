@@ -2,7 +2,6 @@
 
 import './DoctorProfileCard.scss'
 
-import * as React from 'react'
 import { Button, Card, Skeleton, Space, Tag } from 'antd'
 import { BellOutlined, EditOutlined } from '@ant-design/icons'
 
@@ -11,9 +10,9 @@ import type { DoctorProfileViewModel } from '../../types'
 export type DoctorProfileCardProps = {
 	profile?: DoctorProfileViewModel | null
 	loading?: boolean
-	/** Непрочитанные уведомления — счётчик на кнопке. */
 	unreadCount?: number
 	onOpenNotifications?: () => void
+	showNotifications?: boolean
 	onEditProfile?: () => void
 	className?: string
 }
@@ -23,6 +22,7 @@ export function DoctorProfileCard({
 	loading,
 	unreadCount = 0,
 	onOpenNotifications,
+	showNotifications = true,
 	onEditProfile,
 	className,
 }: DoctorProfileCardProps) {
@@ -60,10 +60,12 @@ export function DoctorProfileCard({
 						</Button>
 					) : null}
 
-					<Button icon={<BellOutlined />} onClick={onOpenNotifications}>
-						Уведомления
-						{unreadCount > 0 && <span className='doctor-profile__badge'>{unreadCount}</span>}
-					</Button>
+					{showNotifications && (
+						<Button icon={<BellOutlined />} onClick={onOpenNotifications}>
+							Уведомления
+							{unreadCount > 0 && <span className='doctor-profile__badge'>{unreadCount}</span>}
+						</Button>
+					)}
 				</Space>
 			</div>
 		</Card>

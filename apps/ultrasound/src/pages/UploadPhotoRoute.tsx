@@ -1,4 +1,4 @@
-import './UploadPhotoRoute.scss'
+import '@medml/ui/styles/upload-page.scss'
 
 import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -26,12 +26,6 @@ import { useUziUpload } from './useUziUpload'
 
 const { Dragger } = Upload
 
-/**
- * Загрузка снимка — по макету «Home · /home».
- *
- * Слева параметры исследования и кнопка «Добавить нового пациента»,
- * справа зона загрузки и бирюзовая CTA «Провести диагностику».
- */
 export default function UploadPhotoRoute() {
 	const navigate = useNavigate()
 	const [searchParams] = useSearchParams()
@@ -41,28 +35,17 @@ export default function UploadPhotoRoute() {
 	const { doctorId } = useDoctorId()
 	const [createModalOpen, setCreateModalOpen] = React.useState(false)
 
-	const [createThyroidPatient, { isLoading: isCreatingThyroid }] =
-		useCreateUziPatientWithCardMutation()
-	const [createMedPatient, { isLoading: isCreatingMedPatient }] =
-		useCreateMedPatientMutation()
-	const [createMedCard, { isLoading: isCreatingMedCard }] =
-		useCreateMedPatientCardMutation()
+	const [createThyroidPatient, { isLoading: isCreatingThyroid }] = useCreateUziPatientWithCardMutation()
+	const [createMedPatient, { isLoading: isCreatingMedPatient }] = useCreateMedPatientMutation()
+	const [createMedCard, { isLoading: isCreatingMedCard }] = useCreateMedPatientCardMutation()
 
-	const isCreatingPatient = isThyroidBackend()
-		? isCreatingThyroid
-		: isCreatingMedPatient || isCreatingMedCard
+	const isCreatingPatient = isThyroidBackend() ? isCreatingThyroid : isCreatingMedPatient || isCreatingMedCard
 
-	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } =
-		useUziUpload({
-			presetPatientId,
-			onUploaded: () => navigate('/patients'),
-		})
+	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } = useUziUpload({
+		presetPatientId,
+		onUploaded: () => navigate('/patients'),
+	})
 
-	/**
-	 * Создание пациента прямо со страницы загрузки: по макету рядом с
-	 * выбором пациента есть кнопка «Добавить нового пациента».
-	 * Логика совпадает с экраном «Пациенты».
-	 */
 	const handleCreatePatient = async (values: PatientCreateValuesUzi) => {
 		if (!doctorId) {
 			message.warning('Не удалось определить врача')
@@ -100,8 +83,7 @@ export default function UploadPhotoRoute() {
 				birth_date,
 			}).unwrap()
 
-			const patientId =
-				typeof created === 'object' && created?.id ? String(created.id) : ''
+			const patientId = typeof created === 'object' && created?.id ? String(created.id) : ''
 			if (!patientId) {
 				message.error('Сервер не вернул идентификатор пациента')
 				return
@@ -127,7 +109,6 @@ export default function UploadPhotoRoute() {
 		>
 			<Card>
 				<Space direction='vertical' size={20} style={{ width: '100%' }}>
-					{/* Бирюзовая CTA — отдельный тип действия «запустить AI-диагностику». */}
 					<ConfigProvider theme={accentButtonTheme}>
 						<ConfigurableSplitUpload
 							key={presetPatientId || 'upload-default'}
@@ -140,18 +121,18 @@ export default function UploadPhotoRoute() {
 							submitText='Провести диагностику'
 							actionsPlacement='upload-column'
 							uploadSlot={
-								<Dragger {...uploadProps} disabled={pageBusy || isUploading}>
+								<Dragger
+									className='upload-page__dropzone'
+									{...uploadProps}
+									disabled={pageBusy || isUploading}
+								>
 									<p className='ant-upload-drag-icon'>
 										<InboxOutlined />
 									</p>
-									<p className='ant-upload-text'>
-										Перетащите файл или нажмите для выбора
-									</p>
+									<p className='ant-upload-text'>Перетащите файл или нажмите для выбора</p>
 									<p className='ant-upload-hint'>DICOM · TIF · JPG · PNG до 50 МБ</p>
 								</Dragger>
 							}
-							// Кнопка выбора пациента под полями левой колонки —
-							// встаёт на один уровень с «Провести диагностику».
 							formFooterSlot={
 								<Button
 									className='upload-page__add-patient'
@@ -162,8 +143,6 @@ export default function UploadPhotoRoute() {
 									Добавить нового пациента
 								</Button>
 							}
-							// Белая кнопка рядом с CTA: открывает системный выбор файла
-							// тем же обработчиком, что и зона drag-and-drop.
 							extraActions={
 								<Upload {...uploadProps} showUploadList={false}>
 									<Button htmlType='button' disabled={pageBusy || isUploading}>

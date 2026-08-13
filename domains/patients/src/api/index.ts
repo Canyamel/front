@@ -1,8 +1,3 @@
-// API endpoints для домена patients
-// Использует базовый API из @medml/store
-
-// Пример структуры - раскомментируйте когда реализуете
-// export * from './patientApi';
-
-export {};
-
+export * from './medPatientsApi'
+export * from './medDoctorApi'
+export * from './medCardApi'

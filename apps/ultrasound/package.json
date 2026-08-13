@@ -29,7 +29,8 @@
     "react-redux": "^9.0.0",
     "react-router-dom": "^7.13.1",
     "svg-polygon-points": "^1.4.0",
-    "@medml/doctor_profile": "*"
+    "@medml/doctor_profile": "*",
+    "@medml/patients": "*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

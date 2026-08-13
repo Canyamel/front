@@ -32,29 +32,24 @@ export default defineConfig(({ mode }) => {
 		env.VITE_BACKEND_PROXY_TARGET ??
 		env.VITE_ULTRASOUND_PROXY_TARGET ??
 		env.ULTRASOUND_API_PROXY_TARGET ??
-		'http://localhost:8080'
+		'http://localhost:5173'
 
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
-			dedupe: [
-				'react',
-				'react-dom',
-				'@annotorious/react',
-				'@annotorious/core',
-				'@annotorious/openseadragon',
-			],
+			// УЗИ-контур рендерит через @medml/viewers (OpenSeadragon + Annotorious
+			// от @recogito). Единый инстанс openseadragon обязателен: две копии
+			// ломают привязку Annotorious к вьюеру.
+			dedupe: ['react', 'react-dom', 'openseadragon'],
 			alias: {
 				'@': path.resolve(__dirname, 'src'),
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),
-				'@medml/patient_view': path.resolve(
-					__dirname,
-					'../../domains/patient_view/src',
-				),
-				'@medml/subscriptions': path.resolve(
-					__dirname,
-					'../../domains/subscriptions/src',
-				),
+				'@medml/viewers': path.resolve(__dirname, '../../lib/viewers/src'),
+				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
+				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
+				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
+				'@medml/patients': path.resolve(__dirname, '../../domains/patients/src'),
+				'@medml/subscriptions': path.resolve(__dirname, '../../domains/subscriptions/src'),
 			},
 		},
 		server: {

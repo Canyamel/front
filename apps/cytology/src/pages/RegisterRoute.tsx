@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import RegisterPage from "../../../../domains/auth/src/pages/register/page";
-import AuthLayoutSpa from "../../../../domains/auth/src/components/AuthLayoutSpa/AuthLayoutSpa";
-import { AuthApiProvider } from "../../../../domains/auth/src/contexts/AuthApiContext";
-import { DEFAULT_POST_AUTH_PATH } from "../../../../domains/auth/src/constants/routes";
-import { sanitizeInternalPath } from "../../../../domains/auth/src/utils/sanitizeCallbackUrl";
-import type { IAuthApi } from "../../../../domains/auth/src/types";
+import {
+  AuthApiProvider,
+  AuthLayoutSpa,
+  DEFAULT_POST_AUTH_PATH,
+  RegisterPage,
+  sanitizeInternalPath,
+  type IAuthApi,
+} from "@medml/auth";
 import {
   setRefreshToken as setRefreshTokenState,
   setToken,

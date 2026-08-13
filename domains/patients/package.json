@@ -11,7 +11,9 @@
   "dependencies": {
     "@medml/shared": "*",
     "@medml/ui": "*",
-    "@medml/store": "*"
+    "@medml/store": "*",
+    "@medml/patient_list": "*",
+    "@medml/doctor_profile": "*"
   },
   "peerDependencies": {
     "react": "^18.0.0",
@@ -23,5 +25,3 @@
     "@types/react-dom": "^18.0.0"
   }
 }
-
-

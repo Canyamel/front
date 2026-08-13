@@ -7,12 +7,12 @@ import {
   MessageWrapper,
   ModalWrapper,
 } from "@medml/ui";
-import { AuthErrorProvider } from "../../../domains/auth/src/contexts/AuthErrorContext";
+import { AuthErrorProvider } from "@medml/auth";
 
 import SessionSync from "./providers/SessionSync";
 import routes from "./routes";
 
-import "../../../lib/ui/src/styles/global.scss";
+import "@medml/ui/styles/global.scss";
 
 export default function App() {
   const element = useRoutes(routes);

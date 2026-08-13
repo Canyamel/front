@@ -5,7 +5,20 @@ import { baseApi } from "@medml/store";
 import { formatPolicySpaced16, type PatientCreateValuesCytology } from "@medml/patient_create";
 import type { PatientProfileViewModel } from "@medml/patient_view";
 
+import { cytologyRoutes } from "./cytologyRoutes";
 import type { AddPatientPayload } from "./patientsApi";
+
+/**
+ * Идентификаторы пациента для запроса снимков.
+ *
+ * Django-ручка `/patient/shots/{id}` принимает id карты, Go-ручка
+ * `/cytology/patient/{patient_id}/shots` — id самого пациента. Поэтому
+ * страница передаёт оба, а выбор делает `cytologyRoutes.patientShots`.
+ */
+export type PatientShotsArgs = {
+  cardId: string;
+  patientId?: string;
+};
 
 export type CytologyStudyRow = {
   id: string;
@@ -168,9 +181,9 @@ function mapEditDefaults(
 
 export const patientProfileApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getPatientShotsByCardId: builder.query<PatientProfileData, string>({
-      query: (cardId) => ({
-        url: `/patient/shots/${encodeURIComponent(cardId)}`,
+    getPatientShotsByCardId: builder.query<PatientProfileData, PatientShotsArgs>({
+      query: (ids) => ({
+        url: cytologyRoutes.patientShots(ids),
       }),
       transformResponse: (response: CytologyPatientShotsResponse): PatientProfileData => {
         const { patient: patientDto, shots, diagnosis } = extractPatientShots(response);
@@ -200,10 +213,12 @@ export const patientProfileApi = baseApi.injectEndpoints({
           editDefaults: mapEditDefaults(patientDto, diagnosis),
         };
       },
-      providesTags: (_result, _error, cardId) => [{ type: "Patient", id: cardId }],
+      providesTags: (_result, _error, ids) => [{ type: "Patient", id: ids.cardId }],
     }),
     updatePatientCard: builder.mutation<void, { cardId: string; payload: AddPatientPayload }>({
       query: ({ cardId, payload }) => ({
+        // Ручка med-сервиса; в Go-шлюзе полного аналога нет — см.
+        // `goMissingEndpoints.patientCardUpdate`.
         url: `/patient/update/${encodeURIComponent(cardId)}/`,
         method: "PATCH",
         body: payload,
@@ -218,5 +233,6 @@ export const patientProfileApi = baseApi.injectEndpoints({
 
 export const {
   useGetPatientShotsByCardIdQuery,
+  useLazyGetPatientShotsByCardIdQuery,
   useUpdatePatientCardMutation,
 } = patientProfileApi;
