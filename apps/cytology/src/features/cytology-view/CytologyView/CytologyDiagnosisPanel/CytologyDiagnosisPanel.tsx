@@ -5,6 +5,8 @@ import { setCurrentSegment } from "@cytology/core/store";
 import { Modes } from "@cytology/core/types/basic";
 import { IGroupedSegments, SegmentType } from "@cytology/core/types/segments";
 
+import { CYTOLOGY_EDITING_ENABLED } from "@/lib/cytologyFeatures";
+
 import CytologyDiagnosisEdit from "./CytologyDiagnosisEdit/CytologyDiagnosisEdit";
 import CytologyDiagnosis from "./CytologyDiagnosis/CytologyDiagnosis";
 
@@ -28,7 +30,9 @@ const CytologyDiagnosisPanel: React.FC<CytologyDiagnosisPanelProps> = ({
 
     return (
         <>
-            {mode === "view" ? (
+            {/* Флаг проверяем и здесь: даже если режим `edit` придёт откуда-то
+                ещё, редактор не смонтируется. */}
+            {mode === "view" || !CYTOLOGY_EDITING_ENABLED ? (
                 <CytologyDiagnosis
                     segments={segments}
                     openEdit={() => changeMode("edit")}

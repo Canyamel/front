@@ -4,10 +4,7 @@ import { Link } from 'react-router-dom'
 import { Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 
-import {
-	uziStudyStatusTagColor,
-	type PatientUziStudyRow,
-} from '@/api/patientProfileApi'
+import { uziStudyStatusTagColor, type PatientUziStudyRow } from '@/api/patientProfileApi'
 
 const Dash: React.FC = () => (
 	<Typography.Text type='secondary' style={{ fontSize: 13 }}>
@@ -15,14 +12,7 @@ const Dash: React.FC = () => (
 	</Typography.Text>
 )
 
-/**
- * Колонки таблицы снимков в карточке пациента — чистая презентация.
- * Вынесены из `PatientProfileRoute`, где ~100 строк JSX-рендереров были
- * перемешаны с загрузкой данных и состоянием пагинации.
- */
-export function useUziStudyColumns(
-	deviceMap: Map<string, string>,
-): ColumnsType<PatientUziStudyRow> {
+export function useUziStudyColumns(deviceMap: Map<string, string>): ColumnsType<PatientUziStudyRow> {
 	return React.useMemo(
 		() => [
 			{
@@ -36,11 +26,14 @@ export function useUziStudyColumns(
 				title: 'Статус',
 				key: 'status',
 				width: '16%',
-				render: (_: unknown, row: PatientUziStudyRow) => (
-					<Tag color={uziStudyStatusTagColor(row.statusRaw)} style={{ margin: 0 }}>
-						{row.statusLabel}
-					</Tag>
-				),
+				render: (_: unknown, row: PatientUziStudyRow) => {
+					if (!row.statusRaw) return <Dash />
+					return (
+						<Tag color={uziStudyStatusTagColor(row.statusRaw)} style={{ margin: 0 }}>
+							{row.statusLabel}
+						</Tag>
+					)
+				},
 			},
 			{
 				title: 'Проекция',
@@ -90,10 +83,7 @@ export function useUziStudyColumns(
 				render: (_: unknown, row: PatientUziStudyRow) => {
 					if (!row.key) return <Dash />
 					return (
-						<Link
-							to={`/uzi_view/${encodeURIComponent(row.key)}`}
-							style={{ color: 'var(--ant-color-link, #1677ff)' }}
-						>
+						<Link to={`/uzi_view/${encodeURIComponent(row.key)}`} style={{ color: 'var(--ant-color-link, #1677ff)' }}>
 							Открыть
 						</Link>
 					)

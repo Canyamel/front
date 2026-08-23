@@ -25,6 +25,17 @@ const OSDViewer: React.FC<OSDViewerProps> = ({
 }) => {
 	const { tileSource, isLoading, error } = useDziTileSource(imageUrl)
 
+	const options = React.useMemo(
+		() => ({
+			tileSources: tileSource ?? undefined,
+			prefixUrl: '/openseadragon-images/',
+			gestureSettingsMouse: {
+				clickToZoom: false,
+			},
+		}),
+		[tileSource],
+	)
+
 	const placeholder = (text: string) => <p style={{ width: '100%', height: '100%', margin: 0 }}>{text}</p>
 
 	if (imageUrl === '') return placeholder('Изображение отсутствует')
@@ -38,16 +49,7 @@ const OSDViewer: React.FC<OSDViewerProps> = ({
 					drawingEnabled={drawingEnable && tool !== 'move' && selected}
 					tool={tool !== 'move' ? tool : null}
 				>
-					<OpenSeadragonViewer
-						options={{
-							tileSources: tileSource,
-							prefixUrl: '/openseadragon-images/',
-							gestureSettingsMouse: {
-								clickToZoom: false,
-							},
-						}}
-						className='osd'
-					/>
+					<OpenSeadragonViewer options={options} className='osd' />
 					{needPopup && (
 						<OpenSeadragonAnnotationPopup
 							popup={props => <CommentPopup {...props} needInput={needInputPopup} isEditingMode={drawingEnable} />}

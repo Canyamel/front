@@ -1,14 +1,14 @@
 import { baseApi } from '@medml/store'
 
 export type MedCardDto = {
-	id?: number
+	uuid?: string
 	patient_id: string
 	doctor_id: string
 	diagnosis?: string
 }
 
 export type MedCard = {
-	id: number | null
+	uuid: string | null
 	patientId: string
 	doctorId: string
 	diagnosis: string
@@ -20,8 +20,9 @@ export type MedCardArgs = {
 }
 
 export function mapMedCard(dto: MedCardDto): MedCard {
+	const uuid = dto.uuid?.trim()
 	return {
-		id: typeof dto.id === 'number' ? dto.id : null,
+		uuid: uuid ? uuid : null,
 		patientId: dto.patient_id,
 		doctorId: dto.doctor_id,
 		diagnosis: dto.diagnosis ?? '',
@@ -36,10 +37,6 @@ export const medCardApi = baseApi.injectEndpoints({
 			providesTags: (_result, _error, { patientId }) => [{ type: 'Patient', id: patientId }],
 		}),
 
-		/**
-		 * Обновление карты. Ручка принимает **только диагноз** — ФИО, полис и
-		 * почта пациента через неё не меняются.
-		 */
 		updateMedCardDiagnosis: builder.mutation<MedCard, MedCardArgs & { diagnosis: string }>({
 			query: ({ doctorId, patientId, diagnosis }) => ({
 				url: `/med/card/${encodeURIComponent(doctorId)}/${encodeURIComponent(patientId)}`,

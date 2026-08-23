@@ -18,7 +18,10 @@ const SEGMENT_LABELS: Record<string, string> = {
   SPS: "Папиллярная структура",
   SNM: "Скопление без метастаза",
   STM: "Скопление с метастазом",
-  PFS: "Парафолликулярная структура",
+  // PFS («Парафолликулярная структура») намеренно отсутствует: этого кода нет
+  // в enum `seg_type` Go-шлюза, и запрос `/cytology/{id}/segments?seg_type=PFS`
+  // отклоняется с 400 ещё на декодировании. Список используется только в
+  // go-режиме, поэтому держим его строго по спеке composition-api.
 };
 
 const SEGMENT_CODES = Object.keys(SEGMENT_LABELS);

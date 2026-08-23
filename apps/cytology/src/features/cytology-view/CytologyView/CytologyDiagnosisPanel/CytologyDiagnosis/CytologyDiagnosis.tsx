@@ -13,6 +13,8 @@ import {
 import { useAppSelector } from "@cytology/core/hooks";
 import { ModalContext } from "@medml/ui";
 
+import { CYTOLOGY_EDITING_ENABLED } from "@/lib/cytologyFeatures";
+
 import CytologyInfo from "./CytologyInfo/CytologyInfo";
 
 import "./CytologyDiagnosis.css";
@@ -79,25 +81,27 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({
                     <HistoryOutlined />
                 </Flex>
             </Button>
-            <Tooltip
-                title={
-                    !isLastRevision
-                        ? "Для редактирования необходимо перейти на последнюю ревизию"
-                        : undefined
-                }
-            >
-                <Button
-                    className="cytology-diagnosis-edit"
-                    type="primary"
-                    onClick={openEdit}
-                    disabled={!isLastRevision}
+            {CYTOLOGY_EDITING_ENABLED && (
+                <Tooltip
+                    title={
+                        !isLastRevision
+                            ? "Для редактирования необходимо перейти на последнюю ревизию"
+                            : undefined
+                    }
                 >
-                    <Flex gap={10} align="center">
-                        <Text className="text-inherit">Редактировать</Text>
-                        <EditOutlined />
-                    </Flex>
-                </Button>
-            </Tooltip>
+                    <Button
+                        className="cytology-diagnosis-edit"
+                        type="primary"
+                        onClick={openEdit}
+                        disabled={!isLastRevision}
+                    >
+                        <Flex gap={10} align="center">
+                            <Text className="text-inherit">Редактировать</Text>
+                            <EditOutlined />
+                        </Flex>
+                    </Button>
+                </Tooltip>
+            )}
         </Flex>
     );
 };

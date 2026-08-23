@@ -96,12 +96,24 @@ export type CytologyInfoResponse = {
 	image?: string
 	info?: {
 		id?: string | number
-		patient_card?: string | number
+		patient?: CytologyPatientDto
+		patient_card?: string
 		diagnosis?: string
+		is_last?: boolean
 		calcitonin?: number
 		calcitonin_in_flush?: number
 		thyroglobulin?: number
 	}
+}
+
+export type CytologyPatientDto = {
+	id?: string
+	fullname?: string
+	email?: string
+	policy?: string
+	active?: boolean
+	malignancy?: boolean
+	birth_date?: string
 }
 
 type CytologyInfoRawResponse = {
@@ -111,23 +123,15 @@ type CytologyInfoRawResponse = {
 		file_path?: string
 	}
 	info?: {
-		/**
-		 * Карта пациента с числовым `id`.
-		 *
-		 * Только в Go-шлюзе; у Django этот идентификатор лежал внутри
-		 * `image_group.patient_card`. Единственное место во всём API шлюза,
-		 * где числовой id карты вообще виден снаружи.
-		 */
-		patient_card?: {
-			id?: number
-			diagnosis?: string
-		}
+		patient?: CytologyPatientDto
+		patient_card?: string
 		image_group?: {
 			id?: string | number
 			diagnostic_marking?: string
 			diagnostic_number?: string | number
 			diagnos_date?: string
 			material_type?: string
+			is_last?: boolean
 			details?: {
 				probs?: number[]
 			}
@@ -366,8 +370,11 @@ export const cytologyApi = baseApi.injectEndpoints({
 					image: original?.image ?? original?.file_path,
 					info: {
 						id: group?.id,
-						patient_card: raw.info?.patient_card?.id ?? group?.patient_card,
+						patient: raw.info?.patient,
+						patient_card:
+							raw.info?.patient_card ?? (group?.patient_card == null ? undefined : String(group.patient_card)),
 						diagnosis: group?.diagnosis,
+						is_last: group?.is_last,
 						calcitonin: group?.calcitonin,
 						calcitonin_in_flush: group?.calcitonin_in_flush,
 						thyroglobulin: group?.thyroglobulin,
@@ -452,12 +459,6 @@ export const cytologyApi = baseApi.injectEndpoints({
 			query: id => cytologyRoutes.history(id),
 			providesTags: (_result, _error, id) => [{ type: 'Cytology', id: `history:${id}` }],
 		}),
-		/**
-		 * Статус обработки снимка.
-		 *
-		 * В Go-шлюзе ручки нет; чтобы опрос не сыпал 404, отдаём `ready` —
-		 * ждать всё равно нечего.
-		 */
 		getProcessingStatus: builder.query<CytologyProcessingStatusResponse, string>({
 			async queryFn(id, api, extraOptions, baseQuery) {
 				if (goMissingEndpoints.processingStatus()) {
