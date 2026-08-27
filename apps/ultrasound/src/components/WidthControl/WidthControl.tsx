@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import "./WidthControl.css";
+import "./WidthControl.scss";
 
 interface WidthControlProps {
   children: ReactNode;

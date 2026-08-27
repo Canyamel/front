@@ -13,7 +13,8 @@
     "@annotorious/react": "^3.0.20",
     "@medml/shared": "*",
     "@ant-design/icons": "^6.0.0",
-    "antd": "^5.27.0"
+    "antd": "^5.27.0",
+    "openseadragon": "^4.1.1"
   },
   "peerDependencies": {
     "react": "^18.0.0",
@@ -22,7 +23,8 @@
   "devDependencies": {
     "typescript": "^5.0.0",
     "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0"
+    "@types/react-dom": "^18.0.0",
+    "@types/openseadragon": "^5.0.2"
   }
 }
 

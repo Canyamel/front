@@ -1,16 +1,15 @@
-"use client";
+'use client'
 
-import "./Footer.scss";
+import './Footer.scss'
 
 const Footer = () => {
-    return (
-        <footer className="footer">
-            <span className="text-secondary-footer">
-                © 2025 Второе мнение. Медицинская AI-платформа
-            </span>
-        </footer>
-    );
-};
+	const currentYear = new Date().getFullYear()
 
-export default Footer;
+	return (
+		<footer className='footer'>
+			<span className='text-secondary-footer'>© {currentYear} Второе мнение. Медицинская AI-платформа</span>
+		</footer>
+	)
+}
 
+export default Footer

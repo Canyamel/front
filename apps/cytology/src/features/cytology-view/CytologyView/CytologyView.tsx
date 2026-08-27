@@ -1,219 +1,194 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Tag, Typography } from "antd";
-import { skipToken } from "@reduxjs/toolkit/query";
+import React, { useEffect, useMemo, useState } from 'react'
+import { Card, Col, Row, Typography, theme } from 'antd'
+import { skipToken } from '@reduxjs/toolkit/query'
 
-import { useAppDispatch, useAppSelector } from "@cytology/core/hooks";
-import {
-    setCytologyId,
-    setCytologyInfo,
-    setEditedCytologyInfo,
-    setCurrentSegment,
-    setInitSegments,
-    setSegmentsStack,
-} from "@cytology/core/store";
-import {
-    useGetCytologyInfoQuery,
-    useGetCytologyTypesQuery,
-    useLazyGetCytologySegmentsByTypeQuery,
-} from "@cytology/core/service/cytology";
-import { Modes } from "@cytology/core/types/basic";
+import { StudyPatientCard } from '@medml/patient_view'
+import { getSurfaceCardStyle } from '@medml/ui'
 
-import CytologyInfo from "./CytologyDiagnosisPanel/CytologyDiagnosis/CytologyInfo/CytologyInfo";
-import CytologyDiagnosisPanel from "./CytologyDiagnosisPanel/CytologyDiagnosisPanel";
-import CytologyViewer from "./CytologyViewer/CytologyViewer";
+import { useAppDispatch, useAppSelector } from '@cytology/core/hooks'
 import {
-    IGroupedSegments,
-    ISegmentStack,
-    ISegmentType,
-    SegmentType,
-} from "@cytology/core/types/segments";
+	setCytologyId,
+	setCytologyInfo,
+	setEditedCytologyInfo,
+	setInitSegments,
+	setSegmentsStack,
+} from '@cytology/core/store'
+import {
+	useGetCytologyInfoQuery,
+	useGetCytologyTypesQuery,
+	useLazyGetCytologySegmentsByTypeQuery,
+} from '@cytology/core/service/cytology'
+import { Modes } from '@cytology/core/types/basic'
 
-import "./CytologyView.css";
+import CytologyDiagnosisPanel from './CytologyDiagnosisPanel/CytologyDiagnosisPanel'
+import CytologyViewer from './CytologyViewer/CytologyViewer'
+import { IGroupedSegments, ISegmentStack, ISegmentType, SegmentType } from '@cytology/core/types/segments'
+
+import './CytologyView.css'
+
+const { Title, Text } = Typography
 
 interface CytologyViewProps {
-    generalCytologyId: string;
+	generalCytologyId: string
 }
 
 const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
-    const dispatch = useAppDispatch();
-    const accessToken = useAppSelector((state) => state.auth.accessToken);
-    const currentSegment = useAppSelector((state) => state.segment.currentSegment);
-    const segmentStack: ISegmentStack[] = useAppSelector((state) => state.segment.segmentStack);
+	const dispatch = useAppDispatch()
+	const accessToken = useAppSelector(state => state.auth.accessToken)
+	const currentSegment = useAppSelector(state => state.segment.currentSegment)
+	const segmentStack: ISegmentStack[] = useAppSelector(state => state.segment.segmentStack)
 
-    const [mode, setMode] = useState<Modes>("view");
-    const [viewSegments, setViewSegments] = useState<ISegmentStack[]>([]);
+	const [mode, setMode] = useState<Modes>('view')
+	const [viewSegments, setViewSegments] = useState<ISegmentStack[]>([])
 
-    const { data: cytologyInfoData } = useGetCytologyInfoQuery(
-        !!accessToken ? generalCytologyId : skipToken
-    );
+	const { token } = theme.useToken()
+	const cardStyle = getSurfaceCardStyle(token)
 
-    const { data: segmentTypesData } = useGetCytologyTypesQuery(
-        !!accessToken ? generalCytologyId : skipToken
-    );
+	const { data: cytologyInfoData } = useGetCytologyInfoQuery(!!accessToken ? generalCytologyId : skipToken)
 
-    const [getSegmentsByType] = useLazyGetCytologySegmentsByTypeQuery();
+	const { data: segmentTypesData } = useGetCytologyTypesQuery(!!accessToken ? generalCytologyId : skipToken)
 
-    useEffect(() => {
-        dispatch(setCytologyId(generalCytologyId));
-        setMode("view");
-        dispatch(setCurrentSegment(null));
-        dispatch(setEditedCytologyInfo(null));
-        dispatch(setInitSegments([]));
-        dispatch(setSegmentsStack([]));
-        setViewSegments([]);
-    }, [dispatch, generalCytologyId]);
+	const [getSegmentsByType] = useLazyGetCytologySegmentsByTypeQuery()
 
-    useEffect(() => {
-        if (cytologyInfoData && mode === "view") {
-            dispatch(setCytologyInfo(cytologyInfoData.info));
-            dispatch(setEditedCytologyInfo(null));
-        }
-    }, [cytologyInfoData, dispatch, mode]);
+	const patient = cytologyInfoData?.info?.patient
 
-    useEffect(() => {
-        if (mode !== "view") {
-            return;
-        }
+	const patientFullName = useMemo(
+		() =>
+			[patient?.last_name, patient?.first_name, patient?.fathers_name].filter(part => part && part.trim()).join(' '),
+		[patient?.last_name, patient?.first_name, patient?.fathers_name],
+	)
 
-        if (!accessToken || !segmentTypesData) {
-            dispatch(setInitSegments([]));
-            dispatch(setSegmentsStack([]));
-            return;
-        }
+	const markingLabel = useMemo(() => {
+		const marking = cytologyInfoData?.info?.diagnostic_marking?.trim()
+		const number = cytologyInfoData?.info?.diagnostic_number
+		if (!marking && !number) return '—'
+		return [marking, number].filter(part => part != null && part !== '').join('-')
+	}, [cytologyInfoData?.info?.diagnostic_marking, cytologyInfoData?.info?.diagnostic_number])
 
-        const loadAllSegments = async () => {
-            const grouped: IGroupedSegments[] = [];
+	useEffect(() => {
+		dispatch(setCytologyId(generalCytologyId))
+	}, [dispatch, generalCytologyId])
 
-            for (const type of segmentTypesData as ISegmentType[]) {
-                const segType = type.code as SegmentType;
+	useEffect(() => {
+		if (cytologyInfoData && mode === 'view') {
+			dispatch(setCytologyInfo(cytologyInfoData.info))
+			dispatch(setEditedCytologyInfo(null))
+		}
+	}, [cytologyInfoData, dispatch, mode])
 
-                try {
-                    const segments = await getSegmentsByType({
-                        id: generalCytologyId,
-                        segType,
-                    }).unwrap();
+	useEffect(() => {
+		if (mode !== 'view') {
+			return
+		}
 
-                    if (!segments.length) continue;
+		if (!accessToken || !segmentTypesData) {
+			dispatch(setInitSegments([]))
+			dispatch(setSegmentsStack([]))
+			return
+		}
 
-                    grouped.push({
-                        seg_type: segType,
-                        segments,
-                    });
-                } catch {
-                    // ignore failed type load
-                }
-            }
+		const loadAllSegments = async () => {
+			const grouped: IGroupedSegments[] = []
 
-            dispatch(setInitSegments(grouped));
-            dispatch(setSegmentsStack(grouped));
-        };
+			for (const type of segmentTypesData as ISegmentType[]) {
+				const segType = type.code as SegmentType
 
-        loadAllSegments();
-    }, [dispatch, mode, accessToken, segmentTypesData, generalCytologyId, getSegmentsByType]);
+				try {
+					const segments = await getSegmentsByType({
+						id: generalCytologyId,
+						segType,
+					}).unwrap()
 
-    useEffect(() => {
-        if (mode !== "view") {
-            return;
-        }
+					if (!segments.length) continue
 
-        if (!accessToken || !currentSegment) {
-            setViewSegments([]);
-            return;
-        }
+					grouped.push({
+						seg_type: segType,
+						segments,
+					})
+				} catch {
+					// ignore failed type load
+				}
+			}
 
-        getSegmentsByType({ id: generalCytologyId, segType: currentSegment as SegmentType })
-            .unwrap()
-            .then((segments) => {
-                setViewSegments(segments);
-            })
-            .catch(() => {
-                setViewSegments([]);
-            });
-    }, [mode, accessToken, currentSegment, generalCytologyId, getSegmentsByType]);
+			dispatch(setInitSegments(grouped))
+			dispatch(setSegmentsStack(grouped))
+		}
 
-    const segmentTypeColors = useMemo(() => {
-        if (!segmentTypesData?.length) {
-            return {};
-        }
-        return Object.fromEntries(
-            (segmentTypesData as ISegmentType[]).map((type) => [type.code, type.color])
-        );
-    }, [segmentTypesData]);
+		loadAllSegments()
+	}, [dispatch, mode, accessToken, segmentTypesData, generalCytologyId, getSegmentsByType])
 
-    const studyTitle = useMemo(() => {
-        const info = cytologyInfoData?.info;
-        if (!info) {
-            return null;
-        }
-        return `${info.diagnostic_marking}-${info.diagnostic_number}`;
-    }, [cytologyInfoData?.info]);
+	useEffect(() => {
+		if (mode !== 'view') {
+			return
+		}
 
-    const studyDate = useMemo(() => {
-        const date = cytologyInfoData?.info?.diagnos_date;
-        if (!date) {
-            return null;
-        }
-        const parsed = new Date(date);
-        return Number.isNaN(parsed.getTime())
-            ? date
-            : parsed.toLocaleDateString("ru-RU", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-              });
-    }, [cytologyInfoData?.info?.diagnos_date]);
+		if (!accessToken || !currentSegment) {
+			setViewSegments([])
+			return
+		}
 
-    return (
-        <div className="cytology-view-page">
-            <section className="cytology-view-surface cytology-summary-card">
-                <div className="cytology-summary-card__header">
-                    <div>
-                        <Typography.Title level={3} className="cytology-summary-card__title">
-                            {studyTitle ? `Исследование ${studyTitle}` : "Просмотр исследования"}
-                        </Typography.Title>
-                        {studyDate ? (
-                            <Typography.Text type="secondary" className="cytology-summary-card__meta">
-                                от {studyDate}
-                            </Typography.Text>
-                        ) : null}
-                    </div>
-                    {mode === "edit" ? <Tag color="processing">Режим редактирования</Tag> : null}
-                </div>
-                <CytologyInfo layout="banner" />
-            </section>
+		getSegmentsByType({ id: generalCytologyId, segType: currentSegment as SegmentType })
+			.unwrap()
+			.then(segments => {
+				setViewSegments(segments)
+			})
+			.catch(() => {
+				setViewSegments([])
+			})
+	}, [mode, accessToken, currentSegment, generalCytologyId, getSegmentsByType])
 
-            <div className="cytology-view-workspace">
-                <div className="cytology-view-main">
-                    <div className="cytology-view-surface cytology-viewer-surface">
-                        <CytologyViewer
-                            isEditMode={mode === "edit"}
-                            segments={
-                                mode === "edit"
-                                    ? (segmentStack ?? []).flatMap((item) =>
-                                          item.seg_type === currentSegment ? item.segments : []
-                                      )
-                                    : viewSegments
-                            }
-                            segmentTypeColors={segmentTypeColors}
-                            imageUrl={cytologyInfoData?.original_image.image}
-                        />
-                    </div>
-                </div>
+	return (
+		<>
+			<Card style={cardStyle} styles={{ body: { padding: 12 } }}>
+				<Title level={5} style={{ marginBottom: 2 }}>
+					Обзор исследования
+				</Title>
+				<Text type='secondary' style={{ fontSize: 12 }}>
+					Сводка по пациенту и диагностике
+				</Text>
 
-                <aside className="cytology-view-sidebar cytology-diagnosis">
-                    <div className="cytology-view-surface cytology-sidebar-surface">
-                        <div className="cytology-sidebar-body">
-                            <CytologyDiagnosisPanel
-                                mode={mode}
-                                segments={segmentStack}
-                                changeMode={setMode}
-                            />
-                        </div>
-                    </div>
-                </aside>
-            </div>
-        </div>
-    );
-};
+				<Row gutter={[12, 12]} style={{ marginTop: 8 }} align='stretch'>
+					<Col xs={24} xl={12}>
+						<StudyPatientCard
+							fullName={patientFullName}
+							policyNumber={patient?.personal_policy}
+							studyDate={cytologyInfoData?.info?.diagnos_date}
+						/>
+					</Col>
+					<Col xs={24} xl={12}>
+						<Card
+							title='Диагностика'
+							size='small'
+							style={{ ...cardStyle, height: '100%' }}
+							styles={{ body: { padding: '8px 12px' } }}
+						>
+							<Text type='secondary'>Маркировка</Text>
+							<div>
+								<Text strong>{markingLabel}</Text>
+							</div>
+						</Card>
+					</Col>
+				</Row>
+			</Card>
 
-export default CytologyView;
+			<Row className='cytology-view' gutter={24} style={{ marginTop: 16 }}>
+				<Col span={16} className='cytology-viewer-wrapper'>
+					<CytologyViewer
+						isEditMode={mode === 'edit'}
+						segments={
+							mode === 'edit'
+								? (segmentStack ?? []).flatMap(item => (item.seg_type === currentSegment ? item.segments : []))
+								: viewSegments
+						}
+						imageUrl={cytologyInfoData?.original_image.image}
+					/>
+				</Col>
+				<Col span={8} className='cytology-diagnosis'>
+					<CytologyDiagnosisPanel mode={mode} segments={segmentStack} changeMode={setMode} />
+				</Col>
+			</Row>
+		</>
+	)
+}
+
+export default CytologyView

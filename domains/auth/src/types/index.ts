@@ -1,9 +1,15 @@
+/**
+ * Поля соответствуют `MedWorkerRegistrationSerializer` на бэкенде
+ * (`medweb/medml/serializers.py`). Все они помечены там `required=True`,
+ * поэтому `fathers_name` и `med_organization` больше не опциональны:
+ * пустая строка отклоняется валидацией DRF (`allow_blank=False`).
+ */
 export interface RegisterPayload {
   email: string;
   last_name: string;
   first_name: string;
-  fathers_name?: string;
-  med_organization?: string;
+  fathers_name: string;
+  med_organization: string;
   password1: string;
   password2: string;
 }

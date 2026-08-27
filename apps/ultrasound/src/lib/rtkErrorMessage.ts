@@ -13,11 +13,6 @@ function messageFromData(data: unknown): string | null {
   return null;
 }
 
-export function isHttpNotFound(error: unknown): boolean {
-  const e = error as FetchBaseQueryError;
-  return typeof e.status === "number" && e.status === 404;
-}
-
 /**
  * Текст ошибки для UI. Бэкенд УЗИ отдаёт описание в `message` в теле ответа.
  */

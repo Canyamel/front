@@ -3,10 +3,11 @@ import { Navigate, type RouteObject } from "react-router-dom";
 import AppShell from "@/layouts/AppShell";
 import RequireAuth from "@/layouts/RequireAuth";
 import LoginRoute from "@/pages/LoginRoute";
+import RegisterRoute from "@/pages/RegisterRoute";
 import PatientsRoute from "@/pages/PatientsRoute";
-import PlaceholderRoute from "@/pages/PlaceholderRoute";
 import UploadPhotoRoute from "@/pages/UploadPhotoRoute";
 import PatientProfileRoute from "@/pages/PatientProfileRoute";
+import DoctorProfileEditRoute from "@/pages/DoctorProfileEditRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
 import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
@@ -23,7 +24,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "auth/register",
-        element: <PlaceholderRoute title="Регистрация" />,
+        element: <RegisterRoute />,
       },
       {
         index: true,
@@ -50,6 +51,14 @@ const routes: RouteObject[] = [
         element: (
           <RequireAuth>
             <PatientsRoute />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "profile/edit",
+        element: (
+          <RequireAuth>
+            <DoctorProfileEditRoute />
           </RequireAuth>
         ),
       },

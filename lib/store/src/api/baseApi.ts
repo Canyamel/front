@@ -1,9 +1,4 @@
-import {
-	createApi,
-	fetchBaseQuery,
-	type BaseQueryFn,
-	type FetchArgs,
-} from '@reduxjs/toolkit/query/react'
+import { createApi, fetchBaseQuery, type BaseQueryFn, type FetchArgs } from '@reduxjs/toolkit/query/react'
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 
 import { prepareHeaders } from './headers'
@@ -12,8 +7,7 @@ import type { AuthState } from '../slices/authSlice'
 
 const getViteApiBaseUrl = (): string | undefined => {
 	try {
-		const env = (import.meta as { env?: Record<string, string | undefined> })
-			.env
+		const env = (import.meta as { env?: Record<string, string | undefined> }).env
 		const url = env?.VITE_BACKEND_BASE_URL ?? env?.VITE_API_BASE_URL
 		return typeof url === 'string' && url.length > 0 ? url : undefined
 	} catch {
@@ -27,9 +21,7 @@ const getBaseUrl = (): string => {
 
 	if (typeof process !== 'undefined' && process.env) {
 		if (typeof window === 'undefined') {
-			return (
-				process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
-			)
+			return process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 		}
 		return process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 	}
@@ -51,30 +43,29 @@ const getViteEnv = (): Record<string, string | undefined> | undefined => {
 	}
 }
 
-const getAuthRefreshPath = (): string =>
-	getViteEnv()?.VITE_AUTH_REFRESH_PATH ?? '/auth/token/refresh/'
+const getAuthRefreshPath = (): string => getViteEnv()?.VITE_AUTH_REFRESH_PATH ?? '/auth/token/refresh/'
 
-const refreshUsesTokenHeader = (): boolean =>
-	getViteEnv()?.VITE_AUTH_REFRESH_HEADER_TOKEN === 'true'
+const refreshUsesTokenHeader = (): boolean => getViteEnv()?.VITE_AUTH_REFRESH_HEADER_TOKEN === 'true'
 
 const rawBaseQuery = fetchBaseQuery({
 	baseUrl: getBaseUrl(),
 	prepareHeaders,
 })
 
-/** Не пытаться refresh по этим путям (иначе цикл). */
 const isAuthFreePath = (path: string): boolean =>
 	path.includes('/login') ||
 	path.includes('/refresh') ||
-	path.includes('/auth/register')
+	path.includes('/auth/register') ||
+	// Go-шлюз: регистрация врача и пациента.
+	path.includes('/reg/')
 
 let refreshSingleton: Promise<void> | null = null
 
-export const baseQueryWithReauth: BaseQueryFn<
-	string | FetchArgs,
-	unknown,
-	FetchBaseQueryError
-> = async (args, api, extraOptions) => {
+export const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+	args,
+	api,
+	extraOptions,
+) => {
 	let result = await rawBaseQuery(args, api, extraOptions)
 
 	if (result.error?.status !== 401) {
@@ -132,16 +123,7 @@ export const baseQueryWithReauth: BaseQueryFn<
 export const baseApi = createApi({
 	reducerPath: 'api',
 	baseQuery: baseQueryWithReauth,
-	tagTypes: [
-		'MedWorker',
-		'Patient',
-		'Cytology',
-		'Auth',
-		'Segments',
-		'Uzi',
-		'Billing',
-		'Subscription',
-	],
+	tagTypes: ['MedWorker', 'Patient', 'Cytology', 'Auth', 'Segments', 'Uzi', 'Billing', 'Subscription'],
 	endpoints: () => ({}),
 })
 

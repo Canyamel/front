@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 
 import { useAppSelector } from "@medml/store";
-import { DEFAULT_LOGIN_ROUTE } from "../../../../domains/auth/src/constants/routes";
+import { DEFAULT_LOGIN_ROUTE } from "@medml/auth";
 import { getAccessTokenSubject } from "@/lib/jwtSubject";
 
 export default function RequireAuth({ children }: { children: React.ReactNode }) {

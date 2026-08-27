@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { Layout } from 'antd';
 
 import { PatientListPanel, type PatientListPanelProps } from '../../components/PatientListPanel/PatientListPanel';
 import type { PatientListSort, PatientListSortOrder, PatientRow } from '../../types';
@@ -29,6 +28,7 @@ export type PatientsPageProps = {
 
   onAddPatient?: () => void;
   onOpenPatientCard?: (id: PatientRow['id']) => void;
+  /** @deprecated Не вызывается: в макете удаления из строки нет. */
   onDeletePatient?: (id: PatientRow['id']) => void;
 };
 
@@ -86,12 +86,9 @@ export default function PatientsPage({
     onDeletePatient,
   };
 
-  return (
-    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-      <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: '0 auto', width: '100%' }}>
-        <PatientListPanel {...panelProps} />
-      </Layout.Content>
-    </Layout>
-  );
+  // Ширину колонки и внешние отступы задаёт PageShell на стороне приложения —
+  // раньше страница сама навешивала Layout с maxWidth 1120, из-за чего не
+  // совпадала с сеткой макета (1280).
+  return <PatientListPanel {...panelProps} />;
 }
 

@@ -12,7 +12,7 @@ import { AuthErrorProvider } from "@medml/auth";
 import routes from "./routes";
 import SessionSync from "./providers/SessionSync";
 
-import "../../../lib/ui/src/styles/global.scss";
+import "@medml/ui/styles/global.scss";
 
 export default function App() {
   const element = useRoutes(routes);

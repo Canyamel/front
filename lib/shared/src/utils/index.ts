@@ -1,4 +1,5 @@
 export * from "./dateDisplay";
+export * from "./imageFiles";
 
 export const formatDate = (date: Date | string): string => {
   return new Date(date).toLocaleDateString();

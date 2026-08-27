@@ -21,5 +21,3 @@ export function getApiBackendVariant(): ApiBackendVariant {
 
 export const isThyroidBackend = (): boolean =>
   getApiBackendVariant() === "thyroid";
-
-export const isMedBackend = (): boolean => getApiBackendVariant() === "med";

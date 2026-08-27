@@ -1,62 +1,31 @@
-import { useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import {
-  AuthApiProvider,
-  LoginPage,
-  AuthLayoutSpa,
-  DEFAULT_POST_AUTH_PATH,
-  sanitizeInternalPath,
-  type IAuthApi,
-} from "@medml/auth";
-import {
-  setToken,
-  setRefreshToken as setRefreshTokenState,
-  unwrapMutation,
-  useAppDispatch,
-} from "@medml/store";
+	AuthApiProvider,
+	AuthLayoutSpa,
+	DEFAULT_POST_AUTH_PATH,
+	LoginPage,
+	sanitizeInternalPath,
+} from '@medml/auth'
 
-import { useLoginMutation } from "@/api/authApi";
-import { setAuthToken, setRefreshToken } from "@/lib/tokenStorage";
+import { useUltrasoundAuthApi } from '@/lib/authApiAdapter'
 
 export default function LoginRoute() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const dispatch = useAppDispatch();
-  const [loginMutation] = useLoginMutation();
-  const loginWithUnwrap = unwrapMutation(loginMutation);
+	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
+	const authApi = useUltrasoundAuthApi()
 
-  const stubAuthApi: IAuthApi = useMemo(
-    () => ({
-      login: async (payload) => {
-        const data = await loginWithUnwrap(payload);
-        dispatch(setToken(data.accessToken));
-        dispatch(setRefreshTokenState(data.refreshToken));
-        setAuthToken(data.accessToken);
-        setRefreshToken(data.refreshToken);
-        return data;
-      },
-      register: async () => {
-        throw new Error("Регистрация для этого приложения не подключена");
-      },
-    }),
-    [loginWithUnwrap, dispatch]
-  );
+	const handleSuccess = () => {
+		const raw = searchParams.get('callbackUrl')
+		const target = sanitizeInternalPath(raw) ?? DEFAULT_POST_AUTH_PATH
+		navigate(target, { replace: true })
+	}
 
-  const handleSuccess = () => {
-    const raw = searchParams.get("callbackUrl");
-    const target = sanitizeInternalPath(raw) ?? DEFAULT_POST_AUTH_PATH;
-    navigate(target, { replace: true });
-  };
-
-  return (
-    <AuthApiProvider api={stubAuthApi}>
-      <AuthLayoutSpa>
-        <LoginPage
-          onSuccess={handleSuccess}
-          callbackUrl={searchParams.get("callbackUrl")}
-        />
-      </AuthLayoutSpa>
-    </AuthApiProvider>
-  );
+	return (
+		<AuthApiProvider api={authApi}>
+			<AuthLayoutSpa>
+				<LoginPage onSuccess={handleSuccess} callbackUrl={searchParams.get('callbackUrl')} />
+			</AuthLayoutSpa>
+		</AuthApiProvider>
+	)
 }

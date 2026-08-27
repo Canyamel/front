@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { DEFAULT_LOGIN_ROUTE } from "../../../../domains/auth/src/constants/routes";
+import { DEFAULT_LOGIN_ROUTE } from "@medml/auth";
 import {
   setToken,
   setRefreshToken as setRefreshTokenState,

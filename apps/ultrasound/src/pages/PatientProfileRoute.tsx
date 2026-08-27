@@ -1,256 +1,240 @@
-import * as React from "react";
-import { CheckCircleOutlined } from "@ant-design/icons";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Button, Card, Layout, Space, Table, Tag, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import * as React from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Button, Card, Space, Table, Typography, message } from 'antd'
 
-import { PatientProfileView } from "@medml/patient_view";
+import dayjs from 'dayjs'
+
+import { PatientProfileView } from '@medml/patient_view'
+import { PageShell } from '@medml/layout'
+import {
+	PatientEditModal,
+	stripPolicyDigits,
+	type PatientCreateValuesUzi,
+} from '@medml/patient_create'
+
+import { useUpdateUziPatientWithCardMutation } from '@/api/patientsApi'
 
 import {
-  useGetMedPatientByIdQuery,
-  useGetMedPatientCardQuery,
-  useGetPatientUziStudiesQuery,
-  uziStudyStatusTagColor,
-  type PatientUziStudyRow,
-} from "@/api/patientProfileApi";
-import { useGetUziDevicesQuery } from "@/api/uziApi";
-import { useDoctorId } from "@/api/hooks/useDoctorId";
+	useGetMedPatientByIdQuery,
+	useGetMedPatientCardQuery,
+	useGetPatientUziStudiesQuery,
+	type PatientUziStudyRow,
+} from '@/api/patientProfileApi'
+import { useGetUziDevicesQuery } from '@/api/uziApi'
+import { useDoctorId } from '@/api/hooks/useDoctorId'
+import { useUziStudyColumns } from './patientProfile/uziStudyColumns'
 
-function useUziTableColumns(deviceMap: Map<string, string>): ColumnsType<PatientUziStudyRow> {
-  return React.useMemo(
-    () => [
-      {
-        title: "Дата",
-        dataIndex: "createdAtLabel",
-        key: "createdAtLabel",
-        width: "14%",
-        ellipsis: { showTitle: true },
-      },
-      {
-        title: "Статус",
-        key: "status",
-        width: "16%",
-        render: (_: unknown, row: PatientUziStudyRow) => (
-          <Tag color={uziStudyStatusTagColor(row.statusRaw)} style={{ margin: 0 }}>
-            {row.statusLabel}
-          </Tag>
-        ),
-      },
-      {
-        title: "Проекция",
-        dataIndex: "projectionLabel",
-        key: "projectionLabel",
-        width: "16%",
-        ellipsis: { showTitle: true },
-      },
-      {
-        title: "Проверен",
-        key: "checkedLabel",
-        width: "16%",
-        align: "center" as const,
-        render: (_: unknown, row: PatientUziStudyRow) => {
-          const t = row.checkedLabel;
-          if (t === "—" || !t) {
-            return (
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                —
-              </Typography.Text>
-            );
-          }
-          if (t === "Да") {
-            return (
-              <Tag color="success" icon={<CheckCircleOutlined />} style={{ margin: 0 }}>
-                Да
-              </Tag>
-            );
-          }
-          return (
-            <Tag color="default" style={{ margin: 0 }}>
-              Нет
-            </Tag>
-          );
-        },
-      },
-      {
-        title: "Аппарат",
-        key: "device",
-        width: "28%",
-        ellipsis: { showTitle: true },
-        render: (_: unknown, row: PatientUziStudyRow) => {
-          if (!row.deviceIdRaw) {
-            return (
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                —
-              </Typography.Text>
-            );
-          }
-          const name = deviceMap.get(row.deviceIdRaw);
-          const text = name ?? `№ ${row.deviceIdRaw}`;
-          return <Typography.Text ellipsis={{ tooltip: text }}>{text}</Typography.Text>;
-        },
-      },
-      {
-        title: "",
-        key: "open",
-        width: "16%",
-        align: "center" as const,
-        render: (_: unknown, row: PatientUziStudyRow) => {
-          if (!row.key) {
-            return (
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                —
-              </Typography.Text>
-            );
-          }
-          return (
-            <Link
-              to={`/uzi_view/${encodeURIComponent(row.key)}`}
-              style={{ color: "var(--ant-color-link, #1677ff)" }}
-            >
-              Открыть
-            </Link>
-          );
-        },
-      },
-    ],
-    [deviceMap]
-  );
+// Карточка: радиус, тень и бордер приходят из темы antd (токены дизайн-системы).
+const cardStyle: React.CSSProperties = { width: '100%' }
+
+/** Загрузка карточки пациента и его снимков + состояние пагинации таблицы. */
+function usePatientProfileData(patientId: string) {
+	const { doctorId, status } = useDoctorId()
+	const authed = status === 'authenticated'
+
+	const [uziPage, setUziPage] = React.useState(1)
+	const [uziPageSize, setUziPageSize] = React.useState(10)
+
+	React.useEffect(() => {
+		setUziPage(1)
+	}, [patientId])
+
+	const { data: devices = [] } = useGetUziDevicesQuery(undefined, { skip: !authed })
+
+	const deviceMap = React.useMemo(
+		() => new Map(devices.map(d => [String(d.id), d.name])),
+		[devices],
+	)
+
+	const {
+		data: patientApi,
+		isLoading: patientLoading,
+		isError: patientError,
+	} = useGetMedPatientByIdQuery(patientId, { skip: !patientId || !authed })
+
+	const { data: cardApi } = useGetMedPatientCardQuery(
+		{ doctorId, patientId },
+		{ skip: !doctorId || !patientId || !authed },
+	)
+
+	const { data: uziRows = [], isFetching: uziLoading } = useGetPatientUziStudiesQuery(
+		patientId,
+		{ skip: !patientId || !authed },
+	)
+
+	const patient = React.useMemo(() => {
+		if (!patientApi) return null
+		return {
+			...patientApi,
+			diagnosis: cardApi?.diagnosis ?? patientApi.diagnosis ?? '',
+		}
+	}, [patientApi, cardApi])
+
+	const uziPagination = React.useMemo(
+		() => ({
+			current: uziPage,
+			pageSize: uziPageSize,
+			total: uziRows.length,
+			showSizeChanger: true,
+			pageSizeOptions: [10, 20, 50],
+			showTotal: (total: number, range: [number, number]) =>
+				total <= 0 ? '0 снимков' : `${range[0]}–${range[1]} из ${total} снимков`,
+			onChange: (page: number, size?: number) => {
+				const nextSize = size ?? uziPageSize
+				if (nextSize !== uziPageSize) {
+					setUziPageSize(nextSize)
+					setUziPage(1)
+				} else {
+					setUziPage(page)
+				}
+			},
+		}),
+		[uziPage, uziPageSize, uziRows.length],
+	)
+
+	return {
+		patient,
+		// id карточки нужен для редактирования (PUT /patient/update/{cardId}/)
+		cardId: cardApi?.cardId ?? null,
+		patientError,
+		patientLoading,
+		loading: (authed && !doctorId) || patientLoading,
+		deviceMap,
+		uziRows,
+		uziLoading,
+		uziPagination,
+	}
 }
 
 export default function PatientProfileRoute() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const patientId = searchParams.get("id")?.trim() ?? "";
-  const { doctorId, status } = useDoctorId();
+	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
+	const patientId = searchParams.get('id')?.trim() ?? ''
 
-  const [uziPage, setUziPage] = React.useState(1);
-  const [uziPageSize, setUziPageSize] = React.useState(10);
+	const {
+		patient,
+		cardId,
+		patientError,
+		patientLoading,
+		loading,
+		deviceMap,
+		uziRows,
+		uziLoading,
+		uziPagination,
+	} = usePatientProfileData(patientId)
 
-  const { data: devices = [] } = useGetUziDevicesQuery(undefined, {
-    skip: status !== "authenticated",
-  });
+	const [editOpen, setEditOpen] = React.useState(false)
+	const [updatePatient, { isLoading: isSaving }] =
+		useUpdateUziPatientWithCardMutation()
 
-  const deviceMap = React.useMemo(() => {
-    const m = new Map<string, string>();
-    for (const d of devices) {
-      m.set(String(d.id), d.name);
-    }
-    return m;
-  }, [devices]);
+	const handleEditFinish = async (values: PatientCreateValuesUzi) => {
+		if (!cardId) {
+			message.error('Не удалось определить карту пациента')
+			return
+		}
+		try {
+			await updatePatient({
+				cardId,
+				patientId,
+				surname: values.surname.trim(),
+				name: values.name.trim(),
+				patronymic: values.patronymic.trim(),
+				email: values.email.trim(),
+				policy: stripPolicyDigits(values.policy),
+				birth_date: dayjs(values.birthDate).format('YYYY-MM-DD'),
+				active: values.active,
+				malignancy: values.malignancy,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
+			message.success('Данные пациента обновлены')
+			setEditOpen(false)
+		} catch (error: any) {
+			console.error('Error updating patient:', error)
+			message.error(error?.data?.detail || 'Не удалось сохранить изменения')
+		}
+	}
 
-  const uziColumns = useUziTableColumns(deviceMap);
+	const uziColumns = useUziStudyColumns(deviceMap)
 
-  React.useEffect(() => {
-    setUziPage(1);
-  }, [patientId]);
+	const renderBody = () => {
+		if (!patientId) {
+			return (
+				<Typography.Text type='danger'>
+					Не указан идентификатор пациента (?id=)
+				</Typography.Text>
+			)
+		}
 
-  const {
-    data: patientApi,
-    isLoading: patientLoading,
-    isError: patientError,
-  } = useGetMedPatientByIdQuery(patientId, {
-    skip: !patientId || status !== "authenticated",
-  });
+		if (patientError && !patientLoading) {
+			return (
+				<Typography.Text type='danger'>
+					Не удалось загрузить данные пациента. Проверьте, что бэкенд запущен и вы
+					авторизованы.
+				</Typography.Text>
+			)
+		}
 
-  const { data: cardApi } = useGetMedPatientCardQuery(
-    { doctorId, patientId },
-    { skip: !doctorId || !patientId || status !== "authenticated" }
-  );
+		return (
+			<PatientProfileView
+				patient={patient}
+				loading={loading}
+				onBack={() => navigate('/patients')}
+				backLabel='Пациенты'
+				actions={
+					<Button onClick={() => setEditOpen(true)} disabled={!cardId}>
+						Редактировать
+					</Button>
+				}
+			>
+				<Space direction='vertical' size={16} style={{ width: '100%' }}>
+					<Card
+						styles={{ body: { padding: '16px 24px 24px' } }}
+						title='Снимки'
+						style={cardStyle}
+						extra={
+							<Button
+								type='primary'
+								disabled={!patientId}
+								onClick={() =>
+									navigate(`/upload_photo?patientId=${encodeURIComponent(patientId)}`)
+								}
+							>
+								Добавить
+							</Button>
+						}
+					>
+						<Table<PatientUziStudyRow>
+							rowKey='key'
+							size='middle'
+							tableLayout='fixed'
+							style={{ width: '100%' }}
+							columns={uziColumns}
+							dataSource={uziRows}
+							loading={uziLoading}
+							pagination={uziPagination}
+							locale={{ emptyText: 'Нет снимков' }}
+							// Шесть колонок не помещаются на планшете и телефоне —
+							// уводим в горизонтальный скролл вместо распирания страницы.
+							scroll={{ x: 720 }}
+						/>
+					</Card>
+				</Space>
+			</PatientProfileView>
+		)
+	}
 
-  const { data: uziRows = [], isFetching: uziLoading } = useGetPatientUziStudiesQuery(patientId, {
-    skip: !patientId || status !== "authenticated",
-  });
+	return (
+		<PageShell>
+			{renderBody()}
 
-  const patient = React.useMemo(() => {
-    if (!patientApi) return null;
-    return {
-      ...patientApi,
-      diagnosis: cardApi?.diagnosis ?? patientApi.diagnosis ?? "",
-    };
-  }, [patientApi, cardApi]);
-
-  const loading = (status === "authenticated" && !doctorId) || patientLoading;
-
-  const missingId = !patientId;
-
-  const uziPagination = React.useMemo(
-    () => ({
-      current: uziPage,
-      pageSize: uziPageSize,
-      total: uziRows.length,
-      showSizeChanger: true,
-      pageSizeOptions: [10, 20, 50],
-      showTotal: (total: number, range: [number, number]) =>
-        total <= 0 ? "0 снимков" : `${range[0]}–${range[1]} из ${total} снимков`,
-      onChange: (page: number, size?: number) => {
-        const nextSize = size ?? uziPageSize;
-        if (nextSize !== uziPageSize) {
-          setUziPageSize(nextSize);
-          setUziPage(1);
-        } else {
-          setUziPage(page);
-        }
-      },
-    }),
-    [uziPage, uziPageSize, uziRows.length]
-  );
-
-  return (
-    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
-      <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: "0 auto", width: "100%" }}>
-        {missingId ? (
-          <Typography.Text type="danger">Не указан идентификатор пациента (?id=)</Typography.Text>
-        ) : patientError && !patientLoading ? (
-          <Typography.Text type="danger">
-            Не удалось загрузить данные пациента. Проверьте, что бэкенд запущен и вы авторизованы.
-          </Typography.Text>
-        ) : (
-          <PatientProfileView
-            patient={patient}
-            loading={loading}
-            onBack={() => navigate("/patients")}
-            backLabel="Пациенты"
-          >
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <Card
-                styles={{
-                  body: { padding: "16px 24px 24px" },
-                }}
-                title="Снимки"
-                extra={
-                  <Button
-                    type="primary"
-                    disabled={!patientId}
-                    onClick={() =>
-                      navigate(`/upload_photo?patientId=${encodeURIComponent(patientId)}`)
-                    }
-                  >
-                    Добавить
-                  </Button>
-                }
-                style={{
-                  borderRadius: 12,
-                  width: "100%",
-                  border: "1px solid rgba(0,0,0,0.06)",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              >
-                <Table<PatientUziStudyRow>
-                  rowKey="key"
-                  size="middle"
-                  tableLayout="fixed"
-                  style={{ width: "100%" }}
-                  columns={uziColumns}
-                  dataSource={uziRows}
-                  loading={uziLoading}
-                  pagination={uziPagination}
-                  locale={{ emptyText: "Нет снимков" }}
-                />
-              </Card>
-            </Space>
-          </PatientProfileView>
-        )}
-      </Layout.Content>
-    </Layout>
-  );
+			<PatientEditModal
+				open={editOpen}
+				variant='uzi'
+				patient={patient}
+				confirmLoading={isSaving}
+				onCancel={() => setEditOpen(false)}
+				onFinish={vals => void handleEditFinish(vals as PatientCreateValuesUzi)}
+			/>
+		</PageShell>
+	)
 }

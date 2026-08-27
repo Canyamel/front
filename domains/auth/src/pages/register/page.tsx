@@ -3,10 +3,9 @@
 import './page.scss'
 
 import { useCallback, useState } from 'react'
-import { Form, Input, Button, Badge, Space } from 'antd'
+import { Badge, Button, Checkbox, Col, Form, Input, Row, Space } from 'antd'
 
-import { UserIcon } from '@medml/ui'
-import { EmailIcon, PasswordIcon } from '@medml/ui'
+import { EmailIcon, PasswordIcon, UserIcon } from '@medml/ui'
 
 import { useAuthApi } from '../../contexts/AuthApiContext'
 import { validateEmail } from '../../utils/validateEmail'
@@ -18,10 +17,14 @@ import { DEFAULT_POST_AUTH_PATH } from '../../constants/routes'
 const { Password } = Input
 
 interface RegisterFormData {
+	lastName: string
+	firstName: string
+	fathersName: string
+	medOrganization: string
 	email: string
 	password: string
 	confirmPassword: string
-	fullName: string
+	termsAccepted: boolean
 }
 
 interface RegisterPageProps {
@@ -30,11 +33,7 @@ interface RegisterPageProps {
 	authedRedirectTo?: string
 }
 
-const RegisterPage = ({
-	onSuccess,
-	onError,
-	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
-}: RegisterPageProps) => {
+const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PATH }: RegisterPageProps) => {
 	const authApi = useAuthApi()
 	const [form] = Form.useForm<RegisterFormData>()
 	const [disabledButton, setDisabledButton] = useState(true)
@@ -78,20 +77,15 @@ const RegisterPage = ({
 				setErrorMessage(null)
 				setIsRegisterLoading(true)
 
-				const nameParts = values.fullName
-					.trim()
-					.split(/\s+/)
-					.filter((word: string) => word.length > 0)
-				const lastName = nameParts[0] || ''
-				const firstName = nameParts[1] || ''
-				const fathersName = nameParts[2] || ''
-
+				// Раньше ФИО собиралось из одного поля разбором по пробелам, а
+				// med_organization уходил пустой строкой — DRF отклонял её
+				// (поле required, allow_blank=False). Теперь поля раздельные.
 				await authApi.register({
-					email: values.email,
-					last_name: lastName,
-					first_name: firstName,
-					fathers_name: fathersName,
-					med_organization: '',
+					email: values.email.trim(),
+					last_name: values.lastName.trim(),
+					first_name: values.firstName.trim(),
+					fathers_name: values.fathersName.trim(),
+					med_organization: values.medOrganization.trim(),
 					password1: values.password,
 					password2: values.confirmPassword,
 				})
@@ -107,8 +101,7 @@ const RegisterPage = ({
 				}
 			} catch (error: unknown) {
 				const err = error as { data?: { detail?: string; message?: string } }
-				const errorMsg =
-					err?.data?.detail ?? err?.data?.message ?? 'Неверные данные'
+				const errorMsg = err?.data?.detail ?? err?.data?.message ?? 'Неверные данные'
 				setHasError(true)
 				setErrorMessage(errorMsg)
 				if (onError) {
@@ -118,14 +111,7 @@ const RegisterPage = ({
 				setIsRegisterLoading(false)
 			}
 		},
-		[
-			authApi,
-			onSuccess,
-			onError,
-			setHasError,
-			setErrorMessage,
-			authedRedirectTo,
-		],
+		[authApi, onSuccess, onError, setHasError, setErrorMessage, authedRedirectTo],
 	)
 
 	const passwordRules = useCallback(
@@ -137,8 +123,7 @@ const RegisterPage = ({
 			if (
 				(ruleNumber === 1 && password.length < 8) ||
 				(ruleNumber === 2 && !/[A-Z]/.test(password)) ||
-				(ruleNumber === 3 &&
-					!/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
+				(ruleNumber === 3 && !/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
 			) {
 				return 'warning'
 			}
@@ -146,8 +131,7 @@ const RegisterPage = ({
 			if (
 				(ruleNumber === 1 && password.length >= 8) ||
 				(ruleNumber === 2 && /[A-Z]/.test(password)) ||
-				(ruleNumber === 3 &&
-					/[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
+				(ruleNumber === 3 && /[!@#$%^&*()_+\-=\[\]{}|;:'",.<>?\/~`]/.test(password))
 			) {
 				return 'success'
 			}
@@ -167,32 +151,50 @@ const RegisterPage = ({
 				onValuesChange={handleValuesChange}
 				layout='vertical'
 			>
-				<Form.Item
-					label='ФИО'
-					name='fullName'
-					rules={[
-						{ required: true, message: 'Введите ФИО' },
-						{
-							validator: (_, value) => {
-								if (!value) {
-									return Promise.resolve()
-								}
-								const words = value
-									.trim()
-									.split(/\s+/)
-									.filter((word: string) => word.length > 0)
-								if (words.length < 2) {
-									return Promise.reject(
-										new Error('ФИО должно состоять минимум из двух слов'),
-									)
-								}
-								return Promise.resolve()
-							},
-						},
-					]}
-				>
-					<Input prefix={<UserIcon />} size='large' placeholder='ФИО' />
-				</Form.Item>
+				{/* По макету «SignUp» поля идут в две колонки. */}
+				<Row gutter={16}>
+					<Col xs={24} sm={12}>
+						<Form.Item
+							label='Фамилия'
+							name='lastName'
+							rules={[{ required: true, message: 'Введите фамилию' }]}
+						>
+							<Input prefix={<UserIcon />} size='large' placeholder='Иванов' />
+						</Form.Item>
+					</Col>
+
+					<Col xs={24} sm={12}>
+						<Form.Item
+							label='Имя'
+							name='firstName'
+							rules={[{ required: true, message: 'Введите имя' }]}
+						>
+							<Input size='large' placeholder='Иван' />
+						</Form.Item>
+					</Col>
+				</Row>
+
+				<Row gutter={16}>
+					<Col xs={24} sm={12}>
+						<Form.Item
+							label='Отчество'
+							name='fathersName'
+							rules={[{ required: true, message: 'Введите отчество' }]}
+						>
+							<Input size='large' placeholder='Иванович' />
+						</Form.Item>
+					</Col>
+
+					<Col xs={24} sm={12}>
+						<Form.Item
+							label='Организация'
+							name='medOrganization'
+							rules={[{ required: true, message: 'Укажите организацию' }]}
+						>
+							<Input size='large' placeholder='Клиника №1' />
+						</Form.Item>
+					</Col>
+				</Row>
 
 				<Form.Item
 					label='Электронная почта'
@@ -209,12 +211,7 @@ const RegisterPage = ({
 						},
 					]}
 				>
-					<Input
-						prefix={<EmailIcon />}
-						type='email'
-						size='large'
-						placeholder='Email'
-					/>
+					<Input prefix={<EmailIcon />} type='email' size='large' placeholder='example@mail.ru' />
 				</Form.Item>
 
 				<Form.Item
@@ -236,23 +233,13 @@ const RegisterPage = ({
 						},
 					]}
 				>
-					<Password
-						prefix={<PasswordIcon />}
-						size='large'
-						placeholder='Пароль'
-					/>
+					<Password prefix={<PasswordIcon />} size='large' placeholder='Пароль' />
 				</Form.Item>
 
 				<Space direction='vertical' className='password-rules'>
 					<Badge status={passwordRules(1)} text='Не менее 8 символов' />
-					<Badge
-						status={passwordRules(2)}
-						text='Минимум одна заглавная буква'
-					/>
-					<Badge
-						status={passwordRules(3)}
-						text='Минимум один спецсимвол (!, %, #, и т.д.)'
-					/>
+					<Badge status={passwordRules(2)} text='Минимум одна заглавная буква' />
+					<Badge status={passwordRules(3)} text='Минимум один спецсимвол (!, %, #, и т.д.)' />
 				</Space>
 
 				<Form.Item
@@ -271,12 +258,24 @@ const RegisterPage = ({
 						}),
 					]}
 				>
-					<Password
-						prefix={<PasswordIcon />}
-						size='large'
-						placeholder='Повторите пароль'
-					/>
+					<Password prefix={<PasswordIcon />} size='large' placeholder='Повторите пароль' />
 				</Form.Item>
+
+				<Form.Item
+					name='termsAccepted'
+					valuePropName='checked'
+					rules={[
+						{
+							validator: (_, value) =>
+								value
+									? Promise.resolve()
+									: Promise.reject(new Error('Необходимо принять условия')),
+						},
+					]}
+				>
+					<Checkbox>Принимаю условия обработки персональных данных</Checkbox>
+				</Form.Item>
+
 				<Form.Item>
 					<Button
 						className='register-submit'

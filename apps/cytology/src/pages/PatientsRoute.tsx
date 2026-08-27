@@ -1,94 +1,86 @@
-import * as React from "react";
-import { message } from "antd";
-import dayjs from "dayjs";
-import { useNavigate } from "react-router-dom";
+import * as React from 'react'
+import { message } from 'antd'
+import { useNavigate } from 'react-router-dom'
 
-import {
-  PatientCreateModal,
-  stripPolicyDigits,
-  type PatientCreateValuesCytology,
-} from "@medml/patient_create";
-import { PatientsPage, type PatientListSort } from "@medml/patient_list";
+import { PatientCreateModal, type PatientCreateValuesCytology } from '@medml/patient_create'
+import { PatientsPage, type PatientListSort } from '@medml/patient_list'
+import { PageShell } from '@medml/layout'
+import { DoctorProfileCard } from '@medml/doctor_profile'
+import { filterMedPatientRows, sortMedPatientRows } from '@medml/patients'
 
-import { useAddPatientMutation, useGetMedWorkerPatientsQuery } from "@/lib/patientsApi";
-import { useDoctorId } from "@/lib/useDoctorId";
+import { useCreateCytologyPatient } from '@/lib/useCreateCytologyPatient'
+import { useCytologyPatients } from '@/lib/useCytologyPatients'
+import { useDoctorId } from '@/lib/useDoctorId'
 
 export default function PatientsRoute() {
-  const navigate = useNavigate();
-  const { doctorId, status } = useDoctorId();
-  const [createModalOpen, setCreateModalOpen] = React.useState(false);
-  const [addPatient, { isLoading: isAddingPatient }] = useAddPatientMutation();
+	const navigate = useNavigate()
+	const { doctorId, status } = useDoctorId()
+	const [createModalOpen, setCreateModalOpen] = React.useState(false)
 
-  const [search, setSearch] = React.useState("");
-  const [sort, setSort] = React.useState<PatientListSort>({ key: null, order: null });
+	const [search, setSearch] = React.useState('')
+	const [sort, setSort] = React.useState<PatientListSort>({ key: null, order: null })
 
-  const { data, isFetching } = useGetMedWorkerPatientsQuery(
-    {
-      doctorId,
-      search: search.trim() || undefined,
-      sortKey: sort.key,
-      sortOrder: sort.order,
-    },
-    { skip: !doctorId || status !== "authenticated" }
-  );
+	// Источник списка зависит от бэкенда — см. `useCytologyPatients`.
+	const {
+		rows: allRows,
+		cards,
+		doctorProfile,
+		isFetching,
+	} = useCytologyPatients({
+		doctorId,
+		enabled: status === 'authenticated',
+	})
 
-  const handleCreateFinish = async (values: PatientCreateValuesCytology) => {
-    if (!doctorId) {
-      message.warning("Не удалось определить врача");
-      return;
-    }
-    try {
-      await addPatient({
-        medWorkerId: doctorId,
-        payload: {
-          patient: {
-            first_name: values.firstName.trim(),
-            last_name: values.lastName.trim(),
-            fathers_name: values.fathersName.trim(),
-            personal_policy: stripPolicyDigits(values.personalPolicy),
-            email: values.email.trim(),
-            ...(values.active ? { is_active: true } : {}),
-            birth_date: dayjs(values.birthDate).format("YYYY-MM-DD"),
-          },
-          card: {
-            diagnosis: values.diagnosis?.trim() ?? "",
-          },
-        },
-      }).unwrap();
-      message.success("Карта пациента создана");
-      setCreateModalOpen(false);
-    } catch {
-      message.error("Не удалось создать карту пациента");
-    }
-  };
+	const rows = React.useMemo(
+		() => sortMedPatientRows(filterMedPatientRows(allRows, search), sort.key, sort.order),
+		[allRows, search, sort.key, sort.order],
+	)
 
-  return (
-    <>
-      <PatientsPage
-        title={data?.medWorkerName ? `${data.medWorkerName}: пациенты` : "Мои пациенты"}
-        rows={data?.rows ?? []}
-        total={data?.total ?? 0}
-        isLoading={(status === "authenticated" && !doctorId) || isFetching}
-        searchValue={search}
-        onSearchChange={setSearch}
-        onSearchSubmit={setSearch}
-        sort={sort}
-        onSortChange={setSort}
-        onAddPatient={() => setCreateModalOpen(true)}
-        onOpenPatientCard={(id) =>
-          navigate(`/patient_profile?id=${encodeURIComponent(String(id))}`)
-        }
-        onDeletePatient={(id) =>
-          message.info(`Удаление карты ${String(id)} оставлено как placeholder для parity.`)
-        }
-      />
-      <PatientCreateModal
-        open={createModalOpen}
-        variant="cytology"
-        onCancel={() => setCreateModalOpen(false)}
-        onFinish={(vals) => void handleCreateFinish(vals as PatientCreateValuesCytology)}
-        confirmLoading={isAddingPatient}
-      />
-    </>
-  );
+	const { createPatient, isCreating } = useCreateCytologyPatient(doctorId)
+
+	const handleCreateFinish = async (values: PatientCreateValuesCytology) => {
+		if (await createPatient(values)) {
+			setCreateModalOpen(false)
+		}
+	}
+
+	return (
+		<PageShell
+			eyebrow='Врачебный кабинет'
+			title='Пациенты'
+			subtitle='Карты пациентов, снимки цитологии и результаты диагностики.'
+		>
+			<DoctorProfileCard profile={doctorProfile} loading={isFetching && !doctorProfile} showNotifications={false} />
+
+			<PatientsPage
+				title='Мои пациенты'
+				rows={rows}
+				total={rows.length}
+				isLoading={(status === 'authenticated' && !doctorId) || isFetching}
+				searchValue={search}
+				onSearchChange={setSearch}
+				onSearchSubmit={setSearch}
+				sort={sort}
+				onSortChange={setSort}
+				onAddPatient={() => setCreateModalOpen(true)}
+				onOpenPatientCard={id => {
+					// Go-ручка снимков принимает id пациента, Django — id карты.
+					// Кладём в ссылку оба, чтобы страница работала на любом бэкенде.
+					const cardId = String(id)
+					const patientId = cards.find(item => item.cardId === cardId)?.patientId
+					const query = new URLSearchParams({ id: cardId })
+					if (patientId) query.set('patient', patientId)
+					navigate(`/patient_profile?${query.toString()}`)
+				}}
+				onDeletePatient={id => message.info(`Удаление карты ${String(id)} оставлено как placeholder для parity.`)}
+			/>
+			<PatientCreateModal
+				open={createModalOpen}
+				variant='cytology'
+				onCancel={() => setCreateModalOpen(false)}
+				onFinish={vals => void handleCreateFinish(vals as PatientCreateValuesCytology)}
+				confirmLoading={isCreating}
+			/>
+		</PageShell>
+	)
 }

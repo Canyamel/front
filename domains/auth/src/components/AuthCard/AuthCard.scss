@@ -1,60 +1,99 @@
-@use "@medml/ui/styles/mixins" as *;
+@use '@medml/ui/styles/tokens' as *;
 
-$auth-card-bg: #FFFFFF;
-$auth-card-border: #E5E7EB;
-$auth-card-shadow: 0px 25px 50px rgba(219, 234, 254, 0.5);
-$auth-card-error-border: #EF4444;
-$auth-card-error-shadow: 0px 0px 43px rgba(255, 0, 0, 0.45), 0px 25px 50px rgba(219, 234, 254, 0.5);
-
+// Карточка авторизации по макету: белая, бордер slate-200, радиус 24,
+// паддинг 40, тень card. Ширина подобрана под поля 400px из макета.
+//
+// Радиус/тень/бордер могли бы прийти из темы antd, но здесь нужен свой
+// паддинг 40 (у остальных карточек — 24), поэтому заданы явно.
 .auth-card {
-  background: $auth-card-bg;
-  border: 1px solid $auth-card-border;
-  box-shadow: $auth-card-shadow;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+	width: 100%;
+	max-width: 480px;
 
-  .ant-card-body {
-    padding: 40px 48px !important;
-  }
+	// Регистрация по макету — две колонки по 312 с гаттером 16 (640) плюс
+	// паддинги карточки 40×2. Логин остаётся узким, поэтому ширину
+	// расширяем только когда внутри форма регистрации.
+	&:has(.register-form) {
+		max-width: 720px;
+	}
 
-  &-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 32px;
-  }
+	background: $color-bg-container;
+	border: 1px solid $color-border;
+	border-radius: $radius-xl;
+	box-shadow: $shadow-card;
 
-  &-form {
-    width: 100%;
-  }
+	transition: border-color 0.3s ease, box-shadow 0.3s ease;
 
-  &-footer-container {
-    width: 100%;
-  }
+	.ant-card-body {
+		padding: $spacing-3xl;
+	}
 
-  &-footer {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
+	// На телефоне паддинг 48 съедал бы почти всю ширину формы.
+	@media (max-width: 576px) {
+		border-radius: $radius-lg;
 
-  &-footer-divider {
-    @include text-secondary;
-    font-weight: 500 !important;
+		.ant-card-body {
+			padding: $spacing-xl $spacing-lg;
+		}
+	}
 
-    :global(.ant-divider-inner-text) {
-      font-family: inherit;
-      font-style: inherit;
-      font-weight: inherit;
-      font-size: inherit;
-      line-height: inherit;
-      color: inherit;
-    }
-  }
+	&-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 28px;
+	}
 
-  &.auth-card-error {
-    border: 1px solid $auth-card-error-border !important;
-    box-shadow: $auth-card-error-shadow !important;
-  }
+	&-form {
+		width: 100%;
+	}
+
+	&-footer-container {
+		width: 100%;
+	}
+
+	&-footer {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: $spacing-sm;
+	}
+
+	&-footer-divider {
+		// Раньше подпись разделителя приходила из миксина text-secondary,
+		// который навешивал !important. Задаём напрямую.
+		.ant-divider-inner-text {
+			font-family: $font-family-ui;
+			font-size: $font-size-caption;
+			font-weight: $font-weight-medium;
+			color: $color-text-tertiary;
+		}
+	}
+
+	// Ошибка входа: подсветка бордером цвета статуса, без «свечения».
+	&.auth-card-error {
+		border-color: $color-error;
+		box-shadow: $shadow-card, 0 0 0 4px rgba(225, 29, 72, 0.12);
+	}
+}
+
+// Заголовок и подпись формы входа/регистрации.
+.auth-title {
+	margin: 0;
+	font-family: $font-family-ui;
+	font-size: 32px;
+	font-weight: $font-weight-bold;
+	letter-spacing: -0.64px;
+	line-height: 1.2;
+	text-align: center;
+	color: $color-text-primary;
+}
+
+.auth-subtitle {
+	margin: 0;
+	font-family: $font-family-ui;
+	font-size: $font-size-body-sm;
+	font-weight: $font-weight-regular;
+	text-align: center;
+	color: $color-text-secondary;
 }

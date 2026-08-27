@@ -1,15 +1,16 @@
-@use "./tokens" as *;
+@use './tokens' as *;
 
 * {
-  font-family: $font-family-base;
+	font-family: $font-family-ui;
 }
 
-.page {
-  height: calc(100vh - 100px);
-  padding-bottom: 5%;
+body {
+	color: $color-text-primary;
+	background-color: $color-bg-layout;
 }
 
-.page-dynamic {
-  min-height: calc(100vh - 100px);
-  padding-bottom: 5%;
+.numeric,
+.ant-statistic-content-value {
+	font-family: $font-family-data;
+	font-variant-numeric: tabular-nums;
 }

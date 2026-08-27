@@ -11,6 +11,14 @@ import {
 } from "@medml/patient_create";
 import { PatientsPage } from "@medml/patient_list";
 import type { PatientListSort } from "@medml/patient_list";
+import { PageShell } from "@medml/layout";
+
+import { DoctorProfileCard } from "@medml/doctor_profile";
+
+import {
+  useGetDoctorProfileQuery,
+  useGetUnreadNotificationsCountQuery,
+} from "@/api/doctorApi";
 
 import { isThyroidBackend } from "@/lib/apiBackend";
 import {
@@ -24,6 +32,15 @@ import { useDoctorId } from "@/api/hooks/useDoctorId";
 export default function PatientsRoute() {
   const navigate = useNavigate();
   const { doctorId, status } = useDoctorId();
+
+  const { data: doctorProfile, isLoading: doctorProfileLoading } =
+    useGetDoctorProfileQuery(doctorId, {
+      skip: !doctorId || status !== "authenticated",
+    });
+
+  const { data: unreadCount = 0 } = useGetUnreadNotificationsCountQuery(doctorId, {
+    skip: !doctorId || status !== "authenticated",
+  });
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [createThyroidPatient, { isLoading: isCreatingThyroid }] =
     useCreateUziPatientWithCardMutation();
@@ -109,7 +126,18 @@ export default function PatientsRoute() {
   };
 
   return (
-    <>
+    <PageShell
+      eyebrow="Врачебный кабинет"
+      title="Пациенты"
+      subtitle="Карты пациентов, снимки и результаты диагностики."
+    >
+      <DoctorProfileCard
+        profile={doctorProfile}
+        loading={doctorProfileLoading}
+        unreadCount={unreadCount}
+        onEditProfile={() => navigate("/profile/edit")}
+      />
+
       <PatientsPage
         title="Мои пациенты"
         rows={rows}
@@ -126,9 +154,6 @@ export default function PatientsRoute() {
         onSortChange={setSort}
         onAddPatient={() => setCreateModalOpen(true)}
         onOpenPatientCard={(id) => navigate(`/patient_profile?id=${id}`)}
-        onDeletePatient={(id) => {
-          console.log("Delete patient", id);
-        }}
       />
       <PatientCreateModal
         open={createModalOpen}
@@ -137,6 +162,6 @@ export default function PatientsRoute() {
         onFinish={(vals) => void handleCreateFinish(vals as PatientCreateValuesUzi)}
         confirmLoading={isCreatingPatient}
       />
-    </>
+    </PageShell>
   );
 }

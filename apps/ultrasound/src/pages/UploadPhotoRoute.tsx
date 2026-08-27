@@ -1,170 +1,167 @@
-import * as React from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { InboxOutlined } from "@ant-design/icons";
-import { Card, Layout, Space, Typography, Upload, message } from "antd";
-import type { UploadFile, UploadProps } from "antd";
+import '@medml/ui/styles/upload-page.scss'
 
-import { ConfigurableSplitUpload, type UploadSchemaField } from "@medml/ui";
+import * as React from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { InboxOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Card, ConfigProvider, Form, Space, Upload, message } from 'antd'
+import dayjs from 'dayjs'
 
-import { isThyroidBackend } from "@/lib/apiBackend";
-import { useGetDoctorPatientsQuery } from "@/api/patientsApi";
-import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from "@/api/uziApi";
-import { getRtkErrorMessage } from "@/lib/rtkErrorMessage";
-import { useDoctorId } from "@/api/hooks/useDoctorId";
+import { ConfigurableSplitUpload, accentButtonTheme } from '@medml/ui'
+import { PageShell } from '@medml/layout'
+import {
+	PatientCreateModal,
+	buildFullNameUzi,
+	stripPolicyDigits,
+	type PatientCreateValuesUzi,
+} from '@medml/patient_create'
 
-const { Dragger } = Upload;
+import { isThyroidBackend } from '@/lib/apiBackend'
+import {
+	useCreateMedPatientCardMutation,
+	useCreateMedPatientMutation,
+	useCreateUziPatientWithCardMutation,
+} from '@/api/patientsApi'
+import { useDoctorId } from '@/api/hooks/useDoctorId'
+import { useUziUpload } from './useUziUpload'
+
+const { Dragger } = Upload
 
 export default function UploadPhotoRoute() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const presetPatientId = searchParams.get("patientId")?.trim() ?? "";
-  const { doctorId, status } = useDoctorId();
-  const [uploadUzi, { isLoading: isUploading }] = useUploadUziDiagnosticMutation();
+	const navigate = useNavigate()
+	const [searchParams] = useSearchParams()
+	const presetPatientId = searchParams.get('patientId')?.trim() ?? ''
+	const [form] = Form.useForm<Record<string, unknown>>()
 
-  const { data: devices = [], isFetching: devicesLoading } = useGetUziDevicesQuery(undefined, {
-    skip: status !== "authenticated",
-  });
+	const { doctorId } = useDoctorId()
+	const [createModalOpen, setCreateModalOpen] = React.useState(false)
 
-  const { data: patientsData, isFetching: patientsLoading } = useGetDoctorPatientsQuery(
-    { doctorId, page: 1, pageSize: 500 },
-    { skip: !doctorId || status !== "authenticated" }
-  );
+	const [createThyroidPatient, { isLoading: isCreatingThyroid }] = useCreateUziPatientWithCardMutation()
+	const [createMedPatient, { isLoading: isCreatingMedPatient }] = useCreateMedPatientMutation()
+	const [createMedCard, { isLoading: isCreatingMedCard }] = useCreateMedPatientCardMutation()
 
-  const patients = patientsData?.rows ?? [];
+	const isCreatingPatient = isThyroidBackend() ? isCreatingThyroid : isCreatingMedPatient || isCreatingMedCard
 
-  const [file, setFile] = React.useState<File | null>(null);
+	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } = useUziUpload({
+		presetPatientId,
+		onUploaded: () => navigate('/patients'),
+	})
 
-  const fields = React.useMemo<UploadSchemaField[]>(() => {
-    const deviceOptions = devices.map((d) => ({ value: d.id, label: d.name }));
-    const patientOptions = patients
-      .filter((p) => (isThyroidBackend() ? p.patientCardId : p.id))
-      .map((p) => ({
-        value: String(isThyroidBackend() ? p.patientCardId : p.id),
-        label: `${p.fullName}${p.policyNumber ? ` — ${p.policyNumber}` : ""}`,
-      }));
+	const handleCreatePatient = async (values: PatientCreateValuesUzi) => {
+		if (!doctorId) {
+			message.warning('Не удалось определить врача')
+			return
+		}
 
-    return [
-      {
-        name: "device",
-        label: "Аппарат",
-        type: "select",
-        required: true,
-        placeholder: "Выберите аппарат",
-        options: deviceOptions,
-        disabled: devicesLoading && deviceOptions.length === 0,
-      },
-      {
-        name: "projection",
-        label: "Проекция",
-        type: "select",
-        required: true,
-        placeholder: "Выберите проекцию",
-        options: [
-          { value: "long", label: "Продольная" },
-          { value: "cross", label: "Поперечная" },
-        ],
-      },
-      {
-        name: "patient",
-        label: "Пациент",
-        type: "select",
-        required: true,
-        placeholder: "Выберите пациента",
-        options: patientOptions,
-        disabled: patientsLoading && patientOptions.length === 0,
-      },
-    ];
-  }, [devices, devicesLoading, patients, patientsLoading]);
+		const birth_date = dayjs(values.birthDate).format('YYYY-MM-DD')
+		const policy = stripPolicyDigits(values.policy)
 
-  const uploadProps: UploadProps = React.useMemo(
-    () => ({
-      name: "file",
-      multiple: false,
-      accept: ".png,.tiff",
-      maxCount: 1,
-      beforeUpload: (next) => {
-        setFile(next as File);
-        return false;
-      },
-      onRemove: () => {
-        setFile(null);
-      },
-      fileList: file
-        ? [
-            {
-              uid: "uzi-file",
-              name: file.name,
-              status: "done",
-              originFileObj: file,
-            } as UploadFile,
-          ]
-        : [],
-    }),
-    [file]
-  );
+		if (isThyroidBackend()) {
+			const created = await createThyroidPatient({
+				doctorId,
+				surname: values.surname.trim(),
+				name: values.name.trim(),
+				patronymic: values.patronymic.trim(),
+				email: values.email.trim(),
+				policy,
+				active: values.active,
+				malignancy: values.malignancy,
+				birth_date,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
 
-  const handleSubmit = async ({ values }: { values: Record<string, unknown> }) => {
-    if (!file) {
-      message.error("Выберите файл для загрузки");
-      return;
-    }
-    const projection = String(values.projection ?? "");
-    const patientRefId = String(values.patient ?? "");
-    const deviceId = String(values.device ?? "");
-    try {
-      await uploadUzi({ file, projection, patientRefId, deviceId }).unwrap();
-      message.success("Снимок отправлен на диагностику");
-      navigate("/patients");
-    } catch (e) {
-      message.error(getRtkErrorMessage(e));
-      console.error(e);
-    }
-  };
+			if (!created.id) {
+				message.error('Сервер не вернул идентификатор пациента')
+				return
+			}
+		} else {
+			const created = await createMedPatient({
+				email: values.email.trim(),
+				fullname: buildFullNameUzi(values),
+				policy,
+				active: values.active,
+				malignancy: values.malignancy,
+				birth_date,
+			}).unwrap()
 
-  const pageBusy =
-    status === "authenticated" && (!doctorId || devicesLoading || patientsLoading);
+			const patientId = typeof created === 'object' && created?.id ? String(created.id) : ''
+			if (!patientId) {
+				message.error('Сервер не вернул идентификатор пациента')
+				return
+			}
 
-  const uploadInitialValues = React.useMemo(() => {
-    if (!presetPatientId) return undefined;
-    const row = patients.find((p) => String(p.id) === presetPatientId);
-    if (!row) return undefined;
-    const value = isThyroidBackend() ? row.patientCardId : row.id;
-    return value ? { patient: String(value) } : undefined;
-  }, [presetPatientId, patients]);
+			await createMedCard({
+				patient_id: patientId,
+				doctor_id: doctorId,
+				diagnosis: values.diagnosis.trim(),
+			}).unwrap()
+		}
 
-  return (
-    <Layout style={{ minHeight: "100vh", background: "transparent" }}>
-      <Layout.Content style={{ padding: 24, maxWidth: 1120, margin: "0 auto", width: "100%" }}>
-        <Card style={{ borderRadius: 12 }}>
-          <Space direction="vertical" size={14} style={{ width: "100%" }}>
-            <Typography.Title level={2} style={{ margin: 0 }}>
-              Загрузка снимка
-            </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              Для начала диагностики загрузите снимок УЗИ щитовидной железы и укажите параметры слева.
-            </Typography.Paragraph>
+		message.success('Пациент создан')
+		setCreateModalOpen(false)
+	}
 
-            <ConfigurableSplitUpload
-              key={presetPatientId || "upload-default"}
-              fields={fields}
-              initialValues={uploadInitialValues}
-              file={file}
-              requireFile
-              onSubmit={handleSubmit}
-              submitText="Начать диагностику"
-              uploadSlot={
-                <Dragger {...uploadProps} disabled={pageBusy || isUploading}>
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
-                  <p className="ant-upload-text">Нажмите или перетащите файл в эту область</p>
-                  <p className="ant-upload-hint">Форматы: .png или .tiff</p>
-                </Dragger>
-              }
-            />
-          </Space>
-        </Card>
-      </Layout.Content>
-    </Layout>
-  );
+	return (
+		<PageShell
+			className='upload-page'
+			eyebrow='ИИ ассистент'
+			title='Новый снимок УЗИ'
+			subtitle='Заполните параметры исследования и загрузите изображение для AI-анализа.'
+		>
+			<Card>
+				<Space direction='vertical' size={20} style={{ width: '100%' }}>
+					<ConfigProvider theme={accentButtonTheme}>
+						<ConfigurableSplitUpload
+							key={presetPatientId || 'upload-default'}
+							form={form}
+							fields={fields}
+							initialValues={initialValues}
+							file={file}
+							requireFile
+							onSubmit={handleSubmit}
+							submitText='Провести диагностику'
+							actionsPlacement='upload-column'
+							uploadSlot={
+								<Dragger
+									className='upload-page__dropzone'
+									{...uploadProps}
+									disabled={pageBusy || isUploading}
+								>
+									<p className='ant-upload-drag-icon'>
+										<InboxOutlined />
+									</p>
+									<p className='ant-upload-text'>Перетащите файл или нажмите для выбора</p>
+									<p className='ant-upload-hint'>DICOM · TIF · JPG · PNG до 50 МБ</p>
+								</Dragger>
+							}
+							formFooterSlot={
+								<Button
+									className='upload-page__add-patient'
+									icon={<PlusOutlined />}
+									onClick={() => setCreateModalOpen(true)}
+									disabled={pageBusy}
+								>
+									Добавить нового пациента
+								</Button>
+							}
+							extraActions={
+								<Upload {...uploadProps} showUploadList={false}>
+									<Button htmlType='button' disabled={pageBusy || isUploading}>
+										Добавить файл
+									</Button>
+								</Upload>
+							}
+						/>
+					</ConfigProvider>
+				</Space>
+			</Card>
+
+			<PatientCreateModal
+				open={createModalOpen}
+				variant='uzi'
+				onCancel={() => setCreateModalOpen(false)}
+				onFinish={vals => void handleCreatePatient(vals as PatientCreateValuesUzi)}
+				confirmLoading={isCreatingPatient}
+			/>
+		</PageShell>
+	)
 }

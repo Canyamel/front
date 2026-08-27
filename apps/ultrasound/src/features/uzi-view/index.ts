@@ -1,2 +1,2 @@
-export { default as UziView } from './UziView/UziView'
-export { store as uziViewStore } from './store/store'
+export { default as UziViewPage } from './UziViewPage'
+export type { UziViewPageProps } from './UziViewPage'
