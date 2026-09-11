@@ -11,7 +11,10 @@ import DoctorProfileEditRoute from "@/pages/DoctorProfileEditRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
 import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
+import { SubscriptionWrapper } from "@medml/subscriptions";
+
 import SubscriptionRoute from "@/pages/SubscriptionRoute";
+import SubscriptionReturnRoute from "@/pages/SubscriptionReturnRoute";
 
 const routes: RouteObject[] = [
   {
@@ -47,6 +50,15 @@ const routes: RouteObject[] = [
         ),
       },
       {
+        // Сюда возвращает ЮKassa после оплаты (YOOKASSA_RETURN_URL).
+        path: "subscription/return",
+        element: (
+          <RequireAuth>
+            <SubscriptionReturnRoute />
+          </RequireAuth>
+        ),
+      },
+      {
         path: "patients",
         element: (
           <RequireAuth>
@@ -74,7 +86,9 @@ const routes: RouteObject[] = [
         path: "upload_photo",
         element: (
           <RequireAuth>
-            <UploadPhotoRoute />
+            <SubscriptionWrapper>
+              <UploadPhotoRoute />
+            </SubscriptionWrapper>
           </RequireAuth>
         ),
       },
@@ -98,7 +112,9 @@ const routes: RouteObject[] = [
         path: "uzi_view/:uziId",
         element: (
           <RequireAuth>
-            <UziViewRoute />
+            <SubscriptionWrapper>
+              <UziViewRoute />
+            </SubscriptionWrapper>
           </RequireAuth>
         ),
       },

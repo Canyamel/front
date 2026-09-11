@@ -1,11 +1,31 @@
+import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
+
 import { baseApi } from './baseApi'
 
+const billingBase = (): string => {
+	let base = '/api/v1'
+	try {
+		const env = (import.meta as { env?: Record<string, string | undefined> }).env
+		base = env?.VITE_BILLING_BASE_URL ?? base
+	} catch {
+		/* ignore */
+	}
+
+	const path = base.replace(/\/$/, '')
+	if (typeof window === 'undefined') return path
+	return `${window.location.origin}${path}`
+}
+
+const url = (path: string): string => `${billingBase()}${path}`
+
 export interface TariffPlanDto {
-	tariff_plan_id: string
+	id: string
 	name: string
 	description: string
+	/** Строкой, а не числом: `"10"`, `"50.5"`. */
 	price: string
-	duration_seconds: number
+	/** Секунды. */
+	duration: number
 }
 
 export interface PaymentProviderDto {
@@ -15,7 +35,7 @@ export interface PaymentProviderDto {
 }
 
 export interface SubscriptionDto {
-	subscription_id: string
+	id: string
 	tariff_plan_id: string
 	status: 'pending_payment' | 'active' | 'cancelled'
 	start_date: string
@@ -39,31 +59,45 @@ export interface SubscriptionPurchaseResponseDto {
 export const billingApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		getTariffPlans: builder.query<TariffPlanDto[], void>({
-			query: () => 'billing/tariff-plans/',
+			query: () => url('/tariff_plans'),
 			providesTags: ['Billing'],
 		}),
+
 		getTariffPlanById: builder.query<TariffPlanDto, string>({
-			query: id => `billing/tariff-plans/${id}/`,
+			query: id => url(`/tariff_plans/${encodeURIComponent(id)}`),
 			providesTags: ['Billing'],
 		}),
+
 		getPaymentProviders: builder.query<PaymentProviderDto[], void>({
-			query: () => 'billing/payment-providers/',
+			query: () => url('/payment_providers'),
 			providesTags: ['Billing'],
 		}),
+
 		checkActiveSubscription: builder.query<SubscriptionStatusDto, void>({
-			query: () => 'billing/subscriptions/check-active/',
+			query: () => url('/subscriptions/check-active'),
 			providesTags: ['Subscription'],
 		}),
-		getActiveSubscription: builder.query<SubscriptionDto, void>({
-			query: () => 'billing/subscriptions/active/',
+
+		getActiveSubscription: builder.query<SubscriptionDto | null, void>({
+			async queryFn(_arg, _api, _extraOptions, baseQuery) {
+				const result = (await baseQuery(url('/subscriptions/get-active'))) as {
+					data?: SubscriptionDto
+					error?: FetchBaseQueryError
+				}
+
+				if (result.error) {
+					if (result.error.status === 404) return { data: null }
+					return { error: result.error }
+				}
+
+				return { data: result.data ?? null }
+			},
 			providesTags: ['Subscription'],
 		}),
-		purchaseSubscription: builder.mutation<
-			SubscriptionPurchaseResponseDto,
-			SubscriptionPurchaseRequestDto
-		>({
+
+		purchaseSubscription: builder.mutation<SubscriptionPurchaseResponseDto, SubscriptionPurchaseRequestDto>({
 			query: body => ({
-				url: 'billing/subscriptions/purchase/',
+				url: url('/subscriptions/purchase'),
 				method: 'POST',
 				body,
 			}),
@@ -78,5 +112,6 @@ export const {
 	useGetPaymentProvidersQuery,
 	useCheckActiveSubscriptionQuery,
 	useGetActiveSubscriptionQuery,
+	useLazyCheckActiveSubscriptionQuery,
 	usePurchaseSubscriptionMutation,
 } = billingApi

@@ -52,7 +52,7 @@ export const SubscriptionInfo: React.FC<SubscriptionInfoProps> = ({
 	}
 
 	const daysLeft = dayjs(subscription.end_date).diff(dayjs(), 'day')
-	const durationDays = durationToDays(tariffPlan.duration_seconds)
+	const durationDays = durationToDays(tariffPlan.duration)
 
 	return (
 		<Alert

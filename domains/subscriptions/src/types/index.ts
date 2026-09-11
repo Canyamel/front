@@ -1,13 +1,9 @@
-/**
- * Типы подписок — соответствуют Django billing API (api/v3/billing/)
- */
-
 export interface TariffPlan {
-	tariff_plan_id: string
+	id: string
 	name: string
 	description: string
 	price: string
-	duration_seconds: number
+	duration: number
 }
 
 export interface PaymentProvider {
@@ -17,7 +13,7 @@ export interface PaymentProvider {
 }
 
 export interface Subscription {
-	subscription_id: string
+	id: string
 	tariff_plan_id: string
 	status: 'pending_payment' | 'active' | 'cancelled'
 	start_date: string

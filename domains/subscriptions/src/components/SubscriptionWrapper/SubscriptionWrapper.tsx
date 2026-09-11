@@ -1,31 +1,35 @@
-/**
- * SubscriptionWrapper Component
- *
- * Компонент-обёртка, который блокирует функционал страницы при отсутствии активной подписки
- */
-
 'use client'
 
 import React from 'react'
-import { Button, Modal, Spin } from 'antd'
+import { Button, Space, Spin } from 'antd'
 import { LockOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
+
 import { useSubscription } from '../../hooks'
 import type { TariffPlan } from '../../types'
 import styles from './SubscriptionWrapper.module.scss'
 
 export interface SubscriptionWrapperProps {
 	children: React.ReactNode
+	/** Куда вести за оформлением подписки. */
+	subscribePath?: string
 }
 
 /**
- * Обёртка для страниц, требующих активной подписки
+ * Обёртка для страниц, требующих активной подписки.
  *
- * Если подписка активна - рендерит children
- * Если подписки нет - показывает overlay с предложением оформить подписку
+ * Подписка активна — рендерит содержимое. Нет — показывает поверх него
+ * предложение оформить подписку.
+ *
+ * Важно: оверлей перекрывает только сам раздел, а не всё окно. Иначе
+ * пользователь оказывается заперт — навигация приложения тоже под ним, и уйти
+ * со страницы нечем.
  */
 export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 	children,
+	subscribePath = '/subscription',
 }) => {
+	const navigate = useNavigate()
 	const { hasActiveSubscription, isLoading, tariffPlans } = useSubscription()
 
 	if (isLoading) {
@@ -40,6 +44,11 @@ export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 		return <>{children}</>
 	}
 
+	/** Тариф можно выбрать сразу — страница подписки прочитает `?plan=`. */
+	const goToSubscribe = (planId?: string) => {
+		navigate(planId ? `${subscribePath}?plan=${encodeURIComponent(planId)}` : subscribePath)
+	}
+
 	return (
 		<div className={styles.wrapper}>
 			<div className={styles.overlay}>
@@ -50,20 +59,27 @@ export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 						Для доступа к этому разделу необходимо оформить подписку. Выберите
 						подходящий тарифный план и начните пользоваться всеми функциями.
 					</p>
-					<div className={styles.plans}>
-						{(tariffPlans ?? []).slice(0, 3).map((plan: TariffPlan) => (
-							<div key={plan.tariff_plan_id} className={styles.plan}>
-								<h3>{plan.name}</h3>
-								<p>{plan.description}</p>
-								<Button type='primary' size='small'>
-									Выбрать
-								</Button>
-							</div>
-						))}
-					</div>
-					<Button type='primary' size='large'>
-						Оформить подписку
-					</Button>
+
+					{(tariffPlans ?? []).length > 0 && (
+						<div className={styles.plans}>
+							{((tariffPlans ?? []) as TariffPlan[]).slice(0, 3).map(plan => (
+								<div key={plan.id} className={styles.plan}>
+									<h3>{plan.name}</h3>
+									<p>{plan.description}</p>
+									<Button type='primary' size='small' onClick={() => goToSubscribe(plan.id)}>
+										Выбрать
+									</Button>
+								</div>
+							))}
+						</div>
+					)}
+
+					<Space>
+						<Button onClick={() => navigate(-1)}>Назад</Button>
+						<Button type='primary' size='large' onClick={() => goToSubscribe()}>
+							Оформить подписку
+						</Button>
+					</Space>
 				</div>
 			</div>
 			<div className={styles.pageContent}>{children}</div>

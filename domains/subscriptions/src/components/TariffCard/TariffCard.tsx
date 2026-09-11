@@ -18,12 +18,12 @@ export const TariffCard: React.FC<TariffCardProps> = ({
 	isSelected = false,
 	onSelect,
 }) => {
-	const durationDays = durationToDays(tariff.duration_seconds)
+	const durationDays = durationToDays(tariff.duration)
 
 	return (
 		<Card
 			className={`${styles.card} ${isSelected ? styles.selected : ''}`}
-			onClick={() => onSelect?.(tariff.tariff_plan_id)}
+			onClick={() => onSelect?.(tariff.id)}
 		>
 			<div className={styles.header}>
 				<Title level={5}>{tariff.name}</Title>

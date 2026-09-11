@@ -23,11 +23,17 @@ export type {
 	SubscriptionError,
 } from './types'
 
-export { SubscriptionInfo, SubscriptionModal, TariffCard } from './components'
+export {
+	SubscriptionInfo,
+	SubscriptionModal,
+	SubscriptionWrapper,
+	TariffCard,
+} from './components'
 export type {
 	SubscriptionInfoProps,
 	SubscriptionModalProps,
 	SubscriptionModalStep,
+	SubscriptionWrapperProps,
 	TariffCardProps,
 } from './components'
 
@@ -38,5 +44,8 @@ export {
 	usePaymentProviders,
 } from './hooks'
 export type { UseSubscriptionReturn, UsePaymentProvidersReturn } from './hooks'
+
+export { SubscriptionPage } from './pages/SubscriptionPage'
+export type { SubscriptionPageProps } from './pages/SubscriptionPage'
 
 export * from './utils'

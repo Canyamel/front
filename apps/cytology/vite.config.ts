@@ -31,66 +31,6 @@ export default defineConfig(({ mode }) => {
 	const backend = env.VITE_CYTOLOGY_BACKEND === 'go' ? 'go' : 'python'
 	const isGo = backend === 'go'
 
-<<<<<<< HEAD
-  return {
-    plugins: [
-      processPolyfillPlugin(mode),
-      react(),
-      cytologyUploadApiPlugin({
-        apiProxyTarget: proxyTarget,
-        cytologyCreatePath,
-      }),
-    ],
-    define: {
-      "import.meta.env.VITE_API_BASE_URL": JSON.stringify(apiBaseUrl),
-      "import.meta.env.VITE_DZI_API_BASE_URL": JSON.stringify(dziBaseUrl),
-      "import.meta.env.VITE_AUTH_REFRESH_PATH": JSON.stringify(
-        env.VITE_AUTH_REFRESH_PATH ?? "/auth/token/refresh/"
-      ),
-      "import.meta.env.VITE_AUTH_REFRESH_HEADER_TOKEN": JSON.stringify(
-        env.VITE_AUTH_REFRESH_HEADER_TOKEN ?? "true"
-      ),
-    },
-    resolve: {
-      alias: [
-        {
-          find: "@",
-          replacement: path.resolve(__dirname, "./src"),
-        },
-        {
-          find: "@cytology",
-          replacement: path.resolve(__dirname, "./src/features/cytology-view"),
-        },
-        {
-          find: "@medml/ui/styles",
-          replacement: path.resolve(__dirname, "../../lib/ui/src/styles"),
-        },
-        {
-          find: "@annotorious/react/annotorious-react.css",
-          replacement: path.resolve(
-            __dirname,
-            "node_modules/@annotorious/react/dist/annotorious-react.css"
-          ),
-        },
-        {
-          find: /^@annotorious\/(react|openseadragon|annotorious|core)$/,
-          replacement: path.resolve(__dirname, "node_modules/@annotorious/$1"),
-        },
-      ],
-      dedupe: [
-        "@annotorious/react",
-        "@annotorious/openseadragon",
-        "@annotorious/annotorious",
-        "@annotorious/core",
-      ],
-    },
-    server: {
-      port: 3001,
-      proxy,
-    },
-  };
-});
-=======
 	const defaultProxyTarget = isGo ? 'http://localhost:8080' : 'http://msa.mephi.ru:7000'
 	const proxyTarget =
 		env.VITE_CYTOLOGY_PROXY_TARGET ?? env.VITE_API_PROXY_TARGET ?? env.VITE_PROXY_TARGET ?? defaultProxyTarget
@@ -136,6 +76,7 @@ export default defineConfig(({ mode }) => {
 				'@medml/layout': path.resolve(__dirname, '../../domains/layout/src'),
 				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
 				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
+				'@medml/subscriptions': path.resolve(__dirname, '../../domains/subscriptions/src'),
 				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
 			},
 		},
@@ -145,4 +86,3 @@ export default defineConfig(({ mode }) => {
 		},
 	}
 })
->>>>>>> new-styles

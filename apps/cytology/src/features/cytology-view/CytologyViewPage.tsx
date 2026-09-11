@@ -21,19 +21,9 @@ export default function CytologyViewPage() {
 		return null
 	}
 
-<<<<<<< HEAD
-  return (
-    <Provider store={store}>
-      <div className="cytology-view-page-shell">
-        <CytologyView generalCytologyId={cytologyId} />
-      </div>
-    </Provider>
-  );
-=======
 	return (
 		<Provider store={store}>
 			<CytologyView generalCytologyId={cytologyId} />
 		</Provider>
 	)
->>>>>>> new-styles
 }

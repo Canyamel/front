@@ -2,11 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Modal, Button, Radio, Space, Typography, Spin, Alert, message } from 'antd'
 import { useAppDispatch, useAppSelector } from '@medml/store'
 import { closeModal, setModalStep } from '@medml/store'
-import type {
-	TariffPlan,
-	PaymentProvider,
-	SubscriptionPurchaseRequest,
-} from '../../types'
+import type { TariffPlan, PaymentProvider, SubscriptionPurchaseRequest } from '../../types'
 import { TariffCard } from '../TariffCard'
 import styles from './SubscriptionModal.module.scss'
 
@@ -15,9 +11,7 @@ const { Text, Title } = Typography
 export type SubscriptionModalStep = 'tariff' | 'payment' | 'waiting'
 
 export interface SubscriptionModalProps {
-	onPurchase: (
-		data: SubscriptionPurchaseRequest,
-	) => Promise<{ confirmation_url: string }>
+	onPurchase: (data: SubscriptionPurchaseRequest) => Promise<{ confirmation_url: string }>
 	onSubscriptionComplete?: () => void
 	checkSubscriptionStatus: () => Promise<boolean>
 	tariffPlans?: TariffPlan[]
@@ -114,9 +108,9 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 					<div className={styles.tariffCards}>
 						{tariffPlans.map(plan => (
 							<TariffCard
-								key={plan.tariff_plan_id}
+								key={plan.id}
 								tariff={plan}
-								isSelected={selectedTariff === plan.tariff_plan_id}
+								isSelected={selectedTariff === plan.id}
 								onSelect={setSelectedTariff}
 							/>
 						))}
@@ -137,10 +131,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 			{modalStep === 'payment' && (
 				<>
 					<Title level={4}>Способ оплаты</Title>
-					<Radio.Group
-						onChange={e => setSelectedProvider(e.target.value)}
-						value={selectedProvider}
-					>
+					<Radio.Group onChange={e => setSelectedProvider(e.target.value)} value={selectedProvider}>
 						<Space direction='vertical'>
 							{activeProviders.map(provider => (
 								<Radio key={provider.id} value={provider.id}>
@@ -150,15 +141,8 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 						</Space>
 					</Radio.Group>
 					<div className={styles.footer}>
-						<Button onClick={() => dispatch(setModalStep('tariff'))}>
-							Назад
-						</Button>
-						<Button
-							type='primary'
-							disabled={!selectedProvider}
-							loading={isSubmitting}
-							onClick={handleSubscribe}
-						>
+						<Button onClick={() => dispatch(setModalStep('tariff'))}>Назад</Button>
+						<Button type='primary' disabled={!selectedProvider} loading={isSubmitting} onClick={handleSubscribe}>
 							Оформить подписку
 						</Button>
 					</div>
@@ -169,10 +153,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 				<div className={styles.waitingContainer}>
 					<Spin size='large' />
 					<Title level={4}>Ожидание оплаты</Title>
-					<Text>
-						Завершите оплату в окне YooKassa. Мы проверяем статус на сервере
-						каждые 3 секунды.
-					</Text>
+					<Text>Завершите оплату в окне YooKassa. Мы проверяем статус на сервере каждые 3 секунды.</Text>
 					<Alert
 						type='warning'
 						showIcon
@@ -189,9 +170,7 @@ export const SubscriptionModal: React.FC<SubscriptionModalProps> = ({
 									onSubscriptionComplete?.()
 									dispatch(closeModal())
 								} else {
-									message.warning(
-										'Сервер ещё не видит активную подписку. Подождите или обновите страницу позже.',
-									)
+									message.warning('Сервер ещё не видит активную подписку. Подождите или обновите страницу позже.')
 								}
 							}}
 						>

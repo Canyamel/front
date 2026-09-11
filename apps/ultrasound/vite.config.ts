@@ -34,6 +34,9 @@ export default defineConfig(({ mode }) => {
 		env.ULTRASOUND_API_PROXY_TARGET ??
 		'http://localhost:5173'
 
+	// Go-шлюз с billing. По умолчанию тот же docker-compose, что и у цитологии.
+	const billingTarget = env.VITE_BILLING_PROXY_TARGET ?? 'http://localhost:8080'
+
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
@@ -54,6 +57,13 @@ export default defineConfig(({ mode }) => {
 		},
 		server: {
 			proxy: {
+				// billing живёт только в Go-шлюзе (/api/v1), даже когда всё
+				// остальное приложение смотрит на Django. Правило должно идти
+				// раньше общего '/api' — Vite сопоставляет ключи по порядку.
+				'/api/v1': {
+					target: billingTarget,
+					changeOrigin: true,
+				},
 				'/api': {
 					target: proxyTarget,
 					changeOrigin: true,
