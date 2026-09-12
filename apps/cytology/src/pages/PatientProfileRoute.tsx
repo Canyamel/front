@@ -92,14 +92,20 @@ export default function PatientProfileRoute() {
 
 	const patient = data?.patient ?? null
 
+	// Значения вынесены в отдельные переменные до useMemo: внутри тела они
+	// читались то через `data?.`, то через `data.`, и React Compiler выводил
+	// зависимостью объект `data.editDefaults` целиком, а не перечисленные поля.
+	const editDefaults = data?.editDefaults
+	const patientDiagnosis = data?.patient?.diagnosis
+
 	const editInitialValues = React.useMemo(() => {
-		if (!data?.editDefaults) return undefined
-		const diagnosis = data.editDefaults.diagnosis ?? data.patient?.diagnosis ?? ''
+		if (!editDefaults) return undefined
+		const diagnosis = editDefaults.diagnosis ?? patientDiagnosis ?? ''
 		return {
-			...data.editDefaults,
+			...editDefaults,
 			diagnosis: diagnosis === 'Не обнаружено' ? '' : diagnosis,
 		}
-	}, [data?.editDefaults, data?.patient?.diagnosis])
+	}, [editDefaults, patientDiagnosis])
 
 	const studyColumns = useStudyColumns()
 

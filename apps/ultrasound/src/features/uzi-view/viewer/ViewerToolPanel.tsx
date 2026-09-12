@@ -2,6 +2,7 @@ import React from 'react'
 import { Button, InputNumber, Segmented, Space, Tooltip, Typography } from 'antd'
 import {
 	BRUSH_TOOL,
+	CALIBRATE_TOOL,
 	PAN_TOOL,
 	RULER_TOOL,
 	type BrushMode,
@@ -12,9 +13,10 @@ export interface ViewerToolPanelProps {
 	activeTool: ViewerToolId
 	onToolChange: (tool: ViewerToolId) => void
 
-	/** Сколько пикселей в миллиметре; задаётся врачом вручную. */
+	/** Сколько пикселей в миллиметре; выводится из эталонного отрезка. */
 	pxPerMm: number | null
-	onPxPerMmChange: (value: number | null) => void
+	/** Сбросить масштаб, чтобы задать заново. */
+	onResetScale: () => void
 
 	brushMode: BrushMode
 	onBrushModeChange: (mode: BrushMode) => void
@@ -37,6 +39,11 @@ const TOOLS: Array<{ value: ViewerToolId; label: string; hint: string }> = [
 	{ value: 'freehand', label: 'Обводка', hint: 'Векторная обводка от руки' },
 	{ value: BRUSH_TOOL, label: 'Кисть', hint: 'Закрасить область, затем «Подтвердить»' },
 	{ value: RULER_TOOL, label: 'Линейка', hint: 'Зажмите и протяните по снимку — размер покажется сразу' },
+	{
+		value: CALIBRATE_TOOL,
+		label: 'Задать масштаб',
+		hint: 'Протяните отрезок по шкале снимка и укажите его длину в мм',
+	},
 ]
 
 /**
@@ -50,7 +57,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	activeTool,
 	onToolChange,
 	pxPerMm,
-	onPxPerMmChange,
+	onResetScale,
 	brushMode,
 	onBrushModeChange,
 	brushRadius,
@@ -83,9 +90,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 							<Tooltip
 								key={tool.value}
 								title={
-									disabled
-										? 'Сначала задайте масштаб px / мм'
-										: tool.hint
+									disabled ? 'Сначала задайте масштаб по отрезку' : tool.hint
 								}
 							>
 								{button}
@@ -96,16 +101,22 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 
 				<Space size={8} align='center'>
 					<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
-						Масштаб, px / мм
+						Масштаб
 					</Typography.Text>
-					<InputNumber
-						value={pxPerMm ?? undefined}
-						onChange={value => onPxPerMmChange(typeof value === 'number' ? value : null)}
-						min={0.01}
-						step={0.1}
-						placeholder='напр. 5.2'
-						style={{ width: 120 }}
-					/>
+					{pxPerMm == null ? (
+						<Button type='primary' ghost onClick={() => onToolChange(CALIBRATE_TOOL)}>
+							Задать по отрезку
+						</Button>
+					) : (
+						<>
+							<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
+								{pxPerMm.toFixed(2)} px / мм
+							</Typography.Text>
+							<Button size='small' onClick={onResetScale}>
+								Задать заново
+							</Button>
+						</>
+					)}
 				</Space>
 			</div>
 

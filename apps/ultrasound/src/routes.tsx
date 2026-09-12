@@ -11,7 +11,6 @@ import DoctorProfileEditRoute from "@/pages/DoctorProfileEditRoute";
 import UziViewRoute from "@/pages/UziViewRoute";
 import LegacyResultRedirect from "@/pages/LegacyResultRedirect";
 import FaqRoute from "@/pages/FaqRoute";
-import { SubscriptionWrapper } from "@medml/subscriptions";
 
 import SubscriptionRoute from "@/pages/SubscriptionRoute";
 import SubscriptionReturnRoute from "@/pages/SubscriptionReturnRoute";
@@ -86,9 +85,7 @@ const routes: RouteObject[] = [
         path: "upload_photo",
         element: (
           <RequireAuth>
-            <SubscriptionWrapper>
-              <UploadPhotoRoute />
-            </SubscriptionWrapper>
+            <UploadPhotoRoute />
           </RequireAuth>
         ),
       },
@@ -112,9 +109,7 @@ const routes: RouteObject[] = [
         path: "uzi_view/:uziId",
         element: (
           <RequireAuth>
-            <SubscriptionWrapper>
-              <UziViewRoute />
-            </SubscriptionWrapper>
+            <UziViewRoute />
           </RequireAuth>
         ),
       },

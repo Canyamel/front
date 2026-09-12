@@ -1,4 +1,4 @@
-import { formatApiDateToDisplay } from '@medml/shared'
+import { createCacheBuster, formatApiDateToDisplay } from '@medml/shared'
 import { baseApi } from '@medml/store'
 import type { PatientListSortOrder, PatientRow } from '@medml/patient_list'
 import type { DoctorProfileViewModel } from '@medml/doctor_profile'
@@ -179,6 +179,15 @@ export function sortPatientRows(
 	return sorted
 }
 
+/**
+ * Обход `cache_page(60)` у Django на списке пациентов врача.
+ *
+ * Без этого только что созданная карта не появляется в списке ещё минуту:
+ * перезапрос уходит, но сервер отдаёт страницу из Redis. Ручка используется
+ * только в Django-режиме — Go-шлюз ничего не кэширует.
+ */
+const patientsCache = createCacheBuster()
+
 export const patientsApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		addPatient: builder.mutation<void, { medWorkerId: string; payload: AddPatientPayload }>({
@@ -187,6 +196,10 @@ export const patientsApi = baseApi.injectEndpoints({
 				method: 'POST',
 				body: payload,
 			}),
+			onQueryStarted() {
+				// До инвалидации тегов: перезапрос должен уйти уже с новым ключом.
+				patientsCache.bump()
+			},
 			invalidatesTags: () => [
 				{ type: 'Patient', id: 'LIST' },
 				{ type: 'MedWorker', id: 'SELF' },
@@ -195,6 +208,8 @@ export const patientsApi = baseApi.injectEndpoints({
 		getMedWorkerPatients: builder.query<GetMedWorkerPatientsResult, GetMedWorkerPatientsArgs>({
 			query: ({ doctorId }) => ({
 				url: `/med_worker/patients/${encodeURIComponent(doctorId)}`,
+				// Мимо `cache_page(60)` — см. комментарий у patientsCache.
+				params: { _: patientsCache.value() },
 			}),
 			transformResponse: (response: GetMedWorkerPatientsApiResponse): GetMedWorkerPatientsResult => {
 				const { cards: cardsRaw, medWorker, count } = extractCardsAndMedWorker(response)

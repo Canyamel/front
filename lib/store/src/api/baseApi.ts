@@ -1,6 +1,8 @@
 import { createApi, fetchBaseQuery, type BaseQueryFn, type FetchArgs } from '@reduxjs/toolkit/query/react'
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 
+import { isJwtExpired } from '@medml/shared'
+
 import { prepareHeaders } from './headers'
 import { setToken, setRefreshToken } from '../slices/authSlice'
 import type { AuthState } from '../slices/authSlice'
@@ -80,7 +82,12 @@ export const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, Fetch
 
 	const auth = (api.getState() as { auth: AuthState }).auth
 	const refresh = auth.refreshToken
-	if (!refresh) {
+
+	if (!refresh || isJwtExpired(refresh)) {
+		if (refresh) {
+			api.dispatch(setToken(undefined))
+			api.dispatch(setRefreshToken(undefined))
+		}
 		return result
 	}
 
@@ -99,6 +106,7 @@ export const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, Fetch
 		const res = await fetch(joinBase(baseUrl, refreshPath), fetchInit)
 		if (!res.ok) {
 			api.dispatch(setToken(undefined))
+			api.dispatch(setRefreshToken(undefined))
 			return
 		}
 		const data = (await res.json()) as {

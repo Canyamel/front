@@ -11,19 +11,13 @@ import styles from './SubscriptionWrapper.module.scss'
 
 export interface SubscriptionWrapperProps {
 	children: React.ReactNode
-	/** Куда вести за оформлением подписки. */
 	subscribePath?: string
 }
 
 /**
  * Обёртка для страниц, требующих активной подписки.
  *
- * Подписка активна — рендерит содержимое. Нет — показывает поверх него
- * предложение оформить подписку.
- *
- * Важно: оверлей перекрывает только сам раздел, а не всё окно. Иначе
- * пользователь оказывается заперт — навигация приложения тоже под ним, и уйти
- * со страницы нечем.
+ * СЕЙЧАС НИГДЕ НЕ ПОДКЛЮЧЕНА.
  */
 export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 	children,
@@ -44,7 +38,6 @@ export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 		return <>{children}</>
 	}
 
-	/** Тариф можно выбрать сразу — страница подписки прочитает `?plan=`. */
 	const goToSubscribe = (planId?: string) => {
 		navigate(planId ? `${subscribePath}?plan=${encodeURIComponent(planId)}` : subscribePath)
 	}
@@ -56,8 +49,8 @@ export const SubscriptionWrapper: React.FC<SubscriptionWrapperProps> = ({
 					<LockOutlined className={styles.icon} />
 					<h2>Требуется активная подписка</h2>
 					<p>
-						Для доступа к этому разделу необходимо оформить подписку. Выберите
-						подходящий тарифный план и начните пользоваться всеми функциями.
+						Для доступа к этому разделу необходимо оформить подписку. Выберите подходящий тарифный план и начните
+						пользоваться всеми функциями.
 					</p>
 
 					{(tariffPlans ?? []).length > 0 && (

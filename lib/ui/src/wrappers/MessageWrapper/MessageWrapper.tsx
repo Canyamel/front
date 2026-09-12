@@ -1,30 +1,27 @@
-"use client";
+'use client'
 
-import { App } from "antd";
-import { useEffect, useState, type ReactNode } from "react";
+import { App } from 'antd'
+import { useCallback, useMemo, type ReactNode } from 'react'
 
-import { MessageContext } from "../../contexts";
+import { MessageContext } from '../../contexts'
 
 interface MessageWrapperProps {
-  children: ReactNode;
+	children: ReactNode
 }
 
 const MessageWrapper: React.FC<MessageWrapperProps> = ({ children }) => {
-  const { message: messageApi } = App.useApp();
-  const [error, setError] = useState<string | undefined>(undefined);
+	const { message: messageApi } = App.useApp()
 
-  useEffect(() => {
-    if (error) {
-      messageApi.error(error);
-      setError(undefined);
-    }
-  }, [error, messageApi]);
+	const setError = useCallback(
+		(error?: string) => {
+			if (error) messageApi.error(error)
+		},
+		[messageApi],
+	)
 
-  return (
-    <MessageContext.Provider value={{ messageApi, setError }}>
-      {children}
-    </MessageContext.Provider>
-  );
-};
+	const value = useMemo(() => ({ messageApi, setError }), [messageApi, setError])
 
-export default MessageWrapper;
+	return <MessageContext.Provider value={value}>{children}</MessageContext.Provider>
+}
+
+export default MessageWrapper

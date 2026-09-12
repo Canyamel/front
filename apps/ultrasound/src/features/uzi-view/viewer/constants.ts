@@ -52,15 +52,35 @@ export const BRUSH_TOOL = 'brush' as const
  */
 export const RULER_TOOL = 'ruler' as const
 
+/**
+ * Задание масштаба: тот же жест, что у линейки, но результат другой.
+ *
+ * Врач проводит отрезок по шкале на снимке и указывает, скольким миллиметрам
+ * тот соответствует. Из длины отрезка в пикселях и этого числа выводится
+ * коэффициент. Раньше коэффициент вводили числом вручную — но взять его было
+ * неоткуда: на глаз пиксели на миллиметр не считаются, а шкала на снимке есть
+ * почти всегда.
+ */
+export const CALIBRATE_TOOL = 'calibrate' as const
+
 export type ViewerToolId =
 	| typeof PAN_TOOL
 	| typeof BRUSH_TOOL
 	| typeof RULER_TOOL
+	| typeof CALIBRATE_TOOL
 	| DrawingToolId
+
+/** Инструменты, работающие на собственном слое, мимо Annotorious. */
+const OVERLAY_TOOLS: ViewerToolId[] = [PAN_TOOL, BRUSH_TOOL, RULER_TOOL, CALIBRATE_TOOL]
 
 /** Инструмент рисует средствами Annotorious. */
 export function isDrawingTool(tool: ViewerToolId): tool is DrawingToolId {
-	return tool !== PAN_TOOL && tool !== BRUSH_TOOL && tool !== RULER_TOOL
+	return !OVERLAY_TOOLS.includes(tool)
+}
+
+/** Инструмент использует слой линейки (протяжка отрезка). */
+export function isRulerLikeTool(tool: ViewerToolId): boolean {
+	return tool === RULER_TOOL || tool === CALIBRATE_TOOL
 }
 
 /** Режим кисти-заполнения. */

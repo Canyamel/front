@@ -1,7 +1,7 @@
 import './viewer.scss'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { message } from 'antd'
+import { InputNumber, Modal, Typography, message } from 'antd'
 import { UziViewer } from '@medml/viewers'
 import type { ViewerImage, ViewerInstance } from '@medml/viewers'
 
@@ -12,7 +12,15 @@ import SegmentsVisibilityToggle from './SegmentsVisibilityToggle'
 import BrushCanvasOverlay from './BrushCanvasOverlay'
 import RulerOverlay from './RulerOverlay'
 import ViewerToolPanel from './ViewerToolPanel'
-import { BRUSH_TOOL, PAN_TOOL, RULER_TOOL, type BrushMode, type ViewerToolId } from './constants'
+import {
+	BRUSH_TOOL,
+	CALIBRATE_TOOL,
+	PAN_TOOL,
+	isRulerLikeTool,
+	type BrushMode,
+	type ViewerToolId,
+} from './constants'
+import { calcPxPerMm, lineLengthPx, type MeasuredLine } from './measurement'
 import { createMask, isMaskEmpty, maskToPolygon, type BrushMask } from './raster'
 import type { ThyroidAnnotatedViewerProps } from './types'
 
@@ -39,9 +47,16 @@ const ThyroidAnnotatedViewer = ({
 	const [currentPage, setCurrentPage] = useState(0)
 
 	const [activeTool, setActiveTool] = useState<ViewerToolId>(PAN_TOOL)
-	// Масштаб задаётся врачом вручную: автоматически его взять неоткуда,
-	// а объект известного размера на снимке врач найти может.
+
+	// Масштаб выводится из эталонного отрезка: врач проводит линию по шкале
+	// снимка и указывает её длину в миллиметрах. Автоматически коэффициент
+	// взять неоткуда, а вводить его числом врач не может — пиксели на миллиметр
+	// на глаз не считаются.
 	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+
+	// Отрезок, для которого ждём ввод длины. Пока он не null — открыт диалог.
+	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)
+	const [calibrationMm, setCalibrationMm] = useState<number | null>(null)
 
 	const [brushMode, setBrushMode] = useState<BrushMode>('draw')
 	const [brushRadius, setBrushRadius] = useState(12)
@@ -120,6 +135,40 @@ const ThyroidAnnotatedViewer = ({
 		}
 	}, [mask, addPolygonFromPoints, handleClearSketch])
 
+	const calibrating = activeTool === CALIBRATE_TOOL
+
+	/**
+	 * Отрезок дорисован. В режиме линейки он становится измерением, в режиме
+	 * калибровки — эталоном, для которого спрашиваем длину в миллиметрах.
+	 */
+	const handleLineDrawn = useCallback(
+		(line: MeasuredLine, page: number) => {
+			if (calibrating) {
+				setCalibrationPx(lineLengthPx(line))
+				setCalibrationMm(null)
+				return
+			}
+			ruler.add(line, page)
+		},
+		[calibrating, ruler],
+	)
+
+	const applyCalibration = useCallback(() => {
+		if (calibrationPx == null || calibrationMm == null) return
+
+		const next = calcPxPerMm(calibrationPx, calibrationMm)
+		if (next == null) {
+			message.error('Длина должна быть больше нуля')
+			return
+		}
+
+		setPxPerMm(next)
+		setCalibrationPx(null)
+		// Сразу возвращаем в навигацию: масштаб задают один раз.
+		setActiveTool(PAN_TOOL)
+		message.success(`Масштаб задан: ${next.toFixed(2)} px / мм`)
+	}, [calibrationPx, calibrationMm])
+
 	const showBrush = !readOnly && activeTool === BRUSH_TOOL
 
 	return (
@@ -129,7 +178,10 @@ const ThyroidAnnotatedViewer = ({
 					activeTool={activeTool}
 					onToolChange={setActiveTool}
 					pxPerMm={pxPerMm}
-					onPxPerMmChange={setPxPerMm}
+					onResetScale={() => {
+						setPxPerMm(null)
+						setActiveTool(CALIBRATE_TOOL)
+					}}
 					brushMode={brushMode}
 					onBrushModeChange={setBrushMode}
 					brushRadius={brushRadius}
@@ -162,12 +214,12 @@ const ThyroidAnnotatedViewer = ({
 
 						<RulerOverlay
 							viewer={osdViewer}
-							active={!readOnly && activeTool === RULER_TOOL}
+							active={!readOnly && isRulerLikeTool(activeTool)}
 							measurements={ruler.measurements}
 							currentPage={currentPage}
 							pxPerMm={pxPerMm}
 							labelFor={ruler.labelFor}
-							onAdd={ruler.add}
+							onAdd={handleLineDrawn}
 							onRemove={ruler.remove}
 						/>
 
@@ -186,6 +238,34 @@ const ThyroidAnnotatedViewer = ({
 					<SegmentsVisibilityToggle visible={showSegments} onToggle={toggleSegments} />
 				}
 			/>
+
+			<Modal
+				title='Длина эталонного отрезка'
+				open={calibrationPx != null}
+				onOk={applyCalibration}
+				onCancel={() => setCalibrationPx(null)}
+				okText='Применить'
+				cancelText='Отмена'
+				okButtonProps={{ disabled: calibrationMm == null || calibrationMm <= 0 }}
+				destroyOnHidden
+			>
+				<Typography.Paragraph type='secondary'>
+					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким
+					миллиметрам он соответствует по шкале снимка.
+				</Typography.Paragraph>
+
+				<InputNumber
+					autoFocus
+					value={calibrationMm ?? undefined}
+					onChange={value => setCalibrationMm(typeof value === 'number' ? value : null)}
+					onPressEnter={applyCalibration}
+					min={0.1}
+					step={1}
+					addonAfter='мм'
+					placeholder='например, 10'
+					style={{ width: '100%' }}
+				/>
+			</Modal>
 		</>
 	)
 }

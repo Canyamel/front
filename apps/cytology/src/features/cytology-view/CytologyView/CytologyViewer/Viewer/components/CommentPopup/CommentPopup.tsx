@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React from "react";
 import { PopupProps } from "@annotorious/react";
 import { Card, Flex, Typography } from "antd";
 
@@ -40,11 +40,6 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
     // const [comment, setComment] = useState('');
     const dispatch = useAppDispatch();
     const currentSegment = useAppSelector((state) => state.segment.currentSegment);
-    const currentSegmentRef = useRef(currentSegment);
-
-    useEffect(() => {
-        currentSegmentRef.current = currentSegment;
-    }, [currentSegment]);
 
     const tagging = annotation.bodies.find((body) => body.purpose === "tagging");
     const response:
@@ -58,22 +53,36 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
         | undefined = tagging?.value ? JSON.parse(tagging.value) : undefined;
     const segmentId: string | undefined = tagging?.annotation || undefined;
 
-    const onDelete = useCallback(() => {
-        if (segmentId && currentSegmentRef.current) {
+    // Раньше текущий тип сегмента читался через ref, который синхронизировался
+    // отдельным эффектом, а в зависимостях был указан только сам ref. Ref
+    // стабилен, поэтому колбэки никогда не пересоздавались и замыкали устаревшие
+    // `segmentId` и `response`. React Compiler на это ругался: выведенные им
+    // зависимости не совпадали с указанными.
+    //
+    // Ref не нужен — значение из стора и так свежее на каждом рендере.
+    // Без useCallback: в проекте включён React Compiler, он мемоизирует
+    // обработчики сам. Ручная мемоизация здесь только мешала — компилятор
+    // сообщал, что не может её сохранить, и отказывался оптимизировать
+    // компонент целиком.
+    const isNewSegment = response?.toAdd;
+
+    const onDelete = () => {
+        if (segmentId && currentSegment) {
             dispatch(
                 markAsDeleted({
                     id: segmentId,
-                    segType: currentSegmentRef.current,
-                    isNew: response?.toAdd,
+                    segType: currentSegment,
+                    isNew: isNewSegment,
                 })
             );
         }
-    }, [currentSegmentRef]);
-    const onUndoDelete = useCallback(() => {
-        if (segmentId && currentSegmentRef.current) {
-            dispatch(markAsUnDeleted({ id: segmentId, segType: currentSegmentRef.current }));
+    };
+
+    const onUndoDelete = () => {
+        if (segmentId && currentSegment) {
+            dispatch(markAsUnDeleted({ id: segmentId, segType: currentSegment }));
         }
-    }, [currentSegmentRef]);
+    };
 
     // useEffect(() => {
     //     const commentBody = annotation.bodies.find(body => body.purpose === 'commenting');

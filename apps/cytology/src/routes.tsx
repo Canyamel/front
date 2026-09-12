@@ -9,8 +9,6 @@ import PatientProfileRoute from '@/pages/PatientProfileRoute'
 import PatientsRoute from '@/pages/PatientsRoute'
 import DiagnosticIsRunningRoute from '@/pages/DiagnosticIsRunningRoute'
 import PlaceholderRoute from '@/pages/PlaceholderRoute'
-import { SubscriptionWrapper } from '@medml/subscriptions'
-
 import RegisterRoute from '@/pages/RegisterRoute'
 import SubscriptionRoute from '@/pages/SubscriptionRoute'
 import SubscriptionReturnRoute from '@/pages/SubscriptionReturnRoute'
@@ -69,9 +67,7 @@ const routes: RouteObject[] = [
 				path: 'upload_photo',
 				element: (
 					<RequireAuth>
-						<SubscriptionWrapper>
-							<UploadPhotoRoute />
-						</SubscriptionWrapper>
+						<UploadPhotoRoute />
 					</RequireAuth>
 				),
 			},
@@ -79,9 +75,7 @@ const routes: RouteObject[] = [
 				path: 'cytology/:id',
 				element: (
 					<RequireAuth>
-						<SubscriptionWrapper>
-							<CytologyViewRoute />
-						</SubscriptionWrapper>
+						<CytologyViewRoute />
 					</RequireAuth>
 				),
 			},

@@ -1,21 +1,21 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from 'react-router-dom'
 
-import { useAppSelector } from "@medml/store";
-import { DEFAULT_LOGIN_ROUTE } from "@medml/auth";
-import { getAccessTokenSubject } from "@/lib/jwtSubject";
+import { isJwtUsable } from '@medml/shared'
+import { useAppSelector } from '@medml/store'
+import { DEFAULT_LOGIN_ROUTE } from '@medml/auth'
 
 export default function RequireAuth({ children }: { children: React.ReactNode }) {
-  const token = useAppSelector((s) => s.auth.accessToken);
-  const location = useLocation();
-  const tokenSubject = token ? getAccessTokenSubject(token) : "";
-  const isAuthorized = Boolean(token && tokenSubject);
+	const accessToken = useAppSelector(s => s.auth.accessToken)
+	const refreshToken = useAppSelector(s => s.auth.refreshToken)
+	const location = useLocation()
 
-  if (!isAuthorized) {
-    const callback = `${location.pathname}${location.search}`;
-    const search =
-      callback && callback !== "/" ? `?callbackUrl=${encodeURIComponent(callback)}` : "";
-    return <Navigate to={`${DEFAULT_LOGIN_ROUTE}${search}`} replace />;
-  }
+	const hasLiveSession = isJwtUsable(accessToken) || isJwtUsable(refreshToken)
 
-  return children;
+	if (!hasLiveSession) {
+		const callback = `${location.pathname}${location.search}`
+		const search = callback && callback !== '/' ? `?callbackUrl=${encodeURIComponent(callback)}` : ''
+		return <Navigate to={`${DEFAULT_LOGIN_ROUTE}${search}`} replace />
+	}
+
+	return children
 }

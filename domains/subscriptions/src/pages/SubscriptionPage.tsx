@@ -45,7 +45,9 @@ export function SubscriptionPage({ returnHint }: SubscriptionPageProps) {
 	const [providerId, setProviderId] = React.useState<string>()
 	const [failure, setFailure] = React.useState<string>()
 
-	const plans = (tariffPlans ?? []) as TariffPlan[]
+	// Через useMemo, иначе `?? []` создаёт новый массив на каждый рендер
+	// и ломает мемоизацию всего, что от него зависит.
+	const plans = React.useMemo(() => (tariffPlans ?? []) as TariffPlan[], [tariffPlans])
 
 	const activeProviders = React.useMemo(
 		() => ((paymentProviders ?? []) as PaymentProvider[]).filter(p => p.is_active),

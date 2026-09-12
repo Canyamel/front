@@ -6,7 +6,8 @@ import { ReactNode, useMemo } from "react";
 
 import { createStore } from "@medml/store";
 import type { Modality } from "@medml/shared";
-import { Footer, HeaderNext, type HeaderNextProps } from "@medml/layout";
+import { Footer } from "@medml/layout";
+import { HeaderNext, type HeaderNextProps } from "@medml/layout/next";
 
 import { AntDesignProvider } from "../AntDesignProvider";
 

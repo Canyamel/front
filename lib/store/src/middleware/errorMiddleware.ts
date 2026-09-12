@@ -22,22 +22,50 @@ function textFromResponseData(data: unknown): string | null {
 	return null
 }
 
+function textFromPlainBody(data: unknown): string | null {
+	if (typeof data !== 'string') return null
+
+	const lines = data
+		.split('\n')
+		.map(line => line.trim())
+		.filter(Boolean)
+
+	if (lines.length === 0) return null
+
+	const last = lines[lines.length - 1]
+	return last.length > 200 ? `${last.slice(0, 200)}…` : last
+}
+
 function textFromRejectedPayload(payload: unknown): string | null {
 	if (payload == null) return null
 	const e = payload as FetchBaseQueryError
 	if (typeof e === 'object' && e !== null && 'status' in e) {
-		if (e.status === 'FETCH_ERROR' || e.status === 'PARSING_ERROR' || e.status === 'TIMEOUT_ERROR') {
-			return typeof e.error === 'string' && e.error.trim() ? e.error : null
+		// Сеть недоступна: сервер не поднят, не тот порт, упал прокси.
+		if (e.status === 'FETCH_ERROR') {
+			return 'Не удалось связаться с сервером. Проверьте, что бэкенд запущен.'
 		}
-		const fromBody = textFromResponseData(e.data)
+
+		if (e.status === 'TIMEOUT_ERROR') {
+			return 'Сервер не ответил вовремя. Попробуйте ещё раз.'
+		}
+
+		if (e.status === 'PARSING_ERROR') {
+			const status = e.originalStatus
+			const fromBody = textFromPlainBody(e.data)
+
+			if (fromBody && !fromBody.startsWith('<')) {
+				return `Ошибка на сервере (${status}): ${fromBody}`
+			}
+
+			return `Сервер вернул неожиданный ответ (${status}). Подробности — в консоли и логах бэкенда.`
+		}
+
+		const fromBody = textFromResponseData(e.data) ?? textFromPlainBody(e.data)
 		if (fromBody) return fromBody
 	}
 	return null
 }
 
-/**
- * Не показывать одно и то же сообщение чаще, чем раз в столько миллисекунд.
- */
 const DEDUPE_MS = 3000
 
 const lastShownAt = new Map<string, number>()

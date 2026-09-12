@@ -1,4 +1,4 @@
-import { formatApiDateToDisplay } from '@medml/shared'
+import { createCacheBuster, formatApiDateToDisplay } from '@medml/shared'
 import { baseApi } from '@medml/store'
 import type { PatientListSortOrder, PatientRow } from '@medml/patient_list'
 import { mapMedPatientToRow, medPatientsApi, normalizeMedPatientsPayload } from '@medml/patients'
@@ -116,6 +116,16 @@ type GetDoctorPatientsResult = {
 	total: number
 }
 
+/**
+ * Обход `cache_page(60)` у Django на списке пациентов врача.
+ *
+ * Без этого только что созданный пациент не появляется в списке ещё минуту:
+ * перезапрос уходит, но сервер отдаёт страницу из Redis. Значение меняется
+ * при каждой правке и подставляется в строку запроса, из-за чего Django
+ * считает URL новым. В med-режиме не нужен — Go-шлюз не кэширует.
+ */
+const patientsCache = createCacheBuster()
+
 export const patientsApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		/** Thyroid: POST `/patient/create/{doctorId}` */
@@ -142,6 +152,10 @@ export const patientsApi = baseApi.injectEndpoints({
 			transformResponse: (raw: { patient?: { id?: number | string } }) => ({
 				id: String(raw?.patient?.id ?? ''),
 			}),
+			onQueryStarted() {
+				// До инвалидации тегов: перезапрос должен уйти уже с новым ключом.
+				patientsCache.bump()
+			},
 			invalidatesTags: () => [{ type: 'Patient', id: 'LIST' }],
 		}),
 
@@ -176,6 +190,9 @@ export const patientsApi = baseApi.injectEndpoints({
 					},
 				},
 			}),
+			onQueryStarted() {
+				patientsCache.bump()
+			},
 			invalidatesTags: (_r, _e, { patientId }) => [
 				{ type: 'Patient', id: 'LIST' },
 				{ type: 'Patient', id: patientId },
@@ -194,6 +211,8 @@ export const patientsApi = baseApi.injectEndpoints({
 							search: search || undefined,
 							page,
 							page_size: pageSize,
+							// Мимо `cache_page(60)` — см. комментарий у patientsCache.
+							_: patientsCache.value(),
 							ordering:
 								mappedSortKey && sortOrder ? `${sortOrder === 'descend' ? '-' : ''}${mappedSortKey}` : undefined,
 						},

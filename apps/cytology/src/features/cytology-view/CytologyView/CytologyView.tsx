@@ -117,13 +117,17 @@ const CytologyView: React.FC<CytologyViewProps> = ({ generalCytologyId }) => {
 		loadAllSegments()
 	}, [dispatch, mode, accessToken, segmentTypesData, generalCytologyId, getSegmentsByType])
 
+	const noSegmentsToShow = mode === 'view' && (!accessToken || !currentSegment)
+	if (noSegmentsToShow && viewSegments.length > 0) {
+		setViewSegments([])
+	}
+
 	useEffect(() => {
 		if (mode !== 'view') {
 			return
 		}
 
 		if (!accessToken || !currentSegment) {
-			setViewSegments([])
 			return
 		}
 

@@ -7,6 +7,10 @@
     "typeRoots": ["../../node_modules/@types"],
     "paths": {
       "@medml/ui": ["../../lib/ui/src"],
+      "@medml/ui/next": ["../../lib/ui/src/next.ts"],
+      "@medml/layout/next": ["../../domains/layout/src/next.ts"],
+      "@medml/auth/middleware": ["../../domains/auth/src/middleware/createAuthMiddleware.ts"],
+      "@medml/cytology-upload/next": ["../../lib/cytology-upload/src/next/index.ts"],
       "@medml/store": ["../../lib/store/src"],
       "@medml/shared": ["../../lib/shared/src"],
       "@medml/viewers": ["../../lib/viewers/src"],
