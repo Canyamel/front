@@ -14,6 +14,8 @@ export type UploadSchemaField = {
   rules?: Array<Record<string, unknown>>;
   options?: UploadSchemaFieldOption[];
   disabled?: boolean;
+  /** Подсказка у подписи поля — иконка «?» с всплывающим текстом. */
+  tooltip?: React.ReactNode;
 };
 
 export type { ChunkedUploadConfig } from "@medml/shared";

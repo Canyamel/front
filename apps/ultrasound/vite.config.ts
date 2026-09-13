@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
 			// УЗИ-контур рендерит через @medml/viewers (OpenSeadragon + Annotorious
 			// от @recogito). Единый инстанс openseadragon обязателен: две копии
 			// ломают привязку Annotorious к вьюеру.
-			dedupe: ['react', 'react-dom', 'openseadragon'],
+			dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom', 'openseadragon'],
 			alias: {
 				'@': path.resolve(__dirname, 'src'),
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),

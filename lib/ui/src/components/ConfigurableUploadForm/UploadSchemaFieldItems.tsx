@@ -25,6 +25,7 @@ export function UploadSchemaFieldItems({
             key={field.name}
             label={field.label}
             name={field.name}
+            tooltip={field.tooltip}
             valuePropName={field.type === "checkbox" ? "checked" : "value"}
             rules={rules as never}
           >

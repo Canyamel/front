@@ -68,6 +68,7 @@ export default defineConfig(({ mode }) => {
 			),
 		},
 		resolve: {
+			dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom', 'openseadragon'],
 			alias: {
 				'@': path.resolve(__dirname, './src'),
 				'@cytology': path.resolve(__dirname, './src/features/cytology-view'),
@@ -77,6 +78,7 @@ export default defineConfig(({ mode }) => {
 				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
 				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
 				'@medml/subscriptions': path.resolve(__dirname, '../../domains/subscriptions/src'),
+				'@medml/viewers': path.resolve(__dirname, '../../lib/viewers/src'),
 				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
 			},
 		},

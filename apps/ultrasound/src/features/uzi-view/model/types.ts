@@ -70,6 +70,7 @@ export interface InfoDetails {
 	structure: string
 	additional_data: string
 	projection_type?: string
+	projection_side?: string
 }
 
 export interface Info {

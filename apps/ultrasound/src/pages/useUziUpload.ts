@@ -3,6 +3,13 @@ import { message } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
+import {
+	PROJECTION_OPTIONS,
+	PROJECTION_SIDE_FIELD_LABEL,
+	PROJECTION_SIDE_HINT,
+	PROJECTION_SIDE_OPTIONS,
+	needsProjectionSide,
+} from '@/lib/projection'
 import { useGetDoctorPatientsQuery } from '@/api/patientsApi'
 import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from '@/api/uziApi'
 import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
@@ -18,6 +25,14 @@ function singleFileList(file: File | null, uid: string): UploadFile[] {
 
 export interface UseUziUploadOptions {
 	presetPatientId: string
+	/**
+	 * Текущее значение поля «Проекция».
+	 *
+	 * Приходит снаружи, из `Form.useWatch`: схема полей — обычный массив
+	 * данных, сама она за формой следить не умеет, а поле «Доля» нужно
+	 * показывать только для продольной проекции.
+	 */
+	projection?: string
 	onUploaded: () => void
 }
 
@@ -27,7 +42,7 @@ export interface UseUziUploadOptions {
  *
  * Вынесено из `UploadPhotoRoute`, который смешивал это всё с версткой.
  */
-export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOptions) {
+export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUziUploadOptions) {
 	const { doctorId, status } = useDoctorId()
 	const [uploadUzi, { isLoading: isUploading }] = useUploadUziDiagnosticMutation()
 
@@ -45,7 +60,6 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 	const patients = patientsData?.rows ?? []
 
 	const [file, setFile] = React.useState<File | null>(null)
-	const [projectionValue, setProjectionValue] = React.useState<string | undefined>()
 
 	const fields = React.useMemo<UploadSchemaField[]>(() => {
 		const deviceOptions = devices.map(d => ({ value: d.id, label: d.name }))
@@ -72,24 +86,22 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 				type: 'select',
 				required: true,
 				placeholder: 'Выберите проекцию',
-				options: [
-					{ value: 'long', label: 'Продольная' },
-					{ value: 'cross', label: 'Поперечная' },
-				],
+				options: PROJECTION_OPTIONS,
 			},
 		]
 
-		if (projectionValue === 'long') {
+		// Доля идёт сразу за проекцией и до выбора пациента — то есть до того,
+		// как врач приложит файл: от неё зависит, какая модель сегментации
+		// структур ЩЖ отработает по снимку.
+		if (needsProjectionSide(projection)) {
 			result.push({
 				name: 'projectionSide',
-				label: 'Сторона доли',
+				label: PROJECTION_SIDE_FIELD_LABEL,
 				type: 'select',
 				required: true,
 				placeholder: 'Выберите долю',
-				options: [
-					{ value: 'left', label: 'Левая доля' },
-					{ value: 'right', label: 'Правая доля' },
-				],
+				options: PROJECTION_SIDE_OPTIONS,
+				tooltip: PROJECTION_SIDE_HINT,
 			})
 		}
 
@@ -104,7 +116,7 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 		})
 
 		return result
-	}, [devices, devicesLoading, patients, patientsLoading, projectionValue])
+	}, [devices, devicesLoading, patients, patientsLoading, projection])
 
 	const uploadProps: UploadProps = React.useMemo(
 		() => ({
@@ -130,14 +142,19 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 				return
 			}
 
-			const projectionSide = values.projectionSide
-				? String(values.projectionSide)
-				: undefined
+			// Долю отправляем только с продольной проекцией. Скрытое поле antd
+			// не забывает: если врач выбрал долю, а потом переключился на
+			// поперечную, значение осталось бы в форме и уехало на сервер.
+			const projectionValue = String(values.projection ?? '')
+			const projectionSide =
+				needsProjectionSide(projectionValue) && values.projectionSide
+					? String(values.projectionSide)
+					: undefined
 
 			try {
 				await uploadUzi({
 					file,
-					projection: String(values.projection ?? ''),
+					projection: projectionValue,
 					patientRefId: String(values.patient ?? ''),
 					deviceId: String(values.device ?? ''),
 					...(projectionSide ? { projectionSide } : {}),
@@ -170,7 +187,6 @@ export function useUziUpload({ presetPatientId, onUploaded }: UseUziUploadOption
 		uploadProps,
 		initialValues,
 		handleSubmit,
-		setProjectionValue,
 		pageBusy,
 		isUploading,
 	}

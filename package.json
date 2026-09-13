@@ -5,7 +5,8 @@
   "workspaces": [
     "apps/*",
     "lib/*",
-    "domains/*"
+    "domains/*",
+    "services/*"
   ],
   "scripts": {
     "dev:cytology": "turbo dev --filter=cytology-app",

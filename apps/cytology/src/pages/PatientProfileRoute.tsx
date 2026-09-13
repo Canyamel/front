@@ -98,11 +98,14 @@ export default function PatientProfileRoute() {
 	const editDefaults = data?.editDefaults
 	const patientDiagnosis = data?.patient?.diagnosis
 
-	const editInitialValues = React.useMemo(() => {
+	// Здесь же дата превращается в Dayjs: в кэше RTK Query она лежит строкой,
+	// потому что Redux хранит только сериализуемое, а DatePicker ждёт Dayjs.
+	const editInitialValues = React.useMemo<PatientCreateValuesCytology | undefined>(() => {
 		if (!editDefaults) return undefined
 		const diagnosis = editDefaults.diagnosis ?? patientDiagnosis ?? ''
 		return {
 			...editDefaults,
+			birthDate: editDefaults.birthDate ? dayjs(editDefaults.birthDate) : dayjs(),
 			diagnosis: diagnosis === 'Не обнаружено' ? '' : diagnosis,
 		}
 	}, [editDefaults, patientDiagnosis])

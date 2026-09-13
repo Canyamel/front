@@ -41,8 +41,11 @@ export default function UploadPhotoRoute() {
 
 	const isCreatingPatient = isThyroidBackend() ? isCreatingThyroid : isCreatingMedPatient || isCreatingMedCard
 
+	const projection = Form.useWatch('projection', form)
+
 	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } = useUziUpload({
 		presetPatientId,
+		projection: typeof projection === 'string' ? projection : undefined,
 		onUploaded: () => navigate('/patients'),
 	})
 
@@ -121,11 +124,7 @@ export default function UploadPhotoRoute() {
 							submitText='Провести диагностику'
 							actionsPlacement='upload-column'
 							uploadSlot={
-								<Dragger
-									className='upload-page__dropzone'
-									{...uploadProps}
-									disabled={pageBusy || isUploading}
-								>
+								<Dragger className='upload-page__dropzone' {...uploadProps} disabled={pageBusy || isUploading}>
 									<p className='ant-upload-drag-icon'>
 										<InboxOutlined />
 									</p>

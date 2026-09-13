@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react'
-import { Button, Card, Col, Form, Grid, Row, Space, Spin, Typography, theme } from 'antd'
+import React, { useMemo } from 'react'
+import { Card, Col, Form, Grid, Row, Spin, Typography, theme } from 'antd'
+import { useViewerFocusMode, ViewerFocusBar } from '@medml/viewers'
 
 import { useGetThyroidUziDataQuery, useGetUziDevicesQuery } from '@/api/uziApi'
 import { getSurfaceCardStyle } from '@/styles/uiPatterns'
@@ -11,33 +12,6 @@ import type { Segment } from './model/types'
 
 export interface UziViewPageProps {
 	uziId: string
-}
-
-/** Режим отображения: можно скрывать сводку и правую панель ради снимка. */
-function useViewerFocusMode(screens: ReturnType<typeof Grid.useBreakpoint>) {
-	const [showOverview, setShowOverview] = useState(true)
-	const [showSidebar, setShowSidebar] = useState(true)
-
-	const isViewerFocused = !showOverview && !showSidebar
-
-	const desktopHeight = isViewerFocused ? 820 : !showOverview || !showSidebar ? 720 : 600
-	const viewerHeight = !screens.md ? 360 : !screens.lg ? 480 : desktopHeight
-
-	const toggleFocus = () => {
-		const shouldFocus = showOverview || showSidebar
-		setShowOverview(!shouldFocus)
-		setShowSidebar(!shouldFocus)
-	}
-
-	return {
-		showOverview,
-		setShowOverview,
-		showSidebar,
-		setShowSidebar,
-		isViewerFocused,
-		viewerHeight,
-		toggleFocus,
-	}
 }
 
 /**
@@ -62,7 +36,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 
 	const studyForm = useThyroidStudyForm({ uziId, data, devices })
 
-	const focus = useViewerFocusMode(screens)
+	const focus = useViewerFocusMode()
 
 	const { aiTypes, doctorTypes } = useMemo(() => {
 		const segmentation = data?.segmentation || []
@@ -97,35 +71,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	// Ширину колонки и внешние отступы задаёт PageShell в UziViewRoute.
 	return (
 		<>
-			<Card style={cardStyle} styles={{ body: { padding: 12 } }}>
-				<div
-					style={{
-						display: 'flex',
-						justifyContent: 'space-between',
-						alignItems: 'center',
-						gap: 12,
-						flexWrap: 'wrap',
-					}}
-				>
-					<div>
-						<Title level={5} style={{ margin: 0 }}>
-							Режим просмотра
-						</Title>
-						<Text type='secondary'>Можно скрыть соседние блоки и увеличить область снимка</Text>
-					</div>
-					<Space wrap>
-						<Button onClick={() => focus.setShowOverview(prev => !prev)}>
-							{focus.showOverview ? 'Скрыть сводку' : 'Показать сводку'}
-						</Button>
-						<Button onClick={() => focus.setShowSidebar(prev => !prev)}>
-							{focus.showSidebar ? 'Скрыть правую панель' : 'Показать правую панель'}
-						</Button>
-						<Button type={focus.isViewerFocused ? 'default' : 'primary'} onClick={focus.toggleFocus}>
-							{focus.isViewerFocused ? 'Обычный режим' : 'Фокус на снимке'}
-						</Button>
-					</Space>
-				</div>
-			</Card>
+			<ViewerFocusBar focus={focus} style={cardStyle} />
 
 			{focus.showOverview && (
 				<Card style={cardStyle} styles={{ body: { padding: 16 } }}>

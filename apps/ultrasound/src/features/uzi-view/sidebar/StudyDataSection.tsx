@@ -4,6 +4,14 @@ import { Form, Input, Select, Checkbox, Card, Divider, Button, Modal, theme } fr
 import type { UziDeviceInfo } from '../model/types'
 import { getSurfaceCardStyle } from '@/styles/uiPatterns'
 
+import {
+	PROJECTION_OPTIONS,
+	PROJECTION_SIDE_FIELD_LABEL,
+	PROJECTION_SIDE_HINT,
+	PROJECTION_SIDE_OPTIONS,
+	needsProjectionSide,
+} from '@/lib/projection'
+
 export interface StudyDataSectionProps {
 	form: FormInstance
 	devices: UziDeviceInfo[]
@@ -24,6 +32,10 @@ const StudyDataSection: React.FC<StudyDataSectionProps> = ({
 	saving,
 }) => {
 	const { token } = theme.useToken()
+
+	// Сторона доли нужна только продольной проекции, поэтому следим за полем.
+	const projectionType = Form.useWatch('projectionType', form)
+	const showSide = needsProjectionSide(projectionType)
 
 	return (
 		<>
@@ -49,11 +61,27 @@ const StudyDataSection: React.FC<StudyDataSectionProps> = ({
 				</Form.Item>
 
 				<Form.Item label='Тип проекции' name='projectionType' style={{ marginBottom: 10 }}>
-					<Select>
-						<Option value='long'>Продольная</Option>
-						<Option value='cross'>Поперечная</Option>
-					</Select>
+					<Select
+						options={PROJECTION_OPTIONS}
+						onChange={value => {
+							if (!needsProjectionSide(value)) {
+								form.setFieldValue('projectionSide', undefined)
+							}
+						}}
+					/>
 				</Form.Item>
+
+				{showSide && (
+					<Form.Item
+						label={PROJECTION_SIDE_FIELD_LABEL}
+						name='projectionSide'
+						style={{ marginBottom: 10 }}
+						rules={[{ required: true, message: 'Выберите долю' }]}
+						tooltip={PROJECTION_SIDE_HINT}
+					>
+						<Select placeholder='Выберите долю' options={PROJECTION_SIDE_OPTIONS} />
+					</Form.Item>
+				)}
 
 				<Form.Item name='shortResult' valuePropName='checked' style={{ marginBottom: 12 }}>
 					<Checkbox>Обнаружено новообразование</Checkbox>

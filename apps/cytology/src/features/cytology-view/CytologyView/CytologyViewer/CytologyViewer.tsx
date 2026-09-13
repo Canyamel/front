@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Annotorious } from "@annotorious/react";
 import { Flex, Typography } from "antd";
 import { FileImageOutlined } from "@ant-design/icons";
 
@@ -11,17 +10,17 @@ import { ISegmentStack } from "@cytology/core/types/segments";
 import { IPoint } from "./Viewer/interfaces/queries";
 
 import EditPanel from "./EditPanel/EditPanel";
+import CytologyOsdViewer from "./CytologyOsdViewer";
 
-import "@annotorious/react/annotorious-react.css";
 import "./CytologyViewer.css";
-
-import Viewer from "./Viewer/Viewer";
 
 interface CytologyViewerProps {
     imageUrl: string | undefined;
     isEditMode: boolean;
     segments: ISegmentStack[];
     segmentTypeColors?: Record<string, string>;
+    /** Высота области снимка; приходит из режима фокуса на странице. */
+    height?: number | string;
 }
 
 const CytologyViewer: React.FC<CytologyViewerProps> = ({
@@ -29,6 +28,7 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({
     isEditMode,
     segments,
     segmentTypeColors = {},
+    height = 600,
 }) => {
     const dispatch = useAppDispatch();
     const currentSegment = useAppSelector((state) => state.segment.currentSegment);
@@ -80,39 +80,30 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({
 
     return (
         <div className="cytology-viewer-root">
-            <Annotorious>
-                <>
-                    {isEditMode ? <EditPanel tool={tool} setTool={setTool} /> : null}
-                    <Flex justify="center" align="stretch" className="cytology-viewer">
-                        {!hasImage ? (
-                            <Flex
-                                vertical
-                                align="center"
-                                justify="center"
-                                className="cytology-viewer-empty"
-                            >
-                                <FileImageOutlined className="cytology-viewer-empty-icon" />
-                                <Typography.Paragraph className="cytology-viewer-empty-text">
-                                    Снимок загружается или недоступен
-                                </Typography.Paragraph>
-                            </Flex>
-                        ) : (
-                            <Viewer
-                                viewerType="osd"
-                                tool={tool}
-                                imageUrl={imageUrl!}
-                                segments={segments}
-                                segmentTypeColors={segmentTypeColors}
-                                drawingEnabled={isEditMode}
-                                selected={!!currentSegment}
-                                needPopup={true}
-                                addSegment={handleAddSegment}
-                                changeSegment={handleChangeSegment}
-                            />
-                        )}
+            {isEditMode ? <EditPanel tool={tool} setTool={setTool} /> : null}
+            <Flex justify="center" align="stretch" className="cytology-viewer" style={{ height }}>
+                {!hasImage ? (
+                    <Flex vertical align="center" justify="center" className="cytology-viewer-empty">
+                        <FileImageOutlined className="cytology-viewer-empty-icon" />
+                        <Typography.Paragraph className="cytology-viewer-empty-text">
+                            Снимок загружается или недоступен
+                        </Typography.Paragraph>
                     </Flex>
-                </>
-            </Annotorious>
+                ) : (
+                    <CytologyOsdViewer
+                        tool={tool}
+                        imageUrl={imageUrl!}
+                        segments={segments}
+                        segmentTypeColors={segmentTypeColors}
+                        drawingEnabled={isEditMode}
+                        selected={!!currentSegment}
+                        needPopup
+                        height={height}
+                        addSegment={handleAddSegment}
+                        changeSegment={handleChangeSegment}
+                    />
+                )}
+            </Flex>
         </div>
     );
 };

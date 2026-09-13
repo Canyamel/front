@@ -16,6 +16,7 @@
       "@medml/patient_create": ["../../domains/patient_create/src"],
       "@medml/patient_view": ["../../domains/patient_view/src"],
       "@medml/subscriptions": ["../../domains/subscriptions/src"],
+      "@medml/viewers": ["../../lib/viewers/src"],
       "@medml/cytology-upload": ["../../lib/cytology-upload/src"],
       "@medml/cytology_upload": ["../../domains/cytology_upload/src"]
     }

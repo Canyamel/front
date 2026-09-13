@@ -4,6 +4,7 @@ import { baseApi } from '@medml/store'
 import type { PatientProfileViewModel } from '@medml/patient_view'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
+import { formatProjection } from '@/lib/projection'
 
 type ProfileBaseQuery = (arg: string | FetchArgs) => unknown
 
@@ -96,10 +97,9 @@ function normalizeUzisPayload(response: unknown): UziExternalItemDto[] {
 	return []
 }
 
-function projectionLabel(projection: string | undefined): string {
-	if (projection === 'cross') return 'Поперечная'
-	if (projection === 'long') return 'Продольная'
-	return projection?.trim() ? String(projection) : '—'
+/** Подпись проекции; для продольной — вместе со стороной доли. */
+function projectionLabel(projection: string | undefined, side?: string | null): string {
+	return formatProjection(projection, side)
 }
 
 function statusLabel(status: string | undefined): string {
@@ -215,7 +215,7 @@ type ThyroidUziStudyDto = {
 	id?: number
 	uzi_device_id?: number
 	diagnos_date?: string
-	details?: { projection_type?: string }
+	details?: { projection_type?: string; projection_side?: string }
 }
 
 type ThyroidShotDto = {
@@ -296,7 +296,7 @@ function mapThyroidUziToRows(response: unknown, statusByStudyId: Map<string, str
 
 		return {
 			key,
-			projectionLabel: projectionLabel(item.details?.projection_type),
+			projectionLabel: projectionLabel(item.details?.projection_type, item.details?.projection_side),
 			checkedLabel: '—',
 			deviceIdRaw: item.uzi_device_id != null ? String(item.uzi_device_id) : '',
 			statusRaw: rawStatus,
