@@ -3,6 +3,7 @@ import type { Middleware } from '@reduxjs/toolkit'
 import type { SerializedError } from '@reduxjs/toolkit'
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import { message } from 'antd'
+import { describeServerErrorBody } from '@medml/shared'
 
 function textFromResponseData(data: unknown): string | null {
 	if (!data || typeof data !== 'object') return null
@@ -22,20 +23,6 @@ function textFromResponseData(data: unknown): string | null {
 	return null
 }
 
-function textFromPlainBody(data: unknown): string | null {
-	if (typeof data !== 'string') return null
-
-	const lines = data
-		.split('\n')
-		.map(line => line.trim())
-		.filter(Boolean)
-
-	if (lines.length === 0) return null
-
-	const last = lines[lines.length - 1]
-	return last.length > 200 ? `${last.slice(0, 200)}…` : last
-}
-
 function textFromRejectedPayload(payload: unknown): string | null {
 	if (payload == null) return null
 	const e = payload as FetchBaseQueryError
@@ -51,16 +38,16 @@ function textFromRejectedPayload(payload: unknown): string | null {
 
 		if (e.status === 'PARSING_ERROR') {
 			const status = e.originalStatus
-			const fromBody = textFromPlainBody(e.data)
+			const fromBody = describeServerErrorBody(e.data)
 
-			if (fromBody && !fromBody.startsWith('<')) {
+			if (fromBody) {
 				return `Ошибка на сервере (${status}): ${fromBody}`
 			}
 
 			return `Сервер вернул неожиданный ответ (${status}). Подробности — в консоли и логах бэкенда.`
 		}
 
-		const fromBody = textFromResponseData(e.data) ?? textFromPlainBody(e.data)
+		const fromBody = textFromResponseData(e.data) ?? describeServerErrorBody(e.data)
 		if (fromBody) return fromBody
 	}
 	return null
