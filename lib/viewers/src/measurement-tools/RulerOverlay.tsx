@@ -1,5 +1,6 @@
 import React from 'react'
-import { elementToImagePoint, imageToElementPoint, type ViewerInstance } from '@medml/viewers'
+import { elementToImagePoint, imageToElementPoint } from '../uzi-viewer/coords'
+import type { ViewerInstance } from '../uzi-viewer/types'
 import { lineLabelAnchor, lineLengthPx } from './measurement'
 import type { MeasuredLine } from './measurement'
 import type { RulerMeasurement } from './useRulerMeasurements'

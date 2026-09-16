@@ -1,17 +1,28 @@
 import React from 'react'
-import { elementToImagePoint, imageToElementPoint, type ViewerInstance } from '@medml/viewers'
+import { elementToImagePoint, imageToElementPoint } from '../uzi-viewer/coords'
+import type { ViewerInstance } from '../uzi-viewer/types'
 import { paintStroke, type BrushMask, type Point2D } from './raster'
 
 export interface BrushCanvasOverlayProps {
 	/** Живой инстанс OSD — нужен для перевода экранных координат в координаты снимка. */
 	viewer: ViewerInstance | null
 	mask: BrushMask | null
-	/** Радиус кисти в пикселях изображения. */
+	/** Радиус кисти в пикселях изображения (не маски — см. `scale`). */
 	radius: number
 	/** `true` — ластик (стирает), `false` — кисть (рисует). */
 	erasing: boolean
 	/** Цвет наброска. */
 	color?: string
+	/**
+	 * Пикселей маски на пиксель изображения (`maskScaleFor` из `./raster`).
+	 *
+	 * Для обычных кадров маска ведётся 1:1 с изображением (`scale = 1`). Для
+	 * гигапиксельных снимков (WSI) маска — уменьшённая копия, иначе
+	 * `Uint8Array` на полное разрешение не выделяется. Слой пересчитывает
+	 * через этот коэффициент точки и радиус кисти, чтобы рисование выглядело
+	 * одинаково независимо от того, ведётся ли маска в полном разрешении.
+	 */
+	scale?: number
 	/** Штрих завершён — снаружи обновляется превью/состояние. */
 	onStrokeEnd?: () => void
 }
@@ -19,10 +30,10 @@ export interface BrushCanvasOverlayProps {
 /**
  * Слой наброска кистью поверх снимка.
  *
- * Маска хранится в координатах изображения, а канвас рисуется в координатах
- * экрана — поэтому при зуме и панорамировании он перерисовывается по событиям
- * OSD, а не пересчитывает саму маску. Так набросок не «плывёт» и не теряет
- * точность при масштабировании.
+ * Маска хранится в координатах изображения (с поправкой на `scale`), а
+ * канвас рисуется в координатах экрана — поэтому при зуме и панорамировании
+ * он перерисовывается по событиям OSD, а не пересчитывает саму маску. Так
+ * набросок не «плывёт» и не теряет точность при масштабировании.
  */
 const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 	viewer,
@@ -30,6 +41,7 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 	radius,
 	erasing,
 	color = 'rgba(6, 182, 212, 0.4)',
+	scale = 1,
 	onStrokeEnd,
 }) => {
 	const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -39,16 +51,17 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 	// Refs здесь не нужны: обработчики ниже — обычные React-пропсы, они
 	// пересоздаются на каждый рендер и уже видят актуальные значения.
 
-	/** Экранная точка → координаты пикселя изображения. */
-	const toImagePoint = React.useCallback(
+	/** Экранная точка → координаты пикселя маски (с поправкой на `scale`). */
+	const toMaskPoint = React.useCallback(
 		(clientX: number, clientY: number): Point2D | null => {
 			const canvas = canvasRef.current
 			if (!viewer || !canvas) return null
 
 			const rect = canvas.getBoundingClientRect()
-			return elementToImagePoint(viewer, clientX - rect.left, clientY - rect.top)
+			const imagePoint = elementToImagePoint(viewer, clientX - rect.left, clientY - rect.top)
+			return imagePoint ? { x: imagePoint.x * scale, y: imagePoint.y * scale } : null
 		},
-		[viewer],
+		[viewer, scale],
 	)
 
 	/** Перерисовка маски в текущем положении вьюпорта. */
@@ -90,9 +103,11 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 		}
 		offCtx.putImageData(imageData, 0, 0)
 
-		// Границы изображения в координатах экрана.
+		// Границы изображения в координатах экрана. Маска может быть уменьшенной
+		// копией изображения (`scale < 1`), поэтому её размеры переводим обратно
+		// в пиксели изображения, прежде чем спрашивать экранные координаты.
 		const topLeft = imageToElementPoint(viewer, 0, 0)
-		const bottomRight = imageToElementPoint(viewer, currentMask.width, currentMask.height)
+		const bottomRight = imageToElementPoint(viewer, currentMask.width / scale, currentMask.height / scale)
 		if (!topLeft || !bottomRight) return
 
 		ctx.imageSmoothingEnabled = false
@@ -103,7 +118,7 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 			bottomRight.x - topLeft.x,
 			bottomRight.y - topLeft.y,
 		)
-	}, [viewer, color, mask])
+	}, [viewer, color, mask, scale])
 
 	// Перерисовка при движении вьюпорта.
 	React.useEffect(() => {
@@ -127,9 +142,9 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 		event.currentTarget.setPointerCapture(event.pointerId)
 		drawingRef.current = true
 
-		const point = toImagePoint(event.clientX, event.clientY)
+		const point = toMaskPoint(event.clientX, event.clientY)
 		if (point) {
-			paintStroke(mask, point, point, radius, erasing ? 0 : 1)
+			paintStroke(mask, point, point, radius * scale, erasing ? 0 : 1)
 			lastPointRef.current = point
 			redraw()
 		}
@@ -138,10 +153,10 @@ const BrushCanvasOverlay: React.FC<BrushCanvasOverlayProps> = ({
 	const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
 		if (!drawingRef.current || !mask) return
 
-		const point = toImagePoint(event.clientX, event.clientY)
+		const point = toMaskPoint(event.clientX, event.clientY)
 		if (!point) return
 
-		paintStroke(mask, lastPointRef.current ?? point, point, radius, erasing ? 0 : 1)
+		paintStroke(mask, lastPointRef.current ?? point, point, radius * scale, erasing ? 0 : 1)
 		lastPointRef.current = point
 		redraw()
 	}

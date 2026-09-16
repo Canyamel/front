@@ -1,3 +1,7 @@
+export { BRUSH_TOOL, RULER_TOOL, CALIBRATE_TOOL, isRulerLikeTool } from '@medml/viewers'
+export type { BrushMode } from '@medml/viewers'
+import { BRUSH_TOOL, RULER_TOOL, CALIBRATE_TOOL } from '@medml/viewers'
+
 export const NODE_COLORS = [
 	'#FF0000',
 	'#00FF00',
@@ -35,34 +39,6 @@ export type DrawingToolId = keyof typeof DRAWING_TOOLS
  */
 export const PAN_TOOL = 'pan' as const
 
-/**
- * Кисть-заполнение работает не через Annotorious, а поверх собственного
- * canvas-слоя: врач закрашивает область, а в полигон она превращается
- * только по кнопке «Подтвердить».
- */
-export const BRUSH_TOOL = 'brush' as const
-
-/**
- * Линейка тоже работает мимо Annotorious.
- *
- * Через плагин не получилось: после первого же отрезка он выходил из режима
- * рисования (перетаскивание снова двигало снимок), а показать длину прямо во
- * время протяжки было нечем — руббербенд рисует сам плагин. На своём слое
- * есть и живая подпись, и видимая точка начала.
- */
-export const RULER_TOOL = 'ruler' as const
-
-/**
- * Задание масштаба: тот же жест, что у линейки, но результат другой.
- *
- * Врач проводит отрезок по шкале на снимке и указывает, скольким миллиметрам
- * тот соответствует. Из длины отрезка в пикселях и этого числа выводится
- * коэффициент. Раньше коэффициент вводили числом вручную — но взять его было
- * неоткуда: на глаз пиксели на миллиметр не считаются, а шкала на снимке есть
- * почти всегда.
- */
-export const CALIBRATE_TOOL = 'calibrate' as const
-
 export type ViewerToolId =
 	| typeof PAN_TOOL
 	| typeof BRUSH_TOOL
@@ -77,14 +53,6 @@ const OVERLAY_TOOLS: ViewerToolId[] = [PAN_TOOL, BRUSH_TOOL, RULER_TOOL, CALIBRA
 export function isDrawingTool(tool: ViewerToolId): tool is DrawingToolId {
 	return !OVERLAY_TOOLS.includes(tool)
 }
-
-/** Инструмент использует слой линейки (протяжка отрезка). */
-export function isRulerLikeTool(tool: ViewerToolId): boolean {
-	return tool === RULER_TOOL || tool === CALIBRATE_TOOL
-}
-
-/** Режим кисти-заполнения. */
-export type BrushMode = 'draw' | 'erase'
 
 export const TI_RADS_OPTIONS = [
 	'TI-RADS 1',

@@ -26,6 +26,26 @@ export function createMask(width: number, height: number): BrushMask {
 	}
 }
 
+/** Верхняя граница размера маски: 1 байт на пиксель, ~16 МиБ. */
+const MAX_MASK_PIXELS = 16 * 1024 * 1024
+
+/**
+ * Во сколько раз уменьшить сторону маски относительно изображения.
+ *
+ * Маска — это `Uint8Array` размером width×height: для обычного кадра (УЗИ)
+ * это доли мегабайта, но для WSI-снимка цитологии (десятки тысяч пикселей по
+ * стороне) выделение полноразмерной маски падает с `RangeError: Array buffer
+ * allocation failed`. Поэтому у больших изображений маска ведётся в более
+ * грубом разрешении — это единственная переменная, которую при рисовании и
+ * переводе контура обратно в пиксели изображения нужно учитывать (см.
+ * `BrushCanvasOverlay`).
+ */
+export function maskScaleFor(width: number, height: number): number {
+	const pixels = Math.max(0, width) * Math.max(0, height)
+	if (pixels <= MAX_MASK_PIXELS) return 1
+	return Math.sqrt(MAX_MASK_PIXELS / pixels)
+}
+
 export function isMaskEmpty(mask: BrushMask): boolean {
 	return !mask.data.some(value => value === 1)
 }
