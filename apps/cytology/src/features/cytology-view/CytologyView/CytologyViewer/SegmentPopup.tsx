@@ -12,12 +12,19 @@ interface SegmentPopupProps {
 	annotator: OpenSeadragonAnnotator | null
 	isEditingMode?: boolean
 	needInput?: boolean
+	/** Масштаб; передаётся в карточку для показа размера сегмента в мм. */
+	pxPerMm?: number | null
 }
 
 /** Отступ от угла разметки, чтобы карточка не накрывала сам сегмент. */
 const POPUP_OFFSET = 8
 
-const SegmentPopup: React.FC<SegmentPopupProps> = ({ annotator, isEditingMode = false, needInput = false }) => {
+const SegmentPopup: React.FC<SegmentPopupProps> = ({
+	annotator,
+	isEditingMode = false,
+	needInput = false,
+	pxPerMm = null,
+}) => {
 	// Инстанс движка берём у самого аннотатора: он к нему привязан, и лишнее
 	// состояние в вызывающем компоненте не нужно.
 	const viewer = annotator?.viewer ?? null
@@ -63,7 +70,7 @@ const SegmentPopup: React.FC<SegmentPopupProps> = ({ annotator, isEditingMode = 
 
 	return (
 		<div className='cytology-segment-popup' style={{ left: position.x + POPUP_OFFSET, top: position.y }}>
-			<CommentPopup annotation={annotation} needInput={needInput} isEditingMode={isEditingMode} />
+			<CommentPopup annotation={annotation} needInput={needInput} isEditingMode={isEditingMode} pxPerMm={pxPerMm} />
 		</div>
 	)
 }

@@ -1,15 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Flex, Typography } from "antd";
-import { FileImageOutlined } from "@ant-design/icons";
+import React, { useCallback, useEffect, useRef } from "react";
+import { Flex } from "antd";
 
 import { useAppDispatch, useAppSelector } from "@cytology/core/hooks";
 import { addNewSegmentToStack, editPointSegment } from "@cytology/core/store";
 
-import { Tools } from "@cytology/core/types/basic";
 import { ISegmentStack } from "@cytology/core/types/segments";
 import { IPoint } from "./Viewer/interfaces/queries";
 
-import EditPanel from "./EditPanel/EditPanel";
 import CytologyOsdViewer from "./CytologyOsdViewer";
 
 import "./CytologyViewer.css";
@@ -34,7 +31,6 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({
     const currentSegment = useAppSelector((state) => state.segment.currentSegment);
     const segmentStack = useAppSelector((state) => state.segment.segmentStack);
 
-    const [tool, setTool] = useState<Tools>("move");
     const currentSegmentRef = useRef(currentSegment);
     const segmentStackRef = useRef(segmentStack);
 
@@ -76,33 +72,20 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({
         [dispatch]
     );
 
-    const hasImage = Boolean(imageUrl?.trim());
-
     return (
         <div className="cytology-viewer-root">
-            {isEditMode ? <EditPanel tool={tool} setTool={setTool} /> : null}
             <Flex justify="center" align="stretch" className="cytology-viewer" style={{ height }}>
-                {!hasImage ? (
-                    <Flex vertical align="center" justify="center" className="cytology-viewer-empty">
-                        <FileImageOutlined className="cytology-viewer-empty-icon" />
-                        <Typography.Paragraph className="cytology-viewer-empty-text">
-                            Снимок загружается или недоступен
-                        </Typography.Paragraph>
-                    </Flex>
-                ) : (
-                    <CytologyOsdViewer
-                        tool={tool}
-                        imageUrl={imageUrl!}
-                        segments={segments}
-                        segmentTypeColors={segmentTypeColors}
-                        drawingEnabled={isEditMode}
-                        selected={!!currentSegment}
-                        needPopup
-                        height={height}
-                        addSegment={handleAddSegment}
-                        changeSegment={handleChangeSegment}
-                    />
-                )}
+                <CytologyOsdViewer
+                    imageUrl={imageUrl}
+                    isEditMode={isEditMode}
+                    segments={segments}
+                    segmentTypeColors={segmentTypeColors}
+                    selected={!!currentSegment}
+                    needPopup
+                    height={height}
+                    addSegment={handleAddSegment}
+                    changeSegment={handleChangeSegment}
+                />
             </Flex>
         </div>
     );

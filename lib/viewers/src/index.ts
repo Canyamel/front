@@ -3,5 +3,6 @@
 export * from './types';
 export * from './uzi-viewer';
 export * from './focus-mode';
+export * from './measurement-tools';
 
 

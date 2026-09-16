@@ -167,7 +167,11 @@ export function useCytologyAnnotator({
             return;
         }
 
-        const canDraw = drawingEnabled && tool !== "move";
+        // "brush"/"ruler"/"calibrate" работают мимо Annotorious, на собственных
+        // слоях (RulerOverlay/BrushCanvasOverlay из @medml/viewers) — v3 не
+        // знает таких инструментов рисования, поэтому Annotorious включаем
+        // только для его собственных rectangle/polygon.
+        const canDraw = drawingEnabled && (tool === "rectangle" || tool === "polygon");
 
         if (canDraw) {
             annotator.setDrawingTool(tool);

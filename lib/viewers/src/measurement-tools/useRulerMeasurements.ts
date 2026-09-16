@@ -23,7 +23,7 @@ export interface UseRulerMeasurementsResult {
  * Произвольные измерения линейкой.
  *
  * Живут только в состоянии вьюера: это вспомогательная разметка врача,
- * а не контуры узлов — на бэкенд они не отправляются.
+ * а не контуры сегментов — на бэкенд они не отправляются.
  */
 export function useRulerMeasurements(): UseRulerMeasurementsResult {
 	const [measurements, setMeasurements] = useState<RulerMeasurement[]>([])
