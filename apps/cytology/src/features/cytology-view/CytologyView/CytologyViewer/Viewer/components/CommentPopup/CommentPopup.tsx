@@ -1,6 +1,7 @@
 import React from 'react'
 import type { ImageAnnotation } from '@annotorious/openseadragon'
 import { Card, Flex, Typography } from 'antd'
+import { formatMm, pxToMm } from '@medml/viewers'
 
 import { ISegmentDetails } from '@cytology/core/types/segments'
 import { useAppDispatch, useAppSelector } from '@cytology/core/hooks'
@@ -29,9 +30,16 @@ interface CommentPopupProps {
 	annotation: ImageAnnotation
 	needInput?: boolean
 	isEditingMode?: boolean
+	/** Масштаб; пока не задан, размер сегмента не показываем. */
+	pxPerMm?: number | null
 }
 
-const CommentPopup: React.FC<CommentPopupProps> = ({ annotation, needInput = false, isEditingMode = false }) => {
+const CommentPopup: React.FC<CommentPopupProps> = ({
+	annotation,
+	needInput = false,
+	isEditingMode = false,
+	pxPerMm = null,
+}) => {
 	// const [comment, setComment] = useState('');
 	const dispatch = useAppDispatch()
 	const currentSegment = useAppSelector(state => state.segment.currentSegment)
@@ -103,6 +111,16 @@ const CommentPopup: React.FC<CommentPopupProps> = ({ annotation, needInput = fal
 		? SEGMENT_DETAIL_FIELDS.filter(field => hasSegmentDetailValue(response.details?.[field.key]))
 		: []
 
+	// Размер по геометрии выделения, а не по details с бэкенда: масштаб
+	// (px/мм) задаётся врачом на этом снимке и здесь же, ни в чём другом.
+	const bounds = annotation.target?.selector?.geometry?.bounds
+	const sizeLabel =
+		pxPerMm != null && bounds
+			? `${formatMm(pxToMm(bounds.maxX - bounds.minX, pxPerMm))} × ${formatMm(
+					pxToMm(bounds.maxY - bounds.minY, pxPerMm),
+				)}`
+			: null
+
 	return (
 		<>
 			{response && (
@@ -129,6 +147,14 @@ const CommentPopup: React.FC<CommentPopupProps> = ({ annotation, needInput = fal
 							isEditingMode={isEditingMode}
 							deleted={response.toDelete}
 						/>
+					)}
+					{sizeLabel && (
+						<Flex vertical>
+							<Title level={5} className='mb-0'>
+								Размер
+							</Title>
+							<Text>{sizeLabel}</Text>
+						</Flex>
 					)}
 					{filledDetailFields.length > 0 ? (
 						<Flex vertical gap={8}>

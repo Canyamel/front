@@ -2,28 +2,40 @@ import './viewer.scss'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { InputNumber, Modal, Typography, message } from 'antd'
-import { UziViewer } from '@medml/viewers'
-import type { ViewerImage, ViewerInstance } from '@medml/viewers'
+import {
+	UziViewer,
+	useRulerMeasurements,
+	SegmentsVisibilityToggle,
+	BrushCanvasOverlay,
+	RulerOverlay,
+	createMask,
+	isMaskEmpty,
+	maskToPolygon,
+	maskScaleFor,
+} from '@medml/viewers'
+import type { ViewerImage, ViewerInstance, BrushMask } from '@medml/viewers'
 
 import { useThyroidAnnotator } from './useThyroidAnnotator'
-import { useRulerMeasurements } from './useRulerMeasurements'
 import NodeLegendOverlay from './NodeLegendOverlay'
-import SegmentsVisibilityToggle from './SegmentsVisibilityToggle'
-import BrushCanvasOverlay from './BrushCanvasOverlay'
-import RulerOverlay from './RulerOverlay'
 import ViewerToolPanel from './ViewerToolPanel'
-import { BRUSH_TOOL, CALIBRATE_TOOL, PAN_TOOL, isRulerLikeTool, type BrushMode, type ViewerToolId } from './constants'
+import {
+	BRUSH_TOOL,
+	CALIBRATE_TOOL,
+	PAN_TOOL,
+	isRulerLikeTool,
+	type BrushMode,
+	type ViewerToolId,
+} from './constants'
 import { calcPxPerMm, lineLengthPx, type MeasuredLine } from './measurement'
-import { createMask, isMaskEmpty, maskToPolygon, type BrushMask } from './raster'
 import type { ThyroidAnnotatedViewerProps } from './types'
 
 /**
  * Доменная обёртка над `<UziViewer />` (`@medml/viewers`).
  *
- * Чистое управление OpenSeadragon живёт в `@medml/viewers`; здесь —
- * инструменты врача: разметка через Annotorious (`useThyroidAnnotator`),
- * кисть-заполнение поверх canvas (`BrushCanvasOverlay` + `raster.ts`),
- * произвольные измерения (`useRulerMeasurements` + `RulerOverlay`).
+ * Чистое управление OpenSeadragon и общие инструменты измерения (линейка,
+ * кисть, растровая маска) живут в `@medml/viewers`; здесь — разметка УЗИ
+ * через Annotorious (`useThyroidAnnotator`), легенда узлов и структур ЩЖ и
+ * связка инструментов с панелью врача.
  */
 const ThyroidAnnotatedViewer = ({
 	image,
@@ -70,16 +82,25 @@ const ThyroidAnnotatedViewer = ({
 		}))
 	}, [image, imageid])
 
-	// Маска живёт в координатах снимка, поэтому её размер — размер кадра.
+	// Маска живёт в координатах снимка (с поправкой на maskScale), поэтому её
+	// размер — размер кадра. `maskScaleFor` ужимает маску для нетипично
+	// крупных кадров — иначе `Uint8Array` на полное разрешение может не
+	// выделиться («Array buffer allocation failed»).
+	const frame = images[currentPage]
+	const maskScale = useMemo(
+		() => (frame?.width && frame?.height ? maskScaleFor(frame.width, frame.height) : 1),
+		[frame?.width, frame?.height],
+	)
+
 	useEffect(() => {
-		const frame = images[currentPage]
 		if (!frame?.width || !frame?.height) {
 			setMask(null)
 			return
 		}
-		setMask(createMask(frame.width, frame.height))
+		setMask(createMask(frame.width * maskScale, frame.height * maskScale))
 		setSketchVersion(v => v + 1)
-	}, [images, currentPage])
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [images, currentPage, maskScale])
 
 	const {
 		showSegments,
@@ -116,11 +137,10 @@ const ThyroidAnnotatedViewer = ({
 	)
 
 	const handleClearSketch = useCallback(() => {
-		const frame = images[currentPage]
 		if (!frame?.width || !frame?.height) return
-		setMask(createMask(frame.width, frame.height))
+		setMask(createMask(frame.width * maskScale, frame.height * maskScale))
 		setSketchVersion(v => v + 1)
-	}, [images, currentPage])
+	}, [frame, maskScale])
 
 	const handleConfirmSketch = useCallback(() => {
 		if (!mask) return
@@ -131,11 +151,14 @@ const ThyroidAnnotatedViewer = ({
 			return
 		}
 
-		if (addPolygonFromPoints(polygon)) {
-			message.success(`Контур создан (${polygon.length} точек)`)
+		// Контур найден в пикселях маски — переводим в пиксели изображения.
+		const points = polygon.map(point => ({ x: point.x / maskScale, y: point.y / maskScale }))
+
+		if (addPolygonFromPoints(points)) {
+			message.success(`Контур создан (${points.length} точек)`)
 			handleClearSketch()
 		}
-	}, [mask, addPolygonFromPoints, handleClearSketch])
+	}, [mask, maskScale, addPolygonFromPoints, handleClearSketch])
 
 	const calibrating = activeTool === CALIBRATE_TOOL
 
@@ -173,6 +196,9 @@ const ThyroidAnnotatedViewer = ({
 
 	const showBrush = !readOnly && activeTool === BRUSH_TOOL
 
+	// Панель инструментов и снимок делят отведённую странице высоту, а не
+	// занимают её каждый целиком: иначе в редакторе снимок вылезает из
+	// карточки ровно на высоту панели.
 	return (
 		<div
 			style={{
@@ -200,15 +226,20 @@ const ThyroidAnnotatedViewer = ({
 					hasSketch={hasSketch}
 					onConfirmSketch={handleConfirmSketch}
 					onClearSketch={handleClearSketch}
-					measurementCount={ruler.measurements.filter(item => item.page === currentPage).length}
+					measurementCount={
+						ruler.measurements.filter(item => item.page === currentPage).length
+					}
 					onClearMeasurements={ruler.clear}
 				/>
 			)}
 
+			{/* Снимок забирает всю высоту, оставшуюся от панели инструментов. */}
 			<div style={{ flex: 1, minHeight: 0 }}>
 				<UziViewer
 					images={images}
 					onIndexChange={setCurrentPage}
+					// Инструменты выбираются в панели над снимком, встроенный
+					// список тулбара не используем.
 					toolbarConfig={{ tools: [] }}
 					height='100%'
 					readOnly={readOnly}
@@ -240,6 +271,7 @@ const ThyroidAnnotatedViewer = ({
 									mask={mask}
 									radius={brushRadius}
 									erasing={brushMode === 'erase'}
+									scale={maskScale}
 									onStrokeEnd={() => setSketchVersion(v => v + 1)}
 								/>
 							)}
@@ -253,7 +285,11 @@ const ThyroidAnnotatedViewer = ({
 								onToggle={toggleSegments}
 							/>
 							{hasStructures && (
-								<SegmentsVisibilityToggle label='Доли' visible={showStructures} onToggle={toggleStructures} />
+								<SegmentsVisibilityToggle
+									label='Доли'
+									visible={showStructures}
+									onToggle={toggleStructures}
+								/>
 							)}
 						</div>
 					}
@@ -271,8 +307,8 @@ const ThyroidAnnotatedViewer = ({
 				destroyOnHidden
 			>
 				<Typography.Paragraph type='secondary'>
-					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким миллиметрам он соответствует по
-					шкале снимка.
+					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким
+					миллиметрам он соответствует по шкале снимка.
 				</Typography.Paragraph>
 
 				<InputNumber
