@@ -28,6 +28,7 @@ export type PatientUziStudyRow = {
 	statusRaw: string
 	statusLabel: string
 	createdAtLabel: string
+	createdAtSort: number
 }
 
 type MedPatientDto = {
@@ -108,6 +109,16 @@ function statusLabel(status: string | undefined): string {
 	return STATUS_LABELS[k] ?? status
 }
 
+function toDateSortValue(iso: string | undefined | null): number {
+	if (!iso?.trim()) return 0
+	const s = String(iso).trim()
+	// Голую дату `YYYY-MM-DD` `Date` читает как UTC — берём местную полночь,
+	// чтобы порядок совпадал с датой, которая показана в таблице.
+	const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+	const time = ymd ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])).getTime() : new Date(s).getTime()
+	return Number.isNaN(time) ? 0 : time
+}
+
 function formatDateOnly(iso: string | undefined): string {
 	if (!iso?.trim()) return '—'
 	const s = String(iso).trim()
@@ -137,6 +148,7 @@ function mapMedUziItemsToRows(response: unknown): PatientUziStudyRow[] {
 			statusRaw: rawStatus,
 			statusLabel: statusLabel(item.status),
 			createdAtLabel: formatDateOnly(item.create_at),
+			createdAtSort: toDateSortValue(item.create_at),
 		}
 	})
 }
@@ -215,7 +227,7 @@ type ThyroidUziStudyDto = {
 	id?: number
 	uzi_device_id?: number
 	diagnos_date?: string
-	details?: { projection_type?: string; projection_side?: string }
+	details?: { projection_type?: string; anatomy_side?: string | null; projection_side?: string | null }
 }
 
 type ThyroidShotDto = {
@@ -296,12 +308,16 @@ function mapThyroidUziToRows(response: unknown, statusByStudyId: Map<string, str
 
 		return {
 			key,
-			projectionLabel: projectionLabel(item.details?.projection_type, item.details?.projection_side),
+			projectionLabel: projectionLabel(
+				item.details?.projection_type,
+				item.details?.anatomy_side ?? item.details?.projection_side,
+			),
 			checkedLabel: '—',
 			deviceIdRaw: item.uzi_device_id != null ? String(item.uzi_device_id) : '',
 			statusRaw: rawStatus,
 			statusLabel: statusLabel(rawStatus),
 			createdAtLabel: formatDateOnly(item.diagnos_date),
+			createdAtSort: toDateSortValue(item.diagnos_date),
 		}
 	})
 }

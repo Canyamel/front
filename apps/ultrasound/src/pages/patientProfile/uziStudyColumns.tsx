@@ -21,6 +21,7 @@ export function useUziStudyColumns(deviceMap: Map<string, string>): ColumnsType<
 				key: 'createdAtLabel',
 				width: '14%',
 				ellipsis: { showTitle: true },
+				sorter: (a, b) => a.createdAtSort - b.createdAtSort,
 			},
 			{
 				title: 'Статус',

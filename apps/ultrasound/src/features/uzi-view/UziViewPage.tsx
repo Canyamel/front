@@ -11,8 +11,13 @@ import { getSurfaceCardStyle } from '@/styles/uiPatterns'
 
 import { Gallery } from './gallery'
 import { ActionButtons, NoduleTypesSection, PatientInfoSection, StudyDataSection } from './sidebar'
-import { useThyroidSegmentEditor, useThyroidStudyForm } from './model'
+import { anatomyToStructureJson, splitSegmentation, useThyroidSegmentEditor, useThyroidStudyForm } from './model'
 import type { Segment } from './model/types'
+
+/**
+ * Показ контуров долей/перешейка ЩЖ. Временно выключен. Чтобы вернуть — поставить `true`.
+ */
+const SHOW_THYROID_STRUCTURES = false
 
 export interface UziViewPageProps {
 	uziId: string
@@ -32,11 +37,23 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 
 	const devices = useMemo(() => (devicesData || []).map(d => ({ id: Number(d.id), name: d.name })), [devicesData])
 
+	// В `segmentation` бэкенд кладёт и узлы, и контуры долей/перешейка ЩЖ
+	// (`source_type: 'thyroid_anatomy'`). Узлами считаем только первые,
+	// анатомию рисуем отдельным слоем вьюера.
+	const { nodules, anatomy } = useMemo(() => splitSegmentation(data?.segmentation), [data?.segmentation])
+	const thyroidStructures = useMemo(
+		() => (SHOW_THYROID_STRUCTURES ? anatomyToStructureJson(anatomy) : undefined),
+		[anatomy],
+	)
+
+	// Заключение строится по `data.segmentation` — отдаём туда только узлы.
+	const reportData = useMemo(() => (data ? { ...data, segmentation: nodules } : data), [data, nodules])
+
 	// Сегментация приходит с сервера; после мутаций RTK Query перечитывает
 	// снимок сам (invalidatesTags), поэтому локального состояния тут нет.
 	const editor = useThyroidSegmentEditor({
 		uziId,
-		serverSegmentation: data?.segmentation,
+		serverSegmentation: nodules,
 	})
 
 	const studyForm = useThyroidStudyForm({ uziId, data, devices })
@@ -56,13 +73,13 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const handleOpenReport = useCallback(() => setReportOpen(true), [])
 	const handleCloseReport = useCallback(() => setReportOpen(false), [])
 
-	const { aiTypes, doctorTypes } = useMemo(() => {
-		const segmentation = data?.segmentation || []
-		return {
-			aiTypes: segmentation.filter((s: Segment) => s.is_ai === true),
-			doctorTypes: segmentation.filter((s: Segment) => s.is_ai === false),
-		}
-	}, [data])
+	const { aiTypes, doctorTypes } = useMemo(
+		() => ({
+			aiTypes: nodules.filter((s: Segment) => s.is_ai === true),
+			doctorTypes: nodules.filter((s: Segment) => s.is_ai === false),
+		}),
+		[nodules],
+	)
 
 	if (isLoading) {
 		return (
@@ -128,6 +145,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 							onDraftChangesChange={editor.setPendingChanges}
 							viewerResetKey={editor.viewerResetKey}
 							viewerHeight={focus.viewerHeight}
+							thyroidStructures={thyroidStructures}
 						/>
 					</Card>
 				</Col>
@@ -168,7 +186,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 			<ReportModal
 				open={reportOpen}
 				onClose={handleCloseReport}
-				data={data}
+				data={reportData ?? data}
 				form={studyForm.form}
 				doctor={doctor}
 				patientBirthDate={patientProfile?.birthDate}

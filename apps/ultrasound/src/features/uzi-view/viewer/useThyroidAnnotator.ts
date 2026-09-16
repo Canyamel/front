@@ -12,6 +12,10 @@ import {
 	buildUniqueNodes,
 	getAnnotationGroup,
 	getAnnotationPoints,
+	buildStructureLegendItems,
+	isStructureAnnotationId,
+	STRUCTURE_ANNOTATION_CLASS,
+	type StructureLegendItem,
 	type UniqueNode,
 } from './thyroidAnnotations'
 
@@ -26,7 +30,6 @@ import {
 function applyViewerTool(anno: any, tool: ViewerToolId, readOnly: boolean): void {
 	if (!anno) return
 
-	// В режиме навигации трекер выключен — перетаскивание двигает снимок.
 	const drawing = !readOnly && isDrawingTool(tool)
 
 	try {
@@ -58,6 +61,13 @@ export interface UseThyroidAnnotatorResult {
 	showSegments: boolean
 	toggleSegments: () => void
 	uniqueNodes: UniqueNode[]
+	/** Показ контуров долей/перешейка — отдельно от узлов. */
+	showStructures: boolean
+	toggleStructures: () => void
+	/** Структуры ЩЖ текущего кадра — для легенды. */
+	structureItems: StructureLegendItem[]
+	/** Есть ли структуры хотя бы на одном кадре (иначе кнопка не нужна). */
+	hasStructures: boolean
 	flushPendingSelection: () => Promise<void>
 	/**
 	 * Добавить контур, полученный не из Annotorious (кисть-заполнение).
@@ -97,11 +107,13 @@ export function useThyroidAnnotator({
 	const toolRef = useRef(tool)
 	toolRef.current = tool
 	const showSegmentsRef = useRef(true)
+	const showStructuresRef = useRef(true)
 	const pageAnnotationsRef = useRef<Record<number, any[]>>({})
 	const pageStructureAnnotationsRef = useRef<Record<number, any[]>>({})
 	const draftChangesRef = useRef<SegmentDraftChange[]>([])
 
 	const [showSegments, setShowSegments] = useState(true)
+	const [showStructures, setShowStructures] = useState(true)
 	const [pageAnnotations, setPageAnnotations] = useState<Record<number, any[]>>({})
 
 	useEffect(() => {
@@ -110,7 +122,8 @@ export function useThyroidAnnotator({
 
 	useEffect(() => {
 		showSegmentsRef.current = showSegments
-	}, [showSegments])
+		showStructuresRef.current = showStructures
+	}, [showSegments, showStructures])
 
 	// Глобальные стили аннотаций — не зависят от жизненного цикла инстанса OSD.
 	useEffect(() => {
@@ -160,6 +173,10 @@ export function useThyroidAnnotator({
 			points: SegmentPoint[] = [],
 			segmentGroup?: string | number,
 		) => {
+			// Контуры долей/перешейка — только для просмотра, на бэкенд
+			// как контуры узлов их отправлять нельзя.
+			if (isStructureAnnotationId(annotationId)) return
+
 			const prev = draftChangesRef.current
 			const existing = prev.find(change => change.annotationId === annotationId)
 			let next = prev.filter(change => change.annotationId !== annotationId)
@@ -199,7 +216,7 @@ export function useThyroidAnnotator({
 				annoRef.current.clearAnnotations()
 
 				const annotationsForPage = [
-					...(pageStructureAnnotationsRef.current[pageIndex] || []),
+					...(showStructuresRef.current ? pageStructureAnnotationsRef.current[pageIndex] || [] : []),
 					...(showSegmentsRef.current ? annotationsMap[pageIndex] || [] : []),
 				]
 
@@ -243,7 +260,7 @@ export function useThyroidAnnotator({
 	useEffect(() => {
 		if (!annoRef.current) return
 		updateAnnotationsForPage(currentPage, pageAnnotations)
-	}, [showSegments, currentPage, pageAnnotations, updateAnnotationsForPage])
+	}, [showSegments, showStructures, currentPage, pageAnnotations, updateAnnotationsForPage])
 
 	// Подключение Annotorious к живому инстансу OpenSeadragon. Инстанс
 	// принадлежит @medml/viewers — сюда он попадает через onInstanceReady.
@@ -265,7 +282,9 @@ export function useThyroidAnnotator({
 			formatter: (annotation: any) => {
 				const colorBody = annotation.body?.find((b: any) => b.purpose === 'color')
 				const nodeColor = colorBody?.value || '#FF0000'
-				return { style: `stroke:${nodeColor}; fill:${nodeColor};` }
+				const style = `stroke:${nodeColor}; fill:${nodeColor};`
+				// Доли/перешеек рисуются иначе, чем узлы (пунктир, слабая заливка).
+				return isStructureAnnotationId(annotation.id) ? { className: STRUCTURE_ANNOTATION_CLASS, style } : { style }
 			},
 		})
 
@@ -375,8 +394,19 @@ export function useThyroidAnnotator({
 	}, [tool, readOnly])
 
 	const toggleSegments = useCallback(() => setShowSegments(prev => !prev), [])
+	const toggleStructures = useCallback(() => setShowStructures(prev => !prev), [])
 
-	const uniqueNodes = useMemo(() => buildUniqueNodes(seg), [seg])
+	const structureItems = useMemo(
+		() => buildStructureLegendItems(thyroidStructures, currentPage),
+		[thyroidStructures, currentPage],
+	)
+	const hasStructures = useMemo(
+		() => Boolean(thyroidStructures && Object.keys(thyroidStructures).some(key => key !== 'view_type')),
+		[thyroidStructures],
+	)
+
+	// Легенда — все узлы; отмечаем, какие есть на текущем кадре.
+	const uniqueNodes = useMemo(() => buildUniqueNodes(seg, currentPage), [seg, currentPage])
 
 	/**
 	 * Кисть отдаёт растровую маску, а формат хранения у нас — полигон.
@@ -433,6 +463,10 @@ export function useThyroidAnnotator({
 		showSegments,
 		toggleSegments,
 		uniqueNodes,
+		showStructures,
+		toggleStructures,
+		structureItems,
+		hasStructures,
 		flushPendingSelection,
 		addPolygonFromPoints,
 	}

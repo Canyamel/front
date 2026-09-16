@@ -46,7 +46,7 @@ export default function UploadPhotoRoute() {
 	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } = useUziUpload({
 		presetPatientId,
 		projection: typeof projection === 'string' ? projection : undefined,
-		onUploaded: () => navigate('/patients'),
+		onUploaded: studyId => navigate(studyId ? `/uzi_view/${encodeURIComponent(studyId)}` : '/patients'),
 	})
 
 	const handleCreatePatient = async (values: PatientCreateValuesUzi) => {

@@ -12,14 +12,7 @@ import SegmentsVisibilityToggle from './SegmentsVisibilityToggle'
 import BrushCanvasOverlay from './BrushCanvasOverlay'
 import RulerOverlay from './RulerOverlay'
 import ViewerToolPanel from './ViewerToolPanel'
-import {
-	BRUSH_TOOL,
-	CALIBRATE_TOOL,
-	PAN_TOOL,
-	isRulerLikeTool,
-	type BrushMode,
-	type ViewerToolId,
-} from './constants'
+import { BRUSH_TOOL, CALIBRATE_TOOL, PAN_TOOL, isRulerLikeTool, type BrushMode, type ViewerToolId } from './constants'
 import { calcPxPerMm, lineLengthPx, type MeasuredLine } from './measurement'
 import { createMask, isMaskEmpty, maskToPolygon, type BrushMask } from './raster'
 import type { ThyroidAnnotatedViewerProps } from './types'
@@ -88,18 +81,27 @@ const ThyroidAnnotatedViewer = ({
 		setSketchVersion(v => v + 1)
 	}, [images, currentPage])
 
-	const { showSegments, toggleSegments, uniqueNodes, flushPendingSelection, addPolygonFromPoints } =
-		useThyroidAnnotator({
-			osdViewer,
-			images,
-			seg,
-			tool: activeTool,
-			readOnly,
-			currentPage,
-			currentGroup,
-			thyroidStructures,
-			onDraftChangesChange,
-		})
+	const {
+		showSegments,
+		toggleSegments,
+		uniqueNodes,
+		showStructures,
+		toggleStructures,
+		structureItems,
+		hasStructures,
+		flushPendingSelection,
+		addPolygonFromPoints,
+	} = useThyroidAnnotator({
+		osdViewer,
+		images,
+		seg,
+		tool: activeTool,
+		readOnly,
+		currentPage,
+		currentGroup,
+		thyroidStructures,
+		onDraftChangesChange,
+	})
 
 	useEffect(() => {
 		onViewerApiReady?.({ flushPendingSelection })
@@ -172,7 +174,16 @@ const ThyroidAnnotatedViewer = ({
 	const showBrush = !readOnly && activeTool === BRUSH_TOOL
 
 	return (
-		<>
+		<div
+			style={{
+				height,
+				display: 'flex',
+				flexDirection: 'column',
+				// Без этого flex-элемент не даёт себя сжать ниже содержимого,
+				// и переполнение возвращается.
+				minHeight: 0,
+			}}
+		>
 			{!readOnly && (
 				<ViewerToolPanel
 					activeTool={activeTool}
@@ -189,55 +200,65 @@ const ThyroidAnnotatedViewer = ({
 					hasSketch={hasSketch}
 					onConfirmSketch={handleConfirmSketch}
 					onClearSketch={handleClearSketch}
-					measurementCount={
-						ruler.measurements.filter(item => item.page === currentPage).length
-					}
+					measurementCount={ruler.measurements.filter(item => item.page === currentPage).length}
 					onClearMeasurements={ruler.clear}
 				/>
 			)}
 
-			<UziViewer
-				images={images}
-				onIndexChange={setCurrentPage}
-				// Инструменты выбираются в панели над снимком, встроенный
-				// список тулбара не используем.
-				toolbarConfig={{ tools: [] }}
-				height={height}
-				readOnly={readOnly}
-				onInstanceReady={viewer => setOsdViewer(viewer)}
-				onInstanceWillDestroy={() => setOsdViewer(null)}
-				overlaySlot={() => (
-					<>
-						{showSegments && uniqueNodes.length > 0 && (
-							<NodeLegendOverlay nodes={uniqueNodes} seg={seg} pxPerMm={pxPerMm} />
-						)}
-
-						<RulerOverlay
-							viewer={osdViewer}
-							active={!readOnly && isRulerLikeTool(activeTool)}
-							measurements={ruler.measurements}
-							currentPage={currentPage}
-							pxPerMm={pxPerMm}
-							labelFor={ruler.labelFor}
-							onAdd={handleLineDrawn}
-							onRemove={ruler.remove}
-						/>
-
-						{showBrush && (
-							<BrushCanvasOverlay
-								viewer={osdViewer}
-								mask={mask}
-								radius={brushRadius}
-								erasing={brushMode === 'erase'}
-								onStrokeEnd={() => setSketchVersion(v => v + 1)}
+			<div style={{ flex: 1, minHeight: 0 }}>
+				<UziViewer
+					images={images}
+					onIndexChange={setCurrentPage}
+					toolbarConfig={{ tools: [] }}
+					height='100%'
+					readOnly={readOnly}
+					onInstanceReady={viewer => setOsdViewer(viewer)}
+					onInstanceWillDestroy={() => setOsdViewer(null)}
+					overlaySlot={() => (
+						<>
+							<NodeLegendOverlay
+								nodes={showSegments ? uniqueNodes : []}
+								structures={showStructures ? structureItems : []}
+								seg={seg}
+								pxPerMm={pxPerMm}
 							/>
-						)}
-					</>
-				)}
-				customToolbarSlot={
-					<SegmentsVisibilityToggle visible={showSegments} onToggle={toggleSegments} />
-				}
-			/>
+
+							<RulerOverlay
+								viewer={osdViewer}
+								active={!readOnly && isRulerLikeTool(activeTool)}
+								measurements={ruler.measurements}
+								currentPage={currentPage}
+								pxPerMm={pxPerMm}
+								labelFor={ruler.labelFor}
+								onAdd={handleLineDrawn}
+								onRemove={ruler.remove}
+							/>
+
+							{showBrush && (
+								<BrushCanvasOverlay
+									viewer={osdViewer}
+									mask={mask}
+									radius={brushRadius}
+									erasing={brushMode === 'erase'}
+									onStrokeEnd={() => setSketchVersion(v => v + 1)}
+								/>
+							)}
+						</>
+					)}
+					customToolbarSlot={
+						<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+							<SegmentsVisibilityToggle
+								label={hasStructures ? 'Узлы' : undefined}
+								visible={showSegments}
+								onToggle={toggleSegments}
+							/>
+							{hasStructures && (
+								<SegmentsVisibilityToggle label='Доли' visible={showStructures} onToggle={toggleStructures} />
+							)}
+						</div>
+					}
+				/>
+			</div>
 
 			<Modal
 				title='Длина эталонного отрезка'
@@ -250,8 +271,8 @@ const ThyroidAnnotatedViewer = ({
 				destroyOnHidden
 			>
 				<Typography.Paragraph type='secondary'>
-					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким
-					миллиметрам он соответствует по шкале снимка.
+					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким миллиметрам он соответствует по
+					шкале снимка.
 				</Typography.Paragraph>
 
 				<InputNumber
@@ -266,7 +287,7 @@ const ThyroidAnnotatedViewer = ({
 					style={{ width: '100%' }}
 				/>
 			</Modal>
-		</>
+		</div>
 	)
 }
 

@@ -78,6 +78,24 @@
 	}
 }
 
+// Контуры структур ЩЖ (доли, перешеек): пунктир и слабая заливка,
+// чтобы их нельзя было спутать с узлами. Класс вешает formatter Annotorious.
+.a9s-annotationlayer .a9s-annotation.a9s-structure {
+	.a9s-inner {
+		stroke-width: 2px;
+		stroke-dasharray: 8 5;
+		fill-opacity: 0.1;
+	}
+
+	.a9s-outer {
+		stroke-dasharray: 8 5;
+	}
+
+	&.selected .a9s-inner {
+		stroke-width: 3px;
+	}
+}
+
 // Слой линейки. Живёт в overlaySlot вьюера, а не внутри
 // `.a9s-annotationlayer`, поэтому селекторы здесь не вложенные.
 .ruler-layer {

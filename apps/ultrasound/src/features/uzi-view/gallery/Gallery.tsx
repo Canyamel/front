@@ -25,9 +25,6 @@ const Gallery = ({
 	viewerHeight = 600,
 	thyroidStructures,
 }: GalleryProps) => {
-	// Выбранный узел: снаружи (currentGroup) → выбор пользователя → первый узел.
-	// Держим только пользовательский выбор, остальное выводим при рендере —
-	// иначе нужен эффект с setState и каскадные ре-рендеры.
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
 	const selectedGroup = currentGroup ?? pickedGroup ?? seg[0]?.id
 
@@ -98,7 +95,7 @@ const Gallery = ({
 					/>
 				</div>
 			) : (
-				<div style={{ height: viewerHeight }}>
+				<div>
 					<OpenSeadragonViewer
 						key={`viewer-${viewerResetKey}-${isEditMode ? 'edit' : 'view'}`}
 						image={imageSource}

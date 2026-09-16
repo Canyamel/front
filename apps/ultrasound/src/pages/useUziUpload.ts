@@ -16,6 +16,16 @@ import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
 import type { UploadSchemaField } from '@medml/ui'
 
+function extractUploadedStudyId(response: unknown): string | null {
+	if (!isThyroidBackend()) return null
+	if (!response || typeof response !== 'object') return null
+	const raw = (response as Record<string, unknown>).image_id
+	if (typeof raw === 'number' || (typeof raw === 'string' && raw.trim() !== '')) {
+		return String(raw)
+	}
+	return null
+}
+
 /** Один файл в antd Upload. */
 function singleFileList(file: File | null, uid: string): UploadFile[] {
 	return file ? [{ uid, name: file.name, status: 'done', originFileObj: file } as UploadFile] : []
@@ -24,7 +34,7 @@ function singleFileList(file: File | null, uid: string): UploadFile[] {
 export interface UseUziUploadOptions {
 	presetPatientId: string
 	projection?: string
-	onUploaded: () => void
+	onUploaded: (studyId: string | null) => void
 }
 
 export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUziUploadOptions) {
@@ -133,7 +143,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 				needsProjectionSide(projectionValue) && values.projectionSide ? String(values.projectionSide) : undefined
 
 			try {
-				await uploadUzi({
+				const response = await uploadUzi({
 					file,
 					projection: projectionValue,
 					patientRefId: String(values.patient ?? ''),
@@ -141,8 +151,8 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 					...(projectionSide ? { projectionSide } : {}),
 				}).unwrap()
 
-				message.success('Снимок отправлен на диагностику')
-				onUploaded()
+				message.success('Снимок обработан')
+				onUploaded(extractUploadedStudyId(response))
 			} catch (e) {
 				console.error('Загрузка снимка УЗИ:', getRtkErrorMessage(e), e)
 			}

@@ -23,6 +23,12 @@ function textFromResponseData(data: unknown): string | null {
 	return null
 }
 
+const GATEWAY_STATUS_HINTS: Record<number, string> = {
+	502: 'Шлюз не смог связаться с сервисом (502). Проверьте, что бэкенд запущен и виден прокси.',
+	503: 'Сервис временно недоступен (503). Скорее всего он ещё поднимается.',
+	504: 'Сервис не ответил вовремя (504). Проверьте его логи.',
+}
+
 function textFromRejectedPayload(payload: unknown): string | null {
 	if (payload == null) return null
 	const e = payload as FetchBaseQueryError
@@ -44,7 +50,14 @@ function textFromRejectedPayload(payload: unknown): string | null {
 				return `Ошибка на сервере (${status}): ${fromBody}`
 			}
 
-			return `Сервер вернул неожиданный ответ (${status}). Подробности — в консоли и логах бэкенда.`
+			return (
+				GATEWAY_STATUS_HINTS[status] ??
+				`Сервер вернул неожиданный ответ (${status}). Подробности — в консоли и логах бэкенда.`
+			)
+		}
+
+		if (typeof e.status === 'number' && GATEWAY_STATUS_HINTS[e.status]) {
+			return GATEWAY_STATUS_HINTS[e.status]
 		}
 
 		const fromBody = textFromResponseData(e.data) ?? describeServerErrorBody(e.data)

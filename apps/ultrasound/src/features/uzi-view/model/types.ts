@@ -1,7 +1,3 @@
-/**
- * DTO бэкенда УЗИ. Пропсы компонентов здесь сознательно не живут —
- * они объявлены рядом со своими компонентами.
- */
 export interface UziDeviceInfo {
 	id: number
 	name: string
@@ -15,16 +11,69 @@ export interface PatientInfo {
 	personal_policy: string
 }
 
+/**
+ * Что лежит в группе сегментации:
+ * - `nodule` — узел (по умолчанию, если бэкенд поле не прислал);
+ * - `thyroid_anatomy` — контур доли/перешейка ЩЖ, который пишет ML-воркер.
+ *   Узлом не является: TI-RADS и размеров узла у него нет.
+ */
+export type SegmentSourceType = 'nodule' | 'thyroid_anatomy'
+
+export type AnatomySide = 'left' | 'right'
+
 export interface SegmentDetails {
-	nodule_type: number
+	source_type?: SegmentSourceType | string
+
+	// узел: TI-RADS и вероятности классов
+	nodule_type?: number | null
 	nodule_2?: number
 	nodule_3?: number
 	nodule_2_3?: number
-	nodule_4: number
-	nodule_5: number
-	nodule_width: number
-	nodule_height: number
-	nodule_length: number
+	nodule_4?: number
+	nodule_5?: number
+
+	nodule_width?: number
+	nodule_height?: number
+	nodule_length?: number
+
+	// --- узел: положение и измерения
+	projection_type?: string
+	anatomy_side?: AnatomySide | null
+	location?: string
+	location_iou?: number
+	location_overlap?: number
+	measurement_frame?: number
+	width_px?: number
+	height_px?: number
+	width_mm?: number
+	height_mm?: number
+	max_dim_px?: number
+	min_dim_px?: number
+	max_dim_mm?: number
+	min_dim_mm?: number
+	cross_width_mm?: number
+	cross_height_mm?: number
+	long_left_max_dim_mm?: number
+	long_left_min_dim_mm?: number
+	long_right_max_dim_mm?: number
+	long_right_min_dim_mm?: number
+
+	// анатомия ЩЖ (`source_type: 'thyroid_anatomy'`)
+	/** `right_lobe` | `left_lobe` | `isthmus` */
+	structure_type?: string | null
+	view_type?: string | null
+	/** Кадр снимка, на котором найдена структура (совпадает с `point.z`). */
+	source_frame?: number
+	confidence?: number
+	bbox_x_min?: number
+	bbox_y_min?: number
+	bbox_x_max?: number
+	bbox_y_max?: number
+	bbox_width_px?: number
+	bbox_height_px?: number
+	bbox_area_px?: number
+	bbox_width_mm?: number
+	bbox_height_mm?: number
 }
 
 export interface SegmentPoint {
@@ -36,6 +85,7 @@ export interface SegmentPoint {
 
 export interface SegmentContour {
 	id?: number
+	details?: SegmentDetails
 	points: SegmentPoint[]
 }
 
@@ -70,7 +120,8 @@ export interface InfoDetails {
 	structure: string
 	additional_data: string
 	projection_type?: string
-	projection_side?: string
+	anatomy_side?: string | null
+	projection_side?: string | null
 }
 
 export interface Info {

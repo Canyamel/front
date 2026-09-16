@@ -37,7 +37,7 @@ export function useThyroidStudyForm({ uziId, data, devices }: UseThyroidStudyFor
 			uziDevice: devices.find(d => d.name === data.info.uzi_device_name)?.id ?? null,
 			projectionType: details.projection_type || PROJECTION_LONG,
 			projectionSide: needsProjectionSide(details.projection_type || PROJECTION_LONG)
-				? (details.projection_side ?? undefined)
+				? (details.anatomy_side ?? details.projection_side ?? undefined)
 				: undefined,
 			shortResult: data.info.has_nodules === 'T',
 			diagnosis: data.info.diagnosis,
@@ -75,10 +75,8 @@ export function useThyroidStudyForm({ uziId, data, devices }: UseThyroidStudyFor
 					acceptance_datetime: data?.info.diagnos_date,
 					details: {
 						...values,
-						// Бэкенд ждёт snake_case; поля формы названы иначе,
-						// поэтому проекцию и сторону кладём явно.
 						projection_type: values.projectionType,
-						projection_side: needsProjectionSide(values.projectionType) ? (values.projectionSide ?? null) : null,
+						anatomy_side: needsProjectionSide(values.projectionType) ? (values.projectionSide ?? null) : null,
 						nodule_type: [],
 						ai_info: [],
 					},
