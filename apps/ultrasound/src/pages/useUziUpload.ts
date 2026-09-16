@@ -18,44 +18,27 @@ import type { UploadSchemaField } from '@medml/ui'
 
 /** Один файл в antd Upload. */
 function singleFileList(file: File | null, uid: string): UploadFile[] {
-	return file
-		? [{ uid, name: file.name, status: 'done', originFileObj: file } as UploadFile]
-		: []
+	return file ? [{ uid, name: file.name, status: 'done', originFileObj: file } as UploadFile] : []
 }
 
 export interface UseUziUploadOptions {
 	presetPatientId: string
-	/**
-	 * Текущее значение поля «Проекция».
-	 *
-	 * Приходит снаружи, из `Form.useWatch`: схема полей — обычный массив
-	 * данных, сама она за формой следить не умеет, а поле «Доля» нужно
-	 * показывать только для продольной проекции.
-	 */
 	projection?: string
 	onUploaded: () => void
 }
 
-/**
- * Логика страницы загрузки снимка: справочники (аппараты/пациенты),
- * схема полей формы, состояние файла и отправка на диагностику.
- *
- * Вынесено из `UploadPhotoRoute`, который смешивал это всё с версткой.
- */
 export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUziUploadOptions) {
 	const { doctorId, status } = useDoctorId()
 	const [uploadUzi, { isLoading: isUploading }] = useUploadUziDiagnosticMutation()
 
-	const { data: devices = [], isFetching: devicesLoading } = useGetUziDevicesQuery(
-		undefined,
-		{ skip: status !== 'authenticated' },
-	)
+	const { data: devices = [], isFetching: devicesLoading } = useGetUziDevicesQuery(undefined, {
+		skip: status !== 'authenticated',
+	})
 
-	const { data: patientsData, isFetching: patientsLoading } =
-		useGetDoctorPatientsQuery(
-			{ doctorId, page: 1, pageSize: 500 },
-			{ skip: !doctorId || status !== 'authenticated' },
-		)
+	const { data: patientsData, isFetching: patientsLoading } = useGetDoctorPatientsQuery(
+		{ doctorId, page: 1, pageSize: 500 },
+		{ skip: !doctorId || status !== 'authenticated' },
+	)
 
 	const patients = patientsData?.rows ?? []
 
@@ -147,9 +130,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 			// поперечную, значение осталось бы в форме и уехало на сервер.
 			const projectionValue = String(values.projection ?? '')
 			const projectionSide =
-				needsProjectionSide(projectionValue) && values.projectionSide
-					? String(values.projectionSide)
-					: undefined
+				needsProjectionSide(projectionValue) && values.projectionSide ? String(values.projectionSide) : undefined
 
 			try {
 				await uploadUzi({
@@ -163,8 +144,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 				message.success('Снимок отправлен на диагностику')
 				onUploaded()
 			} catch (e) {
-				message.error(getRtkErrorMessage(e))
-				console.error(e)
+				console.error('Загрузка снимка УЗИ:', getRtkErrorMessage(e), e)
 			}
 		},
 		[file, onUploaded, uploadUzi],
@@ -178,8 +158,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 		return value ? { patient: String(value) } : undefined
 	}, [presetPatientId, patients])
 
-	const pageBusy =
-		status === 'authenticated' && (!doctorId || devicesLoading || patientsLoading)
+	const pageBusy = status === 'authenticated' && (!doctorId || devicesLoading || patientsLoading)
 
 	return {
 		fields,

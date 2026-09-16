@@ -103,61 +103,59 @@ const StudyDataSection: React.FC<StudyDataSectionProps> = ({
 					</Button>,
 				]}
 			>
-				<Form layout='vertical'>
-					<Form.Item label='Контуры' name='profile'>
-						<Input />
-					</Form.Item>
+				<Form.Item label='Контуры' name='profile'>
+					<Input />
+				</Form.Item>
 
-					<Divider>Левая доля</Divider>
-					<Form.Item label='Длина (см)' name='left_length'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Ширина (см)' name='left_width'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Толщина (см)' name='left_depth'>
-						<Input type='number' />
-					</Form.Item>
+				<Divider>Левая доля</Divider>
+				<Form.Item label='Длина (мм)' name='left_length'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Ширина (мм)' name='left_width'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Толщина (мм)' name='left_depth'>
+					<Input type='number' />
+				</Form.Item>
 
-					<Divider>Правая доля</Divider>
-					<Form.Item label='Длина (см)' name='right_length'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Ширина (см)' name='right_width'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Толщина (см)' name='right_depth'>
-						<Input type='number' />
-					</Form.Item>
+				<Divider>Правая доля</Divider>
+				<Form.Item label='Длина (мм)' name='right_length'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Ширина (мм)' name='right_width'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Толщина (мм)' name='right_depth'>
+					<Input type='number' />
+				</Form.Item>
 
-					<Form.Item label='Объем железы (см³)' name='volume'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Перешеек (см)' name='isthmus'>
-						<Input type='number' />
-					</Form.Item>
-					<Form.Item label='Структура' name='structure'>
-						<Input />
-					</Form.Item>
-					<Form.Item label='Эхогенность' name='echogenicity'>
-						<Input />
-					</Form.Item>
-					<Form.Item label='Регионарные лимфатические узлы' name='rln'>
-						<Input />
-					</Form.Item>
-					<Form.Item label='Васкуляризация по ЦДК' name='cdk'>
-						<Input />
-					</Form.Item>
-					<Form.Item label='Расположение' name='position'>
-						<Input />
-					</Form.Item>
-					<Form.Item label='Дополнительные данные' name='additional_data'>
-						<Input.TextArea />
-					</Form.Item>
-					<Form.Item label='Заключение' name='diagnosis'>
-						<Input.TextArea />
-					</Form.Item>
-				</Form>
+				<Form.Item label='Объем железы (см³)' name='volume'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Перешеек (мм)' name='isthmus'>
+					<Input type='number' />
+				</Form.Item>
+				<Form.Item label='Структура' name='structure'>
+					<Input />
+				</Form.Item>
+				<Form.Item label='Эхогенность' name='echogenicity'>
+					<Input />
+				</Form.Item>
+				<Form.Item label='Регионарные лимфатические узлы' name='rln'>
+					<Input />
+				</Form.Item>
+				<Form.Item label='Васкуляризация по ЦДК' name='cdk'>
+					<Input />
+				</Form.Item>
+				<Form.Item label='Расположение' name='position'>
+					<Input />
+				</Form.Item>
+				<Form.Item label='Дополнительные данные' name='additional_data'>
+					<Input.TextArea />
+				</Form.Item>
+				<Form.Item label='Заключение' name='diagnosis'>
+					<Input.TextArea />
+				</Form.Item>
 			</Modal>
 		</>
 	)

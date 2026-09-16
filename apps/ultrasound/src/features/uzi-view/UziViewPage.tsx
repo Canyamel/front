@@ -1,8 +1,12 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Card, Col, Form, Grid, Row, Spin, Typography, theme } from 'antd'
 import { useViewerFocusMode, ViewerFocusBar } from '@medml/viewers'
 
 import { useGetThyroidUziDataQuery, useGetUziDevicesQuery } from '@/api/uziApi'
+import { useGetDoctorProfileQuery } from '@/api/doctorApi'
+import { useGetMedPatientByIdQuery } from '@/api/patientProfileApi'
+import { useDoctorId } from '@/api/hooks/useDoctorId'
+import { ReportModal, useReportExtras } from '@/features/uzi-report'
 import { getSurfaceCardStyle } from '@/styles/uiPatterns'
 
 import { Gallery } from './gallery'
@@ -16,7 +20,8 @@ export interface UziViewPageProps {
 
 /**
  * Страница просмотра/редактирования снимка УЗИ ЩЖ — композиция и разметка.
- * Данные и мутации живут в `model/`, аннотирование — в `viewer/`.
+ * Данные и мутации живут в `model/`, аннотирование — в `viewer/`,
+ * печатное заключение — в `features/uzi-report`.
  */
 const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const { token } = theme.useToken()
@@ -37,6 +42,19 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const studyForm = useThyroidStudyForm({ uziId, data, devices })
 
 	const focus = useViewerFocusMode()
+
+	// --- заключение -------------------------------------------------------
+	const { doctorId } = useDoctorId()
+	const { data: doctor } = useGetDoctorProfileQuery(doctorId, { skip: !doctorId })
+
+	const patientId = data?.info.patient.id != null ? String(data.info.patient.id) : ''
+	const { data: patientProfile } = useGetMedPatientByIdQuery(patientId, { skip: !patientId })
+
+	const { extras, setExtras } = useReportExtras(uziId)
+	const [reportOpen, setReportOpen] = useState(false)
+
+	const handleOpenReport = useCallback(() => setReportOpen(true), [])
+	const handleCloseReport = useCallback(() => setReportOpen(false), [])
 
 	const { aiTypes, doctorTypes } = useMemo(() => {
 		const segmentation = data?.segmentation || []
@@ -139,13 +157,24 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 								/>
 
 								<Card size='small' style={cardStyle} styles={{ body: { padding: 12 } }}>
-									<ActionButtons onSave={studyForm.handleSave} />
+									<ActionButtons onSave={studyForm.handleSave} onOpenReport={handleOpenReport} />
 								</Card>
 							</Form>
 						</div>
 					</Col>
 				)}
 			</Row>
+
+			<ReportModal
+				open={reportOpen}
+				onClose={handleCloseReport}
+				data={data}
+				form={studyForm.form}
+				doctor={doctor}
+				patientBirthDate={patientProfile?.birthDate}
+				extras={extras}
+				onExtrasChange={setExtras}
+			/>
 		</>
 	)
 }
