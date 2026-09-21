@@ -15,10 +15,7 @@ import { PageShell } from "@medml/layout";
 
 import { DoctorProfileCard } from "@medml/doctor_profile";
 
-import {
-  useGetDoctorProfileQuery,
-  useGetUnreadNotificationsCountQuery,
-} from "@/api/doctorApi";
+import { useGetDoctorProfileQuery } from "@/api/doctorApi";
 
 import { isThyroidBackend } from "@/lib/apiBackend";
 import {
@@ -38,9 +35,6 @@ export default function PatientsRoute() {
       skip: !doctorId || status !== "authenticated",
     });
 
-  const { data: unreadCount = 0 } = useGetUnreadNotificationsCountQuery(doctorId, {
-    skip: !doctorId || status !== "authenticated",
-  });
   const [createModalOpen, setCreateModalOpen] = React.useState(false);
   const [createThyroidPatient, { isLoading: isCreatingThyroid }] =
     useCreateUziPatientWithCardMutation();
@@ -134,7 +128,6 @@ export default function PatientsRoute() {
       <DoctorProfileCard
         profile={doctorProfile}
         loading={doctorProfileLoading}
-        unreadCount={unreadCount}
         onEditProfile={() => navigate("/profile/edit")}
       />
 

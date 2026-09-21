@@ -1,16 +1,14 @@
 import { baseApi } from '@medml/store'
 
 /**
- * Профиль врача и счётчик уведомлений.
+ * Профиль врача.
  *
- * Бэкенд (Django, `medweb/medml` + `medweb/inner_mail`):
+ * Бэкенд (Django, `medweb/medml`):
  * - `GET /med_worker/update/{id}` — `MedWorkerChangeView`. Несмотря на «update»
  *   в пути, view подмешивает `RetrieveModelMixin` и явно определяет `get()`,
  *   поэтому отдаёт профиль по id (`MedWorkerCommonSerializer`).
- * - `GET /inner_mail/notifications/all/{id}/?status=0` —
- *   `NotificationDynamicsGenerics`. Список уведомлений; `status=0` —
- *   непрочитанные (`MailStatus.NOT_VIEWED`). Сам view фильтрует по
- *   `request.user.id`, но id в пути обязателен по маршруту.
+ *
+ * Счётчик уведомлений убран вместе с сервисом `inner_mail` на бэкенде.
  */
 
 /** Ответ `MedWorkerCommonSerializer`. */
@@ -82,17 +80,6 @@ function toDoctorProfile(dto: MedWorkerDto): DoctorProfile {
 	}
 }
 
-/** Список уведомлений может прийти массивом либо в конверте `{ results }`. */
-function countList(response: unknown): number {
-	if (Array.isArray(response)) return response.length
-	if (response && typeof response === 'object') {
-		const envelope = response as { count?: unknown; results?: unknown }
-		if (typeof envelope.count === 'number') return envelope.count
-		if (Array.isArray(envelope.results)) return envelope.results.length
-	}
-	return 0
-}
-
 export const doctorApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		getDoctorProfile: builder.query<DoctorProfile, string>({
@@ -118,22 +105,10 @@ export const doctorApi = baseApi.injectEndpoints({
 				{ type: 'MedWorker', id: doctorId },
 			],
 		}),
-
-		getUnreadNotificationsCount: builder.query<number, string>({
-			query: doctorId => ({
-				url: `/inner_mail/notifications/all/${encodeURIComponent(doctorId)}/`,
-				params: { status: 0 },
-			}),
-			transformResponse: (response: unknown) => countList(response),
-			providesTags: (_r, _e, doctorId) => [
-				{ type: 'MedWorker', id: `notifications-${doctorId}` },
-			],
-		}),
 	}),
 })
 
 export const {
 	useGetDoctorProfileQuery,
 	useUpdateDoctorProfileMutation,
-	useGetUnreadNotificationsCountQuery,
 } = doctorApi
