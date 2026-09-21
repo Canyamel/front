@@ -3,8 +3,6 @@ import type { ThyroidStructureJson } from '../structures'
 
 /**
  * Кадр снимка в виде, пригодном для OSD tileSource.
- * Раньше существовал в двух почти одинаковых копиях (`ImageTile` и
- * `ImageSource`) — объединено в один тип.
  */
 export interface ImageTile {
 	type: 'image'
@@ -36,6 +34,7 @@ export interface GalleryProps {
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 	viewerResetKey?: number
 	viewerHeight?: number
+	onPxPerMmChange?: (pxPerMm: number | null) => void
 	thyroidStructures?: ThyroidStructureJson
 }
 

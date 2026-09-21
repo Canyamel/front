@@ -17,5 +17,6 @@ export interface ThyroidAnnotatedViewerProps {
 	currentGroup?: string | number
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 	onViewerApiReady?: (api: AnnotoriousViewerApi) => void
+	onPxPerMmChange?: (pxPerMm: number | null) => void
 	thyroidStructures?: ThyroidStructureJson
 }

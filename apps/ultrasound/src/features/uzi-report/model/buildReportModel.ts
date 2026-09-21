@@ -1,6 +1,7 @@
 import type { DoctorProfile } from '@/api/doctorApi'
 import { formatProjection } from '@/lib/projection'
 import type { Segment, ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
+import { pxToMm } from '@/features/uzi-view/viewer/measurement'
 
 import type { ReportExtras, ReportLobe, ReportNodule, ThyroidReportModel } from './types'
 
@@ -8,7 +9,6 @@ const DASH = '—'
 
 /**
  * Коэффициент эллипсоида для объёма доли ЩЖ: V = 0.479 × Д × Ш × Т.
- * Тот же, что в методических рекомендациях ДЗМ и в старом фронте.
  */
 const ELLIPSOID_FACTOR = 0.479
 
@@ -22,7 +22,6 @@ function text(value: unknown, fallback = DASH): string {
 	return s || fallback
 }
 
-/** Число с фиксированной точностью без хвостовых нулей: 4.40 → «4.4», 0 → «—». */
 function num(value: unknown, digits = 2, fallback = DASH): string {
 	const n = Number(value)
 	if (!Number.isFinite(n) || n === 0) return fallback
@@ -52,24 +51,109 @@ export function getReportSegments(segments: Segment[] = []): Segment[] {
 	return doctorSegments.length ? doctorSegments : segments
 }
 
-function buildNodules(segments: Segment[]): ReportNodule[] {
-	return getReportSegments(segments).map((segment, index) => {
-		const details = segment.details || ({} as Segment['details'])
-		const size = [
-			details.nodule_length != null ? `длина ${details.nodule_length} мм` : '',
-			details.nodule_width != null ? `ширина ${details.nodule_width} мм` : '',
-			details.nodule_height != null ? `толщина ${details.nodule_height} мм` : '',
-		]
-			.filter(Boolean)
-			.join(', ')
+/**
+ * Локализация узла. Бэкенд присылает её в `details.location`; значения
+ * приходят в двух видах (`right` и `right_lobe`). «Не установлено»
+ * (`unknown`, `not_established`) в заключение не печатаем.
+ */
+const NODULE_LOCATION_LABELS: Record<string, string> = {
+	right: 'правая доля',
+	right_lobe: 'правая доля',
+	left: 'левая доля',
+	left_lobe: 'левая доля',
+	isthmus: 'перешеек',
+}
 
-		return {
-			number: index + 1,
-			tirads: details.nodule_type ?? undefined,
-			size,
-			source: segment.is_ai ? 'ai' : 'doctor',
+function noduleLocation(details: Segment['details'] | undefined): string {
+	const raw = String(details?.location ?? '')
+		.trim()
+		.toLowerCase()
+	return NODULE_LOCATION_LABELS[raw] ?? ''
+}
+
+/** Проекция и доля исследования — запасной источник, если у узла их нет. */
+interface StudyProjection {
+	projectionType?: string
+	anatomySide?: string
+}
+
+const round1 = (mm: number): string => String(Number(mm.toFixed(1)))
+
+/** Положительное число из `details` или `undefined`. */
+function positive(details: Record<string, unknown>, key: string): number | undefined {
+	const n = Number(details[key])
+	return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+/**
+ * Размер в миллиметрах: сначала то, что посчитал бэкенд (`*_mm`, есть,
+ * когда у снимка известен масштаб пикселя), иначе тот же размер в пикселях
+ * (`*_px`), переведённый по калибровке врача во вьюере.
+ */
+function mmValue(
+	details: Record<string, unknown>,
+	mmKey: string,
+	pxKey: string,
+	pxPerMm: number | null | undefined,
+): number | undefined {
+	const mm = positive(details, mmKey)
+	if (mm != null) return mm
+	const px = positive(details, pxKey)
+	if (px == null || pxPerMm == null) return undefined
+	return pxToMm(px, pxPerMm) ?? undefined
+}
+
+/**
+ * Размеры узла по данным бэкенда (`nodule_metrics.calculate_nodule_measurements`).
+ * На поперечном снимке измеряются ширина и толщина, на продольном — длина
+ * и толщина; бэкенд хранит их под разными полями для каждой проекции:
+ *
+ * - cross: ширина — `cross_width_mm`, толщина — `cross_height_mm`;
+ * - long:  длина — `long_{side}_max_dim_mm`, толщина — `long_{side}_min_dim_mm`,
+ *          где side — доля (`left` / `right`).
+ *
+ * Медицинские названия размеров задаются только здесь.
+ */
+function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | null | undefined): string {
+	const details = (segment.details ?? {}) as Record<string, unknown>
+	const projection = String(details.projection_type || study.projectionType || '').toLowerCase()
+
+	const parts: string[] = []
+	const push = (label: string, value: number | undefined) => {
+		if (value != null) parts.push(`${label} ${round1(value)} мм`)
+	}
+
+	if (projection === 'cross') {
+		push('ширина', mmValue(details, 'cross_width_mm', 'width_px', pxPerMm))
+		push('толщина', mmValue(details, 'cross_height_mm', 'height_px', pxPerMm))
+	} else if (projection === 'long') {
+		// Долю берём у узла, затем у исследования; если нигде нет — ту, для
+		// которой бэкенд прислал размеры.
+		let side = String(details.anatomy_side || study.anatomySide || '').toLowerCase()
+		if (side !== 'left' && side !== 'right') {
+			side = ['left', 'right'].find(s => positive(details, `long_${s}_max_dim_mm`) != null) ?? ''
 		}
-	})
+		const maxKey = side ? `long_${side}_max_dim_mm` : ''
+		const minKey = side ? `long_${side}_min_dim_mm` : ''
+		push('длина', mmValue(details, maxKey, 'max_dim_px', pxPerMm))
+		push('толщина', mmValue(details, minKey, 'min_dim_px', pxPerMm))
+	}
+
+	return parts.join(', ')
+}
+
+function buildNodules(
+	segments: Segment[],
+	study: StudyProjection,
+	pxPerMm: number | null | undefined,
+): ReportNodule[] {
+	return getReportSegments(segments).map((segment, index) => ({
+		number: index + 1,
+		tirads: segment.details?.nodule_type ?? undefined,
+		size: noduleSize(segment, study, pxPerMm),
+		location: noduleLocation(segment.details),
+		source: segment.is_ai ? 'ai' : 'doctor',
+	}))
 }
 
 /** Связный текст про узлы — им заполняется раздел «Очаговые изменения». */
@@ -79,7 +163,9 @@ export function buildNodulesDescription(nodules: ReportNodule[]): string {
 	return nodules
 		.map(nodule => {
 			const source = nodule.source === 'ai' ? 'определён ассистентом' : 'подтверждён врачом'
-			const head = [nodule.tirads != null ? `TI-RADS ${nodule.tirads}` : '', nodule.size].filter(Boolean).join(', ')
+			const head = [nodule.location, nodule.tirads != null ? `TI-RADS ${nodule.tirads}` : '', nodule.size]
+				.filter(Boolean)
+				.join(', ')
 
 			return head
 				? `Узел ${nodule.number}: ${head} (${source}).`
@@ -163,9 +249,9 @@ export interface BuildReportModelOptions {
 	 */
 	values: Record<string, unknown>
 	doctor?: DoctorProfile
-	/** Дата рождения пациента в формате `ДД.ММ.ГГГГ` из `/patient/{id}/`. */
 	patientBirthDate?: string
 	extras: ReportExtras
+	pxPerMm?: number | null
 }
 
 export function buildReportModel({
@@ -174,9 +260,21 @@ export function buildReportModel({
 	doctor,
 	patientBirthDate,
 	extras,
+	pxPerMm,
 }: BuildReportModelOptions): ThyroidReportModel {
 	const { patient } = data.info
-	const nodules = buildNodules(data.segmentation || [])
+	const nodules = buildNodules(
+		data.segmentation || [],
+		{
+			projectionType: (values.projectionType as string | undefined) || data.info.details?.projection_type,
+			anatomySide:
+				(values.projectionSide as string | undefined) ||
+				data.info.details?.anatomy_side ||
+				data.info.details?.projection_side ||
+				undefined,
+		},
+		pxPerMm,
+	)
 	const nodulesDescription = buildNodulesDescription(nodules)
 
 	const right = buildLobe(values.right_length, values.right_width, values.right_depth)

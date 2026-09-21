@@ -17,12 +17,12 @@ export interface ReportModalProps {
 	open: boolean
 	onClose: () => void
 	data: ThyroidUziApiResponse
-	/** Та же форма, что и в сайдбаре: правки отсюда уходят в «Сохранить результат». */
 	form: FormInstance
 	doctor?: DoctorProfile
 	patientBirthDate?: string
 	extras: ReportExtras
 	onExtrasChange: (next: ReportExtras) => void
+	pxPerMm?: number | null
 }
 
 /** Подпись + контрол в одну колонку; без Form.Item, чтобы не плодить формы. */
@@ -58,6 +58,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	patientBirthDate,
 	extras,
 	onExtrasChange,
+	pxPerMm,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null)
 	const [showPreview, setShowPreview] = useState(true)
@@ -68,8 +69,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	const values = useMemo(() => watched ?? {}, [watched])
 
 	const model = useMemo(
-		() => buildReportModel({ data, values, doctor, patientBirthDate, extras }),
-		[data, values, doctor, patientBirthDate, extras],
+		() => buildReportModel({ data, values, doctor, patientBirthDate, extras, pxPerMm }),
+		[data, values, doctor, patientBirthDate, extras, pxPerMm],
 	)
 
 	// Перерисовываем документ не на каждый символ, иначе iframe мигает.

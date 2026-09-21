@@ -23,6 +23,7 @@ const Gallery = ({
 	onDraftChangesChange,
 	viewerResetKey = 0,
 	viewerHeight = 600,
+	onPxPerMmChange,
 	thyroidStructures,
 }: GalleryProps) => {
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
@@ -106,6 +107,7 @@ const Gallery = ({
 						currentGroup={selectedGroup}
 						onDraftChangesChange={onDraftChangesChange}
 						onViewerApiReady={handleViewerApiReady}
+						onPxPerMmChange={onPxPerMmChange}
 						thyroidStructures={thyroidStructures}
 					/>
 				</div>

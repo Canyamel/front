@@ -60,6 +60,10 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 
 	const focus = useViewerFocusMode()
 
+	// Масштаб задаётся во вьюере, а нужен ещё и
+	// заключению: по нему считаются размеры узлов в миллиметрах.
+	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+
 	// --- заключение -------------------------------------------------------
 	const { doctorId } = useDoctorId()
 	const { data: doctor } = useGetDoctorProfileQuery(doctorId, { skip: !doctorId })
@@ -103,7 +107,6 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const { Title, Text } = Typography
 	const cardStyle = getSurfaceCardStyle(token)
 
-	// Ширину колонки и внешние отступы задаёт PageShell в UziViewRoute.
 	return (
 		<>
 			<ViewerFocusBar focus={focus} style={cardStyle} />
@@ -145,6 +148,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 							onDraftChangesChange={editor.setPendingChanges}
 							viewerResetKey={editor.viewerResetKey}
 							viewerHeight={focus.viewerHeight}
+							onPxPerMmChange={setPxPerMm}
 							thyroidStructures={thyroidStructures}
 						/>
 					</Card>
@@ -192,6 +196,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				patientBirthDate={patientProfile?.birthDate}
 				extras={extras}
 				onExtrasChange={setExtras}
+				pxPerMm={pxPerMm}
 			/>
 		</>
 	)
