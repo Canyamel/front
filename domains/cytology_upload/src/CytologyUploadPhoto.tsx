@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { InboxOutlined } from '@ant-design/icons'
-import { Button, ConfigProvider, Upload, message } from 'antd'
+import { ConfigProvider, Upload, message } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
 import type { ChunkedUploadCompleteMeta } from '@medml/shared'
 import { CYTOLOGY_UPLOAD_MAX_SIZE_GB, cytologyChunkUploadConfig } from '@medml/cytology-upload'
@@ -152,13 +152,6 @@ export function CytologyUploadPhoto({
 					</Dragger>
 				}
 				formFooterSlot={formFooterSlot}
-				extraActions={
-					<Upload {...uploadProps} showUploadList={false}>
-						<Button htmlType='button' disabled={isSubmitting}>
-							Добавить файл
-						</Button>
-					</Upload>
-				}
 			/>
 		</ConfigProvider>
 	)

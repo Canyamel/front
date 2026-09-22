@@ -86,6 +86,29 @@
 		flex-shrink: 0;
 	}
 
+	&__user {
+		display: inline-flex;
+		align-items: center;
+		gap: $spacing-sm;
+		min-width: 0;
+	}
+
+	&__user-name {
+		max-width: 200px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		font-family: $font-family-ui;
+		font-size: $font-size-body-sm;
+		font-weight: $font-weight-medium;
+		color: $color-text-primary;
+
+		@media (max-width: 768px) {
+			display: none;
+		}
+	}
+
 	// Инициалы врача.
 	&__avatar {
 		display: inline-flex;

@@ -1,0 +1,135 @@
+@use '@medml/ui/styles/tokens' as *;
+
+// Карта пациента по макету «02 — Screens · PatientDetail».
+.patient-profile {
+	display: flex;
+	flex-direction: column;
+	gap: $spacing-2xl;
+	width: 100%;
+
+	&__content {
+		width: 100%;
+	}
+}
+
+.patient-head {
+	width: 100%;
+	border: 1px solid $color-border;
+	border-radius: $radius-xl;
+	box-shadow: $shadow-card;
+
+	&__top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: $spacing-lg;
+		flex-wrap: wrap;
+	}
+
+	&__identity {
+		display: flex;
+		align-items: center;
+		gap: 20px;
+		min-width: 0;
+	}
+
+	&__avatar {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 40px;
+		height: 40px;
+		border-radius: $radius-full;
+
+		background: $color-neutral-bg;
+		color: $color-text-primary;
+		font-family: $font-family-ui;
+		font-size: $font-size-caption;
+		font-weight: $font-weight-semibold;
+		user-select: none;
+	}
+
+	&__titles {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		min-width: 0;
+	}
+
+	&__name-row {
+		display: flex;
+		align-items: center;
+		gap: $spacing-md;
+		flex-wrap: wrap;
+	}
+
+	&__name {
+		margin: 0;
+		font-family: $font-family-ui;
+		font-size: 28px;
+		font-weight: $font-weight-bold;
+		letter-spacing: -0.56px;
+		line-height: 1.2;
+		color: $color-text-primary;
+	}
+
+	&__meta {
+		margin: 0;
+		font-family: $font-family-ui;
+		font-size: 13px;
+		line-height: 1.25;
+		color: $color-text-secondary;
+	}
+
+	&__actions {
+		display: flex;
+		align-items: center;
+		gap: $spacing-sm;
+		flex-wrap: wrap;
+	}
+
+	&__chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: $spacing-sm;
+	}
+
+	&__chip {
+		display: inline-flex;
+		align-items: center;
+		padding: 6px $spacing-md;
+		border-radius: $radius-full;
+
+		font-family: $font-family-ui;
+		font-size: $font-size-caption;
+		font-weight: $font-weight-medium;
+		line-height: 1.25;
+		white-space: nowrap;
+
+		&--neutral {
+			background: $color-neutral-bg;
+			color: $slate-700;
+		}
+
+		&--success {
+			background: $color-success-bg;
+			color: $color-success;
+		}
+	}
+
+	// На телефоне кнопки уходят под ФИО и растягиваются.
+	@media (max-width: 576px) {
+		&__name {
+			font-size: $font-size-h4;
+		}
+
+		&__actions {
+			width: 100%;
+
+			> * {
+				flex: 1;
+			}
+		}
+	}
+}

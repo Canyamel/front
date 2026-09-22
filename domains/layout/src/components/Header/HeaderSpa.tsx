@@ -21,6 +21,8 @@ export interface HeaderSpaProps {
 	onLogoutClearStorage?: () => void
 	navItems?: HeaderNavItem[]
 	userInitials?: string
+	userName?: string
+	userFullName?: string
 }
 
 const DEFAULT_NAV_ITEMS: HeaderNavItem[] = [
@@ -33,6 +35,8 @@ export default function HeaderSpa({
 	onLogoutClearStorage,
 	navItems = DEFAULT_NAV_ITEMS,
 	userInitials,
+	userName,
+	userFullName,
 }: HeaderSpaProps) {
 	const dispatch = useAppDispatch()
 	const navigate = useNavigate()
@@ -78,9 +82,14 @@ export default function HeaderSpa({
 			<div className='app-bar__actions'>
 				{isAuthenticated && (
 					<>
-						{userInitials && (
-							<span className='app-bar__avatar' aria-hidden='true'>
-								{userInitials}
+						{(userInitials || userName) && (
+							<span className='app-bar__user' title={userFullName || userName}>
+								{userInitials && (
+									<span className='app-bar__avatar' aria-hidden='true'>
+										{userInitials}
+									</span>
+								)}
+								{userName && <span className='app-bar__user-name'>{userName}</span>}
 							</span>
 						)}
 						<Button onClick={handleLogout}>Выйти</Button>

@@ -1,16 +1,14 @@
 import * as React from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { Button, Card, Space, Table, Typography, message } from 'antd'
 
 import dayjs from 'dayjs'
 
 import { PatientProfileView } from '@medml/patient_view'
-import { PageShell } from '@medml/layout'
-import {
-	PatientEditModal,
-	stripPolicyDigits,
-	type PatientCreateValuesUzi,
-} from '@medml/patient_create'
+import { NotFoundPage, PageShell } from '@medml/layout'
+import { isNotFoundError } from '@medml/shared'
+import { PatientEditModal, stripPolicyDigits, type PatientCreateValuesUzi } from '@medml/patient_create'
 
 import { useUpdateUziPatientWithCardMutation } from '@/api/patientsApi'
 
@@ -22,6 +20,8 @@ import {
 } from '@/api/patientProfileApi'
 import { useGetUziDevicesQuery } from '@/api/uziApi'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
+import { useCurrentDoctor } from '@/api/hooks/useCurrentDoctor'
+import { isThyroidBackend } from '@/lib/apiBackend'
 import { useUziStudyColumns } from './patientProfile/uziStudyColumns'
 
 // Карточка: радиус, тень и бордер приходят из темы antd (токены дизайн-системы).
@@ -41,15 +41,13 @@ function usePatientProfileData(patientId: string) {
 
 	const { data: devices = [] } = useGetUziDevicesQuery(undefined, { skip: !authed })
 
-	const deviceMap = React.useMemo(
-		() => new Map(devices.map(d => [String(d.id), d.name])),
-		[devices],
-	)
+	const deviceMap = React.useMemo(() => new Map(devices.map(d => [String(d.id), d.name])), [devices])
 
 	const {
 		data: patientApi,
 		isLoading: patientLoading,
 		isError: patientError,
+		error: patientErrorDetails,
 	} = useGetMedPatientByIdQuery(patientId, { skip: !patientId || !authed })
 
 	const { data: cardApi } = useGetMedPatientCardQuery(
@@ -57,10 +55,9 @@ function usePatientProfileData(patientId: string) {
 		{ skip: !doctorId || !patientId || !authed },
 	)
 
-	const { data: uziRows = [], isFetching: uziLoading } = useGetPatientUziStudiesQuery(
-		patientId,
-		{ skip: !patientId || !authed },
-	)
+	const { data: uziRows = [], isFetching: uziLoading } = useGetPatientUziStudiesQuery(patientId, {
+		skip: !patientId || !authed,
+	})
 
 	const patient = React.useMemo(() => {
 		if (!patientApi) return null
@@ -94,9 +91,9 @@ function usePatientProfileData(patientId: string) {
 
 	return {
 		patient,
-		// id карточки нужен для редактирования (PUT /patient/update/{cardId}/)
 		cardId: cardApi?.cardId ?? null,
 		patientError,
+		patientNotFound: isNotFoundError(patientErrorDetails),
 		patientLoading,
 		loading: (authed && !doctorId) || patientLoading,
 		deviceMap,
@@ -108,6 +105,7 @@ function usePatientProfileData(patientId: string) {
 
 export default function PatientProfileRoute() {
 	const navigate = useNavigate()
+	const { shortName: attendingDoctor } = useCurrentDoctor()
 	const [searchParams] = useSearchParams()
 	const patientId = searchParams.get('id')?.trim() ?? ''
 
@@ -115,6 +113,7 @@ export default function PatientProfileRoute() {
 		patient,
 		cardId,
 		patientError,
+		patientNotFound,
 		patientLoading,
 		loading,
 		deviceMap,
@@ -124,8 +123,7 @@ export default function PatientProfileRoute() {
 	} = usePatientProfileData(patientId)
 
 	const [editOpen, setEditOpen] = React.useState(false)
-	const [updatePatient, { isLoading: isSaving }] =
-		useUpdateUziPatientWithCardMutation()
+	const [updatePatient, { isLoading: isSaving }] = useUpdateUziPatientWithCardMutation()
 
 	const handleEditFinish = async (values: PatientCreateValuesUzi) => {
 		if (!cardId) {
@@ -157,19 +155,20 @@ export default function PatientProfileRoute() {
 	const uziColumns = useUziStudyColumns(deviceMap)
 
 	const renderBody = () => {
-		if (!patientId) {
+		if (!patientId || (patientNotFound && !patientLoading)) {
 			return (
-				<Typography.Text type='danger'>
-					Не указан идентификатор пациента (?id=)
-				</Typography.Text>
+				<NotFoundPage
+					title='Пациент не найден'
+					description='Карта пациента удалена или ссылка неверна. Вернитесь к списку пациентов.'
+					homePath='/patients'
+				/>
 			)
 		}
 
 		if (patientError && !patientLoading) {
 			return (
 				<Typography.Text type='danger'>
-					Не удалось загрузить данные пациента. Проверьте, что бэкенд запущен и вы
-					авторизованы.
+					Не удалось загрузить данные пациента. Проверьте, что бэкенд запущен и вы авторизованы.
 				</Typography.Text>
 			)
 		}
@@ -178,31 +177,27 @@ export default function PatientProfileRoute() {
 			<PatientProfileView
 				patient={patient}
 				loading={loading}
-				onBack={() => navigate('/patients')}
-				backLabel='Пациенты'
+				attendingDoctor={attendingDoctor}
 				actions={
-					<Button onClick={() => setEditOpen(true)} disabled={!cardId}>
-						Редактировать
-					</Button>
+					<>
+						{isThyroidBackend() ? (
+							<Button icon={<EditOutlined />} onClick={() => setEditOpen(true)} disabled={!cardId}>
+								Редактировать
+							</Button>
+						) : null}
+						<Button
+							type='primary'
+							icon={<PlusOutlined />}
+							disabled={!patientId}
+							onClick={() => navigate(`/upload_photo?patientId=${encodeURIComponent(patientId)}`)}
+						>
+							Добавить снимок
+						</Button>
+					</>
 				}
 			>
 				<Space direction='vertical' size={16} style={{ width: '100%' }}>
-					<Card
-						styles={{ body: { padding: '16px 24px 24px' } }}
-						title='Снимки'
-						style={cardStyle}
-						extra={
-							<Button
-								type='primary'
-								disabled={!patientId}
-								onClick={() =>
-									navigate(`/upload_photo?patientId=${encodeURIComponent(patientId)}`)
-								}
-							>
-								Добавить
-							</Button>
-						}
-					>
+					<Card styles={{ body: { padding: '16px 24px 24px' } }} title='Снимки' style={cardStyle}>
 						<Table<PatientUziStudyRow>
 							rowKey='key'
 							size='middle'
@@ -213,8 +208,6 @@ export default function PatientProfileRoute() {
 							loading={uziLoading}
 							pagination={uziPagination}
 							locale={{ emptyText: 'Нет снимков' }}
-							// Шесть колонок не помещаются на планшете и телефоне —
-							// уводим в горизонтальный скролл вместо распирания страницы.
 							scroll={{ x: 720 }}
 						/>
 					</Card>

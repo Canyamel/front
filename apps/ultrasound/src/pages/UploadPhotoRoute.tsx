@@ -142,13 +142,6 @@ export default function UploadPhotoRoute() {
 									Добавить нового пациента
 								</Button>
 							}
-							extraActions={
-								<Upload {...uploadProps} showUploadList={false}>
-									<Button htmlType='button' disabled={pageBusy || isUploading}>
-										Добавить файл
-									</Button>
-								</Upload>
-							}
 						/>
 					</ConfigProvider>
 				</Space>

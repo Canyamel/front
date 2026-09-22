@@ -1,15 +1,17 @@
 import * as React from 'react'
-import { EditOutlined, MoreOutlined } from '@ant-design/icons'
+import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, Dropdown, Input, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Dropdown, Input, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import dayjs from 'dayjs'
 import { PatientCreateModal, stripPolicyDigits, type PatientCreateValuesCytology } from '@medml/patient_create'
 import { PatientProfileView } from '@medml/patient_view'
-import { PageShell } from '@medml/layout'
+import { NotFoundPage, PageShell } from '@medml/layout'
+import { isNotFoundError } from '@medml/shared'
 
 import { goMissingEndpoints } from '@/lib/cytologyRoutes'
+import { useCurrentDoctor } from '@/lib/useCurrentDoctor'
 import {
 	useGetPatientShotsByCardIdQuery,
 	useUpdatePatientCardMutation,
@@ -117,20 +119,20 @@ export default function PatientProfileRoute() {
 	const [studyPage, setStudyPage] = React.useState(1)
 	const [studyPageSize, setStudyPageSize] = React.useState(10)
 
-	const { data, isFetching, isLoading } = useGetPatientShotsByCardIdQuery({ cardId, patientId }, { skip: !cardId })
+	const { data, error, isFetching, isLoading } = useGetPatientShotsByCardIdQuery(
+		{ cardId, patientId },
+		{ skip: !cardId },
+	)
 
 	const [updatePatientCard, { isLoading: isUpdating }] = useUpdatePatientCardMutation()
+	const { shortName: attendingDoctor } = useCurrentDoctor()
 
 	const patient = data?.patient ?? null
 
-	// Значения вынесены в отдельные переменные до useMemo: внутри тела они
-	// читались то через `data?.`, то через `data.`, и React Compiler выводил
-	// зависимостью объект `data.editDefaults` целиком, а не перечисленные поля.
 	const editDefaults = data?.editDefaults
 	const patientDiagnosis = data?.patient?.diagnosis
 
-	// Здесь же дата превращается в Dayjs: в кэше RTK Query она лежит строкой,
-	// потому что Redux хранит только сериализуемое, а DatePicker ждёт Dayjs.
+	// Здесь же дата превращается в Dayjs: в кэше RTK Query она лежит строкой
 	const editInitialValues = React.useMemo<PatientCreateValuesCytology | undefined>(() => {
 		if (!editDefaults) return undefined
 		const diagnosis = editDefaults.diagnosis ?? patientDiagnosis ?? ''
@@ -193,6 +195,19 @@ export default function PatientProfileRoute() {
 
 	const loading = isLoading || isFetching
 
+	const patientNotFound =
+		!cardId || isNotFoundError(error) || (!loading && !error && data != null && data.patient == null)
+
+	if (patientNotFound) {
+		return (
+			<NotFoundPage
+				title='Пациент не найден'
+				description='Карта пациента удалена или ссылка неверна. Вернитесь к списку пациентов.'
+				homePath='/patients'
+			/>
+		)
+	}
+
 	return (
 		<PageShell>
 			{!cardId ? (
@@ -202,32 +217,22 @@ export default function PatientProfileRoute() {
 					<PatientProfileView
 						patient={patient}
 						loading={loading}
-						onBack={() => navigate('/patients')}
-						backLabel='Пациенты'
+						attendingDoctor={attendingDoctor}
 						actions={
-							<Space wrap>
-								<Tooltip
-									title={
-										canEditPatient
-											? undefined
-											: 'В Go-шлюзе нечем менять ФИО, полис и почту пациента'
-									}
-								>
-									<Button
-										icon={<EditOutlined />}
-										onClick={() => setEditOpen(true)}
-										disabled={!patient || !canEditPatient}
-									>
+							<>
+								{canEditPatient ? (
+									<Button icon={<EditOutlined />} onClick={() => setEditOpen(true)} disabled={!patient}>
 										Редактировать
 									</Button>
-								</Tooltip>
+								) : null}
 								<Button
 									type='primary'
+									icon={<PlusOutlined />}
 									onClick={() => navigate(`/upload_photo?patientId=${encodeURIComponent(cardId)}`)}
 								>
 									Добавить снимок
 								</Button>
-							</Space>
+							</>
 						}
 					>
 						<Card
