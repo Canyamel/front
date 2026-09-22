@@ -14,12 +14,10 @@ export interface HeaderNavItem {
 	label: string
 	to: string
 	matchPaths?: string[]
-	/** Счётчик справа от подписи (непрочитанное и т.п.). */
 	badge?: number
 }
 
 export interface HeaderSpaProps {
-	/** Очистка токенов вне Redux (например localStorage refresh/access). */
 	onLogoutClearStorage?: () => void
 	navItems?: HeaderNavItem[]
 	userInitials?: string
@@ -44,8 +42,6 @@ export default function HeaderSpa({
 	const [menuOpen, setMenuOpen] = React.useState(false)
 
 	const isAuthenticated = Boolean(accessToken)
-	const showLoginButton = !isAuthenticated && pathname !== '/auth/login'
-	const showRegisterButton = !isAuthenticated && pathname === '/auth/login'
 
 	// Панель закрывается при переходе, иначе остаётся открытой поверх страницы.
 	React.useEffect(() => {
@@ -89,7 +85,6 @@ export default function HeaderSpa({
 						)}
 						<Button onClick={handleLogout}>Выйти</Button>
 
-						{/* На узких экранах навигация уезжает сюда (см. Header.scss). */}
 						<Button
 							className='app-bar__burger'
 							icon={<MenuOutlined />}
@@ -97,18 +92,6 @@ export default function HeaderSpa({
 							onClick={() => setMenuOpen(true)}
 						/>
 					</>
-				)}
-
-				{showLoginButton && (
-					<NavLink to='/auth/login'>
-						<Button>Вход</Button>
-					</NavLink>
-				)}
-
-				{showRegisterButton && (
-					<NavLink to='/auth/register'>
-						<Button>Регистрация</Button>
-					</NavLink>
 				)}
 			</div>
 

@@ -24,7 +24,11 @@ export default function LoginRoute() {
 	return (
 		<AuthApiProvider api={authApi}>
 			<AuthLayoutSpa>
-				<LoginPage onSuccess={handleSuccess} callbackUrl={searchParams.get('callbackUrl')} />
+				<LoginPage
+					onSuccess={handleSuccess}
+					callbackUrl={searchParams.get('callbackUrl')}
+					onRegisterClick={() => navigate('/auth/register')}
+				/>
 			</AuthLayoutSpa>
 		</AuthApiProvider>
 	)

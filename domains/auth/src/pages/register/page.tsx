@@ -11,8 +11,9 @@ import { useAuthApi } from '../../contexts/AuthApiContext'
 import { validateEmail } from '../../utils/validateEmail'
 import { validatePassword } from '../../utils/validatePassword'
 import AuthFormWrapper from '../../components/AuthFormWrapper'
+import AuthSwitchLink from '../../components/AuthSwitchLink/AuthSwitchLink'
 import { useAuthError } from '../../contexts/AuthErrorContext'
-import { DEFAULT_POST_AUTH_PATH } from '../../constants/routes'
+import { DEFAULT_LOGIN_ROUTE, DEFAULT_POST_AUTH_PATH } from '../../constants/routes'
 
 const { Password } = Input
 
@@ -31,9 +32,17 @@ interface RegisterPageProps {
 	onSuccess?: () => void
 	onError?: (error: string) => void
 	authedRedirectTo?: string
+	loginHref?: string
+	onLoginClick?: () => void
 }
 
-const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PATH }: RegisterPageProps) => {
+const RegisterPage = ({
+	onSuccess,
+	onError,
+	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
+	loginHref = DEFAULT_LOGIN_ROUTE,
+	onLoginClick,
+}: RegisterPageProps) => {
 	const authApi = useAuthApi()
 	const [form] = Form.useForm<RegisterFormData>()
 	const [disabledButton, setDisabledButton] = useState(true)
@@ -154,21 +163,13 @@ const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH
 				{/* По макету «SignUp» поля идут в две колонки. */}
 				<Row gutter={16}>
 					<Col xs={24} sm={12}>
-						<Form.Item
-							label='Фамилия'
-							name='lastName'
-							rules={[{ required: true, message: 'Введите фамилию' }]}
-						>
+						<Form.Item label='Фамилия' name='lastName' rules={[{ required: true, message: 'Введите фамилию' }]}>
 							<Input prefix={<UserIcon />} size='large' placeholder='Иванов' />
 						</Form.Item>
 					</Col>
 
 					<Col xs={24} sm={12}>
-						<Form.Item
-							label='Имя'
-							name='firstName'
-							rules={[{ required: true, message: 'Введите имя' }]}
-						>
+						<Form.Item label='Имя' name='firstName' rules={[{ required: true, message: 'Введите имя' }]}>
 							<Input size='large' placeholder='Иван' />
 						</Form.Item>
 					</Col>
@@ -176,11 +177,7 @@ const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH
 
 				<Row gutter={16}>
 					<Col xs={24} sm={12}>
-						<Form.Item
-							label='Отчество'
-							name='fathersName'
-							rules={[{ required: true, message: 'Введите отчество' }]}
-						>
+						<Form.Item label='Отчество' name='fathersName' rules={[{ required: true, message: 'Введите отчество' }]}>
 							<Input size='large' placeholder='Иванович' />
 						</Form.Item>
 					</Col>
@@ -267,9 +264,7 @@ const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH
 					rules={[
 						{
 							validator: (_, value) =>
-								value
-									? Promise.resolve()
-									: Promise.reject(new Error('Необходимо принять условия')),
+								value ? Promise.resolve() : Promise.reject(new Error('Необходимо принять условия')),
 						},
 					]}
 				>
@@ -290,6 +285,7 @@ const RegisterPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH
 					</Button>
 				</Form.Item>
 			</Form>
+			<AuthSwitchLink prompt='Уже есть аккаунт?' label='Войти' href={loginHref} onNavigate={onLoginClick} />
 		</AuthFormWrapper>
 	)
 }

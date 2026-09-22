@@ -51,9 +51,26 @@
 	}
 }
 
+.login-options {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: $spacing-md;
+	margin-bottom: $spacing-lg;
+}
+
+.login-remember {
+	font-family: $font-family-ui;
+	font-size: 13px;
+	color: $color-text-secondary;
+}
+
+.login-submit {
+	margin-bottom: 0;
+}
+
 .login-forgot-password {
-	display: inline-block;
-	margin-top: $spacing-lg;
+	padding-inline: 0;
 
 	font-family: $font-family-ui;
 	font-size: $font-size-body-sm;

@@ -13,3 +13,4 @@ export * from './slices/errorSlice';
 export { default as errorSlice } from './slices/errorSlice';
 export * from './middleware';
 export * from './types/rtkQueryResult';
+export { tokenStorage } from './tokenStorage';

@@ -24,7 +24,7 @@ export default function RegisterRoute() {
 	return (
 		<AuthApiProvider api={authApi}>
 			<AuthLayoutSpa>
-				<RegisterPage onSuccess={handleSuccess} />
+				<RegisterPage onSuccess={handleSuccess} onLoginClick={() => navigate('/auth/login')} />
 			</AuthLayoutSpa>
 		</AuthApiProvider>
 	)
