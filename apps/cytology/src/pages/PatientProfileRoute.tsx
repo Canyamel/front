@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { EditOutlined, MoreOutlined } from '@ant-design/icons'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, Dropdown, Input, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Dropdown, Input, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import dayjs from 'dayjs'
@@ -18,6 +18,24 @@ import {
 
 const { Search } = Input
 
+const AI_FILTER_VALUES = { processed: 'processed', pending: 'pending', unknown: 'unknown' } as const
+
+function aiFilterKey(value: boolean | null): string {
+	if (value === true) return AI_FILTER_VALUES.processed
+	if (value === false) return AI_FILTER_VALUES.pending
+	return AI_FILTER_VALUES.unknown
+}
+
+function AiProcessedTag({ value }: { value: boolean | null }) {
+	if (value === true) return <Tag color='green'>Обработан ИИ</Tag>
+	if (value === false) return <Tag color='gold'>Ожидает ИИ</Tag>
+	return (
+		<Tooltip title='Сервер пока не присылает признак обработки ИИ'>
+			<Typography.Text type='secondary'>—</Typography.Text>
+		</Tooltip>
+	)
+}
+
 function useStudyColumns(): ColumnsType<CytologyStudyRow> {
 	return React.useMemo(
 		() => [
@@ -25,26 +43,39 @@ function useStudyColumns(): ColumnsType<CytologyStudyRow> {
 				title: 'Дата забора',
 				dataIndex: 'cytologyDateLabel',
 				key: 'cytologyDateLabel',
-				width: '16%',
+				width: '14%',
 				sorter: (a, b) => a.cytologyDateSort - b.cytologyDateSort,
 			},
 			{
 				title: 'Номер исследования',
 				dataIndex: 'numberLabel',
 				key: 'numberLabel',
-				width: '22%',
+				width: '18%',
 			},
 			{
 				title: 'Локализация',
 				dataIndex: 'materialTypeLabel',
 				key: 'materialTypeLabel',
-				width: '24%',
+				width: '20%',
 			},
 			{
 				title: 'Категория',
 				dataIndex: 'bethesdaLabel',
 				key: 'bethesdaLabel',
-				width: '16%',
+				width: '14%',
+			},
+			{
+				title: 'ИИ',
+				dataIndex: 'aiProcessed',
+				key: 'aiProcessed',
+				width: '14%',
+				filters: [
+					{ text: 'Обработан ИИ', value: AI_FILTER_VALUES.processed },
+					{ text: 'Ожидает ИИ', value: AI_FILTER_VALUES.pending },
+					{ text: 'Нет данных', value: AI_FILTER_VALUES.unknown },
+				],
+				onFilter: (value, row) => aiFilterKey(row.aiProcessed) === value,
+				render: (_value, row) => <AiProcessedTag value={row.aiProcessed} />,
 			},
 			{
 				title: '',

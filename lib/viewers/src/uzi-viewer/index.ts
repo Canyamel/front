@@ -3,7 +3,7 @@ export { default as UziViewer } from './UziViewer'
 export { elementToImagePoint, imageToElementPoint } from './coords'
 export type { PlanePoint } from './coords'
 
-export { useOpenSeadragon } from './hooks/useOpenSeadragon'
+export { useOpenSeadragon, DEFAULT_ZOOM_LIMITS } from './hooks/useOpenSeadragon'
 export type {
 	UseOpenSeadragonOptions,
 	UseOpenSeadragonResult,
@@ -28,6 +28,7 @@ export type {
 	ToolbarConfig,
 	ViewerApi,
 	ViewerOverlayContext,
+	ViewerZoomLimits,
 	ViewerSlotRenderer,
 	UziViewerProps,
 } from './types'

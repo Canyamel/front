@@ -5,6 +5,8 @@ import type { ToolbarConfig } from '../types'
 export interface ViewerToolbarProps {
 	config?: ToolbarConfig | false
 	zoom: number
+	/** Кратность к исходному разрешению; нужна для `zoomUnit: 'native'`. */
+	nativeZoom?: number | null
 	activeTool?: string
 	onToolChange?: (toolId: string) => void
 	onZoomIn: () => void
@@ -29,10 +31,21 @@ const verticalDividerStyle: React.CSSProperties = {
 	margin: '0 4px',
 }
 
+/** ×0.004, ×0.02, ×0.25, ×1.5, ×4, ×12 — без длинных хвостов после запятой. */
+export function formatNativeZoom(value: number): string {
+	let rounded: number
+	if (value >= 10) rounded = Math.round(value)
+	else if (value >= 1) rounded = Math.round(value * 10) / 10
+	else if (value >= 0.1) rounded = Math.round(value * 100) / 100
+	else rounded = Number(value.toPrecision(1))
+	return `×${String(rounded).replace('.', ',')}`
+}
+
 /** Панель зума, поворота и выбора активного (доменного) инструмента. */
 const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 	config,
 	zoom,
+	nativeZoom,
 	activeTool,
 	onToolChange,
 	onZoomIn,
@@ -44,8 +57,12 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 }) => {
 	if (config === false) return null
 
-	const { showZoom = true, showFit = true, showRotate = true, tools = [] } =
+	const { showZoom = true, showFit = true, showRotate = true, zoomUnit = 'native', tools = [] } =
 		config ?? {}
+
+	const useNative = zoomUnit === 'native' && nativeZoom != null
+	const zoomLabel = useNative ? formatNativeZoom(nativeZoom) : `${Math.round(zoom * 100)}%`
+	const zoomHint = useNative ? '×1 — исходное разрешение: пиксель снимка на пиксель экрана' : undefined
 
 	const divider = horizontal ? verticalDividerStyle : dividerStyle
 
@@ -72,8 +89,8 @@ const ViewerToolbar: React.FC<ViewerToolbarProps> = ({
 					<ViewerActionButton tone='blue' onClick={onZoomIn} aria-label='Zoom in'>
 						+
 					</ViewerActionButton>
-					<div style={{ fontSize: 15, color: '#666', textAlign: 'center' }}>
-						{Math.round(zoom * 100)}%
+					<div style={{ fontSize: 15, color: '#666', textAlign: 'center' }} title={zoomHint}>
+						{zoomLabel}
 					</div>
 					<ViewerActionButton tone='blue' onClick={onZoomOut} aria-label='Zoom out'>
 						-

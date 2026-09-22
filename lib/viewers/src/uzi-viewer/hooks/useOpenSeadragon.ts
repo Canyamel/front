@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import OpenSeaDragon from 'openseadragon'
-import type { ViewerImage } from '../types'
+import type { ViewerImage, ViewerZoomLimits } from '../types'
+
+export const DEFAULT_ZOOM_LIMITS = { maxZoomLevel: 10, maxZoomPixelRatio: 12 } as const
 
 const DEFAULT_PREFIX_URL = 'https://cdn.jsdelivr.net/npm/openseadragon@4.1.1/build/openseadragon/images/'
 
@@ -15,6 +17,7 @@ export interface UseOpenSeadragonOptions {
 	onBeforeDestroy?: (viewer: OpenSeaDragon.Viewer) => void
 	onPageChange?: (index: number) => void
 	onZoomChange?: (zoom: number) => void
+	zoomLimits?: ViewerZoomLimits
 }
 
 export interface UseOpenSeadragonResult {
@@ -22,6 +25,8 @@ export interface UseOpenSeadragonResult {
 	viewer: OpenSeaDragon.Viewer | null
 	currentIndex: number
 	zoom: number
+	/** Кратность к исходному разрешению (×1 = пиксель в пиксель); null — пока неизвестна. */
+	nativeZoom: number | null
 	rotation: number
 	isReady: boolean
 	goToIndex: (index: number) => void
@@ -52,6 +57,15 @@ function toTileSources(
 		| OpenSeaDragon.TileSourceOptions[]
 }
 
+/** Зум вьюпорта → экранных пикселей на пиксель текущего изображения. */
+function toNativeZoom(osd: OpenSeaDragon.Viewer, viewportZoom: number | undefined): number | null {
+	if (viewportZoom == null) return null
+	const item = osd.world?.getItemAt(0)
+	if (!item) return null
+	const value = item.viewportToImageZoom(viewportZoom)
+	return Number.isFinite(value) && value > 0 ? value : null
+}
+
 /**
  * Инкапсулирует "чистое" управление OpenSeadragon: инициализацию/уничтожение
  * инстанса, tileSources, постраничный режим, zoom/pan/rotate/resize.
@@ -59,7 +73,19 @@ function toTileSources(
  * цикл вьювера и его базовые команды.
  */
 export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadragonResult {
-	const { images, prefixUrl = DEFAULT_PREFIX_URL, onOpen, onBeforeDestroy, onPageChange, onZoomChange } = options
+	const {
+		images,
+		prefixUrl = DEFAULT_PREFIX_URL,
+		onOpen,
+		onBeforeDestroy,
+		onPageChange,
+		onZoomChange,
+		zoomLimits,
+	} = options
+
+	const maxZoomLevel =
+		zoomLimits?.maxZoomLevel === undefined ? DEFAULT_ZOOM_LIMITS.maxZoomLevel : zoomLimits.maxZoomLevel
+	const maxZoomPixelRatio = zoomLimits?.maxZoomPixelRatio ?? DEFAULT_ZOOM_LIMITS.maxZoomPixelRatio
 
 	const containerRef = useRef<HTMLDivElement>(null)
 	const viewerRef = useRef<OpenSeaDragon.Viewer | null>(null)
@@ -67,10 +93,10 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 	const [viewer, setViewer] = useState<OpenSeaDragon.Viewer | null>(null)
 	const [currentIndex, setCurrentIndex] = useState(0)
 	const [zoom, setZoom] = useState(1)
+	const [nativeZoom, setNativeZoom] = useState<number | null>(null)
 	const [rotation, setRotation] = useState(0)
 	const [isReady, setIsReady] = useState(false)
 
-	// Инициализация/переинициализация OpenSeadragon при смене набора изображений.
 	useEffect(() => {
 		if (!containerRef.current || images.length === 0) {
 			return
@@ -91,9 +117,6 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 			const osd = OpenSeaDragon({
 				element: containerRef.current,
 				prefixUrl,
-				// @types/openseadragon's `tileSources` union is narrower than what OSD
-				// actually accepts at runtime (single-image objects, DZI, arrays for
-				// sequenceMode, etc.) — bridge via `any` at the call boundary only.
 				tileSources: toTileSources(images) as any,
 				sequenceMode: images.length > 1,
 				showNavigator: false,
@@ -107,8 +130,8 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 				constrainDuringPan: false,
 				visibilityRatio: 0.1,
 				minZoomImageRatio: 0.5,
-				maxZoomPixelRatio: 12,
-				maxZoomLevel: 10,
+				maxZoomPixelRatio,
+				...(maxZoomLevel == null ? {} : { maxZoomLevel }),
 				zoomPerClick: 1.6,
 				zoomPerScroll: 1.2,
 				gestureSettingsMouse: {
@@ -129,6 +152,7 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 				setIsReady(true)
 				setCurrentIndex(openedIndex)
 				setZoom(1)
+				setNativeZoom(toNativeZoom(osd, osd.viewport?.getZoom()))
 				setViewer(osd)
 				onPageChange?.(openedIndex)
 				if (containerRef.current) {
@@ -140,6 +164,7 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 				const homeZoom = osd.viewport?.getHomeZoom() || 1
 				const level = event.zoom / homeZoom
 				setZoom(level)
+				setNativeZoom(toNativeZoom(osd, event.zoom))
 				onZoomChange?.(level)
 			})
 
@@ -174,10 +199,7 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 			console.error('useOpenSeadragon: failed to initialize OpenSeadragon', error)
 			return
 		}
-		// images передаётся по ссылке из вызывающей стороны — реинициализация нужна
-		// только при действительной смене набора изображений.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [images, prefixUrl])
+	}, [images, prefixUrl, maxZoomLevel, maxZoomPixelRatio])
 
 	const goToIndex = useCallback(
 		(index: number) => {
@@ -235,6 +257,7 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 		viewer,
 		currentIndex,
 		zoom,
+		nativeZoom,
 		rotation,
 		isReady,
 		goToIndex,

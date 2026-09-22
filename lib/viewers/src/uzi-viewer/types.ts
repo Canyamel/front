@@ -42,6 +42,13 @@ export interface ToolbarConfig {
 	showZoom?: boolean
 	showFit?: boolean
 	showRotate?: boolean
+	/**
+	 * В чём показывать текущий зум:
+	 * - `native` (по умолчанию) — кратность к исходному разрешению
+	 *   (×1 = пиксель в пиксель), не зависит от размера изображения;
+	 * - `percent` — проценты от «вписанного» изображения (100% = Fit).
+	 */
+	zoomUnit?: 'percent' | 'native'
 	/** Набор доменных инструментов (например, режимов рисования); подписи/иконки задаёт вызывающая сторона. */
 	tools?: ViewerToolDefinition[]
 }
@@ -72,6 +79,19 @@ export type ViewerSlotRenderer =
 	| React.ReactNode
 	| ((context: ViewerOverlayContext) => React.ReactNode)
 
+/**
+ * Пределы приближения OpenSeadragon.
+ *
+ * - `maxZoomLevel` — потолок зума относительно «вписанного» изображения
+ *   (10 = 1000%). `null` — потолка нет, ограничивает только `maxZoomPixelRatio`.
+ * - `maxZoomPixelRatio` — сколько экранных пикселей максимум приходится
+ *   на один пиксель исходного изображения.
+ */
+export interface ViewerZoomLimits {
+	maxZoomLevel?: number | null
+	maxZoomPixelRatio?: number
+}
+
 export interface UziViewerProps {
 	/** Список изображений/страниц. Если больше одного — включается постраничный режим (sequenceMode). */
 	images: ViewerImage[]
@@ -95,6 +115,8 @@ export interface UziViewerProps {
 	emptyState?: React.ReactNode
 
 	onZoomChange?: (zoom: number) => void
+	/** Пределы приближения; по умолчанию — 1000% (как для УЗИ). */
+	zoomLimits?: ViewerZoomLimits
 	onRotationChange?: (rotation: number) => void
 
 	/** Отдаёт императивный API наружу (zoom/rotate/goToIndex/доступ к инстансу OSD). */

@@ -20,6 +20,7 @@ import {
 	type BrushMask,
 	type BrushMode,
 	type MeasuredLine,
+	type ViewerZoomLimits,
 } from '@medml/viewers'
 
 import { useDziTileSource } from '@/lib/useDziTileSource'
@@ -37,14 +38,10 @@ import { IPoint } from './Viewer/interfaces/queries'
 
 import './Viewer/viewer.scss'
 
+const CYTOLOGY_ZOOM_LIMITS: ViewerZoomLimits = { maxZoomLevel: null, maxZoomPixelRatio: 4 }
+
 /**
  * Просмотр снимка цитологии на общем движке `@medml/viewers`.
- *
- * Владеет всем состоянием инструментов (аналог `ThyroidAnnotatedViewer` в
- * УЗИ): выбранный инструмент, разметка через Annotorious, линейка и
- * калибровка масштаба, кисть-заливка. Линейка и кисть работают мимо
- * Annotorious — на собственных слоях из `@medml/viewers`, поэтому не зависят
- * от того, что цитология использует Annotorious v3, а УЗИ — v2.
  */
 
 interface CytologyOsdViewerProps {
@@ -60,8 +57,7 @@ interface CytologyOsdViewerProps {
 	changeSegment: (segmentId: string, contour: IPoint[]) => void
 }
 
-const TOOLBAR_CONFIG = { showZoom: true, showFit: true, showRotate: true }
-/** Единственный кадр — постраничности, как у УЗИ, здесь нет. */
+const TOOLBAR_CONFIG = { showZoom: true, showFit: true, showRotate: true, zoomUnit: 'native' } as const
 const PAGE = 0
 
 function statusMessage(text: string) {
@@ -99,9 +95,6 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 	const [tool, setTool] = useState<Tools>('move')
 	const [showSegments, setShowSegments] = useState(true)
 
-	// Масштаб выводится из эталонного отрезка: врач проводит линию по шкале
-	// снимка и указывает её длину в миллиметрах — взять коэффициент неоткуда,
-	// на глаз пиксели на миллиметр не считаются.
 	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
 	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)
 	const [calibrationMm, setCalibrationMm] = useState<number | null>(null)
@@ -113,16 +106,12 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 
 	const ruler = useRulerMeasurements()
 
-	// Снимки цитологии — гигапиксельные WSI (десятки тысяч px по стороне),
-	// маска на полное разрешение не выделяется («Array buffer allocation
-	// failed»). `maskScaleFor` ужимает её до безопасного размера; при
-	// рисовании и переводе контура в пиксели изображения это учитывается.
 	const maskScale = useMemo(
 		() => (tileSource?.width && tileSource?.height ? maskScaleFor(tileSource.width, tileSource.height) : 1),
 		[tileSource?.width, tileSource?.height],
 	)
 
-	// Маска живёт в координатах снимка (с поправкой на maskScale), поэтому её
+	// Маска живёт в координатах снимка, поэтому её
 	// размер зависит от размера снимка.
 	useEffect(() => {
 		if (!tileSource?.width || !tileSource?.height) {
@@ -195,10 +184,6 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 
 	const calibrating = tool === CALIBRATE_TOOL
 
-	/**
-	 * Отрезок дорисован. В режиме линейки он становится измерением, в режиме
-	 * калибровки — эталоном, для которого спрашиваем длину в миллиметрах.
-	 */
 	const handleLineDrawn = useCallback(
 		(line: MeasuredLine) => {
 			if (calibrating) {
@@ -222,7 +207,6 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 
 		setPxPerMm(next)
 		setCalibrationPx(null)
-		// Сразу возвращаем в навигацию: масштаб задают один раз.
 		setTool('move')
 		message.success(`Масштаб задан: ${next.toFixed(2)} px / мм`)
 	}, [calibrationPx, calibrationMm])
@@ -317,6 +301,7 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 						images={images}
 						height={height}
 						toolbarConfig={TOOLBAR_CONFIG}
+						zoomLimits={CYTOLOGY_ZOOM_LIMITS}
 						navigationEnabled={false}
 						onInstanceReady={attach}
 						onInstanceWillDestroy={detach}
@@ -340,8 +325,8 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 				destroyOnHidden
 			>
 				<Typography.Paragraph type='secondary'>
-					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким миллиметрам
-					он соответствует по шкале снимка.
+					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким миллиметрам он соответствует по
+					шкале снимка.
 				</Typography.Paragraph>
 
 				<InputNumber

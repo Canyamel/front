@@ -27,6 +27,7 @@ export type CytologyStudyRow = {
 	bethesdaLabel: string
 	cytologyDateLabel: string
 	cytologyDateSort: number
+	aiProcessed: boolean | null
 }
 
 type CytologyShotDto = {
@@ -38,6 +39,10 @@ type CytologyShotDto = {
 	details?: {
 		probs?: number[]
 	}
+	is_ai_processed?: boolean | null
+	/** Запасные имена — на случай, если бэкенд назовёт поле иначе. */
+	ai_processed?: boolean | null
+	is_processed_by_ai?: boolean | null
 }
 
 type CytologyPatientDto = {
@@ -116,6 +121,11 @@ function bethesdaLabelByProbs(probs: number[] | undefined, marking?: string): st
 	return metastasisLabels[metastasisIndex] ?? metastasisLabels[metastasisLabels.length - 1] ?? '—'
 }
 
+function readAiProcessed(shot: CytologyShotDto): boolean | null {
+	const value = shot.is_ai_processed ?? shot.ai_processed ?? shot.is_processed_by_ai
+	return typeof value === 'boolean' ? value : null
+}
+
 function extractPatientShots(response: CytologyPatientShotsResponse): {
 	patient?: CytologyPatientDto
 	shots: CytologyShotDto[]
@@ -191,6 +201,7 @@ export const patientProfileApi = baseApi.injectEndpoints({
 							bethesdaLabel: bethesdaLabelByProbs(item.details?.probs, item.diagnostic_marking),
 							cytologyDateLabel: formatApiDateToDisplay(dateRaw) ?? '—',
 							cytologyDateSort: parsed?.isValid() ? parsed.valueOf() : 0,
+							aiProcessed: readAiProcessed(item),
 						}
 					})
 

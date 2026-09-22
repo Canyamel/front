@@ -23,6 +23,7 @@ export interface ViewerContainerProps {
 
 	toolbarConfig?: ToolbarConfig | false
 	zoom: number
+	nativeZoom?: number | null
 	activeTool?: string
 	onToolChange?: (toolId: string) => void
 	onZoomIn: () => void
@@ -64,6 +65,7 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 	overlayContext,
 	toolbarConfig,
 	zoom,
+	nativeZoom,
 	activeTool,
 	onToolChange,
 	onZoomIn,
@@ -106,6 +108,7 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 						horizontal={isNarrow}
 						config={toolbarConfig}
 						zoom={zoom}
+						nativeZoom={nativeZoom}
 						activeTool={activeTool}
 						onToolChange={onToolChange}
 						onZoomIn={onZoomIn}
