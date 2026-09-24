@@ -1,3 +1,4 @@
+import type { ViewerStatus } from '@medml/viewers'
 import type { Segment, SegmentDraftChange } from '../model/types'
 import type { ImageTile } from '../gallery/types'
 import type { ThyroidStructureJson } from '../structures'
@@ -14,6 +15,8 @@ export interface ThyroidAnnotatedViewerProps {
 	imageid: string | number
 	readOnly?: boolean
 	height?: number
+	/** Состояние вместо снимка: кадры готовятся, ошибка подготовки и т.п. */
+	status?: ViewerStatus | null
 	currentGroup?: string | number
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 	onViewerApiReady?: (api: AnnotoriousViewerApi) => void

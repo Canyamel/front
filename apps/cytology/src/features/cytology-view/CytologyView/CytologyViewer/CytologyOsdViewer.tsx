@@ -1,12 +1,17 @@
-import React, { useMemo } from 'react'
-import { Flex, Typography } from 'antd'
-import { FileImageOutlined } from '@ant-design/icons'
-import { UziViewer, type ViewerImage } from '@medml/viewers'
+import React, { useMemo, useState } from 'react'
+import { Typography } from 'antd'
+import {
+	AnnotatedStudyViewer,
+	BRUSH_TOOL,
+	CALIBRATE_TOOL,
+	PAN_TOOL,
+	RULER_TOOL,
+} from '@medml/viewers'
+import type { ViewerImage, ViewerLegendItem, ViewerStatus, ViewerToolId } from '@medml/viewers'
 
 import { useDziTileSource } from '@/lib/useDziTileSource'
 
 import { useAppSelector } from '@cytology/core/hooks'
-import { Tools } from '@cytology/core/types/basic'
 import { ISegmentStack } from '@cytology/core/types/segments'
 
 import { useCytologyAnnotator } from './useCytologyAnnotator'
@@ -18,36 +23,44 @@ import './Viewer/viewer.scss'
 
 /**
  * Просмотр снимка цитологии на общем движке `@medml/viewers`.
+ *
+ * Рабочее место целиком собирает `<AnnotatedStudyViewer />` — то же самое,
+ * что и в УЗИ. Отсюда приходит доменное: DZI-тайлы снимка, слой разметки на
+ * Annotorious 3 и карточка выбранного сегмента.
  */
 
 interface CytologyOsdViewerProps {
 	imageUrl: string
-	tool: Tools
 	drawingEnabled?: boolean
+	/** Выбрана ли группа сегментов: без неё рисовать некуда. */
 	selected: boolean
 	needPopup?: boolean
 	className?: string
 	height?: number | string
 	segments?: ISegmentStack[]
 	segmentTypeColors?: Record<string, string>
+	legendItems?: ViewerLegendItem[]
 	addSegment: (contour: IPoint[]) => void
 	changeSegment: (segmentId: string, contour: IPoint[]) => void
 }
 
-const TOOLBAR_CONFIG = { showZoom: true, showFit: true, showRotate: true }
-
-function statusMessage(text: string) {
-	return (
-		<Flex vertical align='center' justify='center' className='cytology-viewer-empty'>
-			<FileImageOutlined className='cytology-viewer-empty-icon' />
-			<Typography.Paragraph className='cytology-viewer-empty-text'>{text}</Typography.Paragraph>
-		</Flex>
-	)
-}
+/**
+ * Инструменты цитологии: рисование отдаём Annotorious 3 (он знает
+ * `rectangle` и `polygon`), остальное обслуживает сам вьюер. Линейка,
+ * задание масштаба и кисть появились здесь вместе с унификацией — раньше
+ * они были только в УЗИ.
+ */
+const CYTOLOGY_VIEWER_TOOLS: ViewerToolId[] = [
+	PAN_TOOL,
+	'rectangle',
+	'polygon',
+	BRUSH_TOOL,
+	RULER_TOOL,
+	CALIBRATE_TOOL,
+]
 
 const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 	imageUrl,
-	tool,
 	drawingEnabled = false,
 	selected,
 	needPopup = false,
@@ -55,16 +68,33 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 	height = 600,
 	segments = [],
 	segmentTypeColors = {},
+	legendItems = [],
 	addSegment,
 	changeSegment,
 }) => {
 	const { tileSource, isLoading, error } = useDziTileSource(imageUrl)
 	const currentSegment = useAppSelector(state => state.segment.currentSegment)
 
+	const [annotationsVisible, setAnnotationsVisible] = useState(true)
+
 	// Ссылка на массив должна быть стабильной: общий вьюер пересоздаёт инстанс
 	// OSD при смене `images`, а вместе с инстансом уходит и слой разметки.
+	//
+	// Размеры снимка берём из манифеста DZI: без них кисть не знает, какого
+	// размера делать маску (маска живёт в координатах изображения).
 	const images = useMemo<ViewerImage[]>(
-		() => (tileSource ? [{ id: imageUrl, url: '', tileSource: tileSource as ViewerImage['tileSource'] }] : []),
+		() =>
+			tileSource
+				? [
+						{
+							id: imageUrl,
+							url: '',
+							tileSource: tileSource as ViewerImage['tileSource'],
+							width: tileSource.width,
+							height: tileSource.height,
+						},
+					]
+				: [],
 		[imageUrl, tileSource],
 	)
 
@@ -77,41 +107,54 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 		[segmentTypeColors, drawingEnabled, currentSegment],
 	)
 
-	const { annotator, attach, detach } = useCytologyAnnotator({
-		segments,
+	const { annotator, layer } = useCytologyAnnotator({
+		// Скрытая разметка — это пустой набор аннотаций: у Annotorious 3 нет
+		// отдельного переключателя видимости слоя.
+		segments: annotationsVisible ? segments : [],
 		style,
 		drawingEnabled: drawingEnabled && selected,
-		tool,
 		onAddSegment: addSegment,
 		onChangeSegment: changeSegment,
 	})
+
+	const status = useMemo<ViewerStatus | null>(() => {
+		if (!imageUrl) return { kind: 'empty', title: 'Изображение отсутствует' }
+		if (error) {
+			return { kind: 'error', title: 'Не удалось загрузить изображение', description: error }
+		}
+		if (isLoading || !tileSource) return { kind: 'loading' }
+		return null
+	}, [imageUrl, error, isLoading, tileSource])
 
 	const overlaySlot = useMemo(
 		() => (needPopup ? <SegmentPopup annotator={annotator} isEditingMode={drawingEnabled} /> : null),
 		[needPopup, annotator, drawingEnabled],
 	)
 
-	const classes = `viewer-wrapper ${className ?? ''}`
-
-	if (!imageUrl) return <div className={classes}>{statusMessage('Изображение отсутствует')}</div>
-	if (error) {
-		return <div className={classes}>{statusMessage(`Не удалось загрузить изображение: ${error}`)}</div>
-	}
-	if (isLoading || !tileSource) {
-		return <div className={classes}>{statusMessage('Загрузка изображения…')}</div>
-	}
-
 	return (
-		<div className={classes}>
-			<UziViewer
+		<div className={`viewer-wrapper ${className ?? ''}`}>
+			<AnnotatedStudyViewer
 				images={images}
+				annotationLayer={layer}
+				tools={CYTOLOGY_VIEWER_TOOLS}
+				readOnly={!drawingEnabled}
 				height={height}
-				toolbarConfig={TOOLBAR_CONFIG}
+				status={status}
 				navigationEnabled={false}
-				onInstanceReady={attach}
-				onInstanceWillDestroy={detach}
+				legendItems={legendItems}
+				legendTitle='Сегменты:'
+				annotationsVisible={annotationsVisible}
+				onAnnotationsVisibleChange={setAnnotationsVisible}
 				overlaySlot={overlaySlot}
-				emptyState={statusMessage('Изображение отсутствует')}
+				// В режиме просмотра рисовать нечем, и подсказка про выбор группы
+				// была бы не к месту: панель там показывает только линейку и масштаб.
+				toolPanelExtra={
+					drawingEnabled && !selected ? (
+						<Typography.Text type='secondary'>
+							Выберите группу сегментов справа, чтобы рисовать
+						</Typography.Text>
+					) : null
+				}
 			/>
 		</div>
 	)

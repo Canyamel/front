@@ -1,7 +1,7 @@
 export { default as UziViewer } from './UziViewer'
 
+// PlanePoint живёт в `src/geometry.ts` и реэкспортируется из корня пакета.
 export { elementToImagePoint, imageToElementPoint } from './coords'
-export type { PlanePoint } from './coords'
 
 export { useOpenSeadragon } from './hooks/useOpenSeadragon'
 export type {

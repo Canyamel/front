@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createOSDAnnotator } from "@annotorious/openseadragon";
 import type {
     Annotation,
@@ -8,9 +8,9 @@ import type {
     PolygonGeometry,
     RectangleGeometry,
 } from "@annotorious/openseadragon";
-import type { ViewerInstance } from "@medml/viewers";
+import type { PlanePoint, ViewerAnnotationLayer, ViewerInstance, ViewerToolId } from "@medml/viewers";
+import { isDrawingTool } from "@medml/viewers";
 
-import { Tools } from "@cytology/core/types/basic";
 import { ISegmentStack } from "@cytology/core/types/segments";
 
 import { generateAnnotation } from "./Viewer/utils/generateAnnotation";
@@ -26,17 +26,17 @@ import "@annotorious/openseadragon/annotorious-openseadragon.css";
  * движок мимо общего пакета, со своей навигацией и своими настройками жестов.
  * Любая правка вьюера делалась дважды и расходилась с УЗИ.
  *
- * Теперь движок один, а Annotorious подключается к уже готовому инстансу через
- * `createOSDAnnotator` — тем же приёмом, что и в УЗИ: там к инстансу из
- * `onInstanceReady` цепляется Annotorious 2, здесь — третий.
+ * Теперь наружу отдаётся `layer` — реализация общего контракта
+ * `ViewerAnnotationLayer`. Такой же адаптер есть в УЗИ, только над
+ * Annotorious 2; общий вьюер в обоих случаях один и тот же и про версию
+ * библиотеки разметки не знает.
  */
 
 export interface UseCytologyAnnotatorOptions {
     segments: ISegmentStack[];
     style?: DrawingStyleExpression<ImageAnnotation>;
-    /** Разрешено ли рисовать: в режиме просмотра и на инструменте «перемещение» — нет. */
+    /** Разрешено ли рисовать: в режиме просмотра и без выбранной группы — нет. */
     drawingEnabled: boolean;
-    tool: Tools;
     onAddSegment: (contour: IPoint[]) => void;
     onChangeSegment: (segmentId: string, contour: IPoint[]) => void;
 }
@@ -44,10 +44,8 @@ export interface UseCytologyAnnotatorOptions {
 export interface UseCytologyAnnotatorResult {
     /** `null`, пока вьюер не открыл изображение. */
     annotator: OpenSeadragonAnnotator | null;
-    /** Для `onInstanceReady` общего вьюера. */
-    attach: (viewer: ViewerInstance) => void;
-    /** Для `onInstanceWillDestroy` общего вьюера. */
-    detach: () => void;
+    /** Слой разметки для `<AnnotatedStudyViewer annotationLayer={...} />`. */
+    layer: ViewerAnnotationLayer;
 }
 
 type Geometry = Partial<RectangleGeometry> & Partial<PolygonGeometry>;
@@ -86,7 +84,6 @@ export function useCytologyAnnotator({
     segments,
     style,
     drawingEnabled,
-    tool,
     onAddSegment,
     onChangeSegment,
 }: UseCytologyAnnotatorOptions): UseCytologyAnnotatorResult {
@@ -96,14 +93,29 @@ export function useCytologyAnnotator({
     // Обработчики держим в ref: пересоздавать аннотатор из-за нового колбэка
     // нельзя — вместе с ним со снимка пропадёт вся разметка.
     const handlersRef = useRef({ onAddSegment, onChangeSegment });
+    // Инструмент, выбранный до открытия снимка, применяем сразу после attach.
+    // `enabled` — разрешение по режиму от вьюера, `drawing` — итог с учётом
+    // доменного условия; храним оба, чтобы переприменять запрос вьюера.
+    const toolRef = useRef<{ tool: ViewerToolId; enabled: boolean; drawing: boolean }>({
+        tool: "pan",
+        enabled: false,
+        drawing: false,
+    });
+    // Право рисовать — доменное условие, и решает его слой, а не вьюер: без
+    // выбранной группы сегментов контур некуда сохранять.
+    const canDrawRef = useRef(drawingEnabled);
 
     useEffect(() => {
         handlersRef.current = { onAddSegment, onChangeSegment };
     }, [onAddSegment, onChangeSegment]);
 
+    useEffect(() => {
+        canDrawRef.current = drawingEnabled;
+    }, [drawingEnabled]);
+
     // Создание и уничтожение висят на колбэках вьюера, а не на эффекте: жизнь
     // аннотатора совпадает с жизнью инстанса OSD, а про неё общий вьюер
-    // сообщает сам — через onInstanceReady / onInstanceWillDestroy.
+    // сообщает сам — через контракт слоя разметки.
     const attach = useCallback((viewer: ViewerInstance) => {
         const instance = createOSDAnnotator(viewer);
 
@@ -123,6 +135,8 @@ export function useCytologyAnnotator({
 
         annotatorRef.current = instance;
         setAnnotator(instance);
+
+        applyTool(instance, toolRef.current.tool, toolRef.current.drawing);
     }, []);
 
     const detach = useCallback(() => {
@@ -139,6 +153,38 @@ export function useCytologyAnnotator({
         } catch (error) {
             console.warn("useCytologyAnnotator: не удалось уничтожить аннотатор", error);
         }
+    }, []);
+
+    /**
+     * Инструменты вьюера (навигация, кисть, линейка) до Annotorious не доходят:
+     * на них рисование выключается, иначе плагин забирает перетаскивание себе.
+     *
+     * `enabled` от вьюера — это разрешение по режиму (просмотр/редактирование);
+     * доменное условие добавляем здесь. Иначе вьюер включал бы рисование без
+     * выбранной группы, и обведённый контур молча терялся бы в `onAddSegment`.
+     */
+    const setTool = useCallback((tool: ViewerToolId, enabled: boolean) => {
+        const drawing = enabled && isDrawingTool(tool) && canDrawRef.current;
+        toolRef.current = { tool, enabled, drawing };
+        applyTool(annotatorRef.current, tool, drawing);
+    }, []);
+
+    /**
+     * Контур из кисти-заполнения приходит готовым полигоном в координатах
+     * снимка — сохраняем его тем же путём, что и нарисованный вручную.
+     *
+     * Без выбранной группы отказываемся: `onAddSegment` такой контур всё равно
+     * отбросит, а вьюер по `true` отчитался бы об успехе и стёр набросок.
+     */
+    const addPolygon = useCallback((points: PlanePoint[]) => {
+        if (points.length < 3 || !canDrawRef.current) {
+            return false;
+        }
+
+        handlersRef.current.onAddSegment(
+            points.map((point) => ({ x: Math.round(point.x), y: Math.round(point.y) }))
+        );
+        return true;
     }, []);
 
     // Стиль — отдельным эффектом: он меняется при переключении режима и
@@ -162,18 +208,37 @@ export function useCytologyAnnotator({
         }
     }, [annotator, segments]);
 
+    // Право рисовать может пропасть и без смены инструмента — например, когда
+    // врач снял выбор группы сегментов.
     useEffect(() => {
-        if (!annotator) {
-            return;
+        const { tool, enabled } = toolRef.current;
+        setTool(tool, enabled);
+    }, [drawingEnabled, setTool]);
+
+    const layer = useMemo<ViewerAnnotationLayer>(
+        () => ({ attach, detach, setTool, addPolygon }),
+        [attach, detach, setTool, addPolygon]
+    );
+
+    return { annotator, layer };
+}
+
+/** Annotorious 3 знает инструменты `rectangle` и `polygon` под теми же именами. */
+function applyTool(
+    annotator: OpenSeadragonAnnotator | null,
+    tool: ViewerToolId,
+    drawing: boolean
+): void {
+    if (!annotator) {
+        return;
+    }
+
+    try {
+        if (drawing) {
+            annotator.setDrawingTool(tool as never);
         }
-
-        const canDraw = drawingEnabled && tool !== "move";
-
-        if (canDraw) {
-            annotator.setDrawingTool(tool);
-        }
-        annotator.setDrawingEnabled(canDraw);
-    }, [annotator, drawingEnabled, tool]);
-
-    return { annotator, attach, detach };
+        annotator.setDrawingEnabled(drawing);
+    } catch (error) {
+        console.error(`Не удалось включить инструмент «${tool}»:`, error);
+    }
 }

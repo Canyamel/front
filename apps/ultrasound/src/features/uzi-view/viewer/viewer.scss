@@ -1,39 +1,9 @@
 @use '@/styles/tokens' as *;
 
-// Панель инструментов над снимком.
-.viewer-tool-panel {
-	display: flex;
-	flex-direction: column;
-	gap: $spacing-md;
-
-	padding: $spacing-md $spacing-lg;
-	margin-bottom: $spacing-md;
-
-	background: $color-bg-layout;
-	border: 1px solid $color-border;
-	border-radius: $radius-md;
-
-	&__row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: $spacing-md;
-		flex-wrap: wrap;
-
-		&--secondary {
-			padding-top: $spacing-md;
-			border-top: 1px solid $color-border;
-		}
-	}
-
-	@media (max-width: 768px) {
-		padding: $spacing-md;
-
-		&__row {
-			align-items: stretch;
-		}
-	}
-}
+// Здесь остались только переопределения стилей Annotorious 2: сам плагин
+// доменный и живёт в приложении. Панель инструментов, слой линейки и кисть
+// переехали в `@medml/viewers` — они одинаковы для УЗИ и цитологии, поэтому
+// свои стили несут инлайном и scss приложения им не нужен.
 
 // ---------------------------------------------------------------------------
 // Переопределение дефолтов Annotorious.
@@ -75,44 +45,6 @@
 
 	.a9s-inner {
 		transition: stroke-width 0.12s ease;
-	}
-}
-
-// Слой линейки. Живёт в overlaySlot вьюера, а не внутри
-// `.a9s-annotationlayer`, поэтому селекторы здесь не вложенные.
-.ruler-layer {
-	// Подпись с расстоянием: белая, с тёмным контуром — читается и на
-	// светлых, и на тёмных участках снимка.
-	&__label {
-		font-family: $font-family-data;
-		font-size: 13px;
-		font-weight: $font-weight-semibold;
-		fill: #ffffff;
-		paint-order: stroke;
-		stroke: rgba(15, 23, 42, 0.85);
-		stroke-width: 3.5px;
-		stroke-linejoin: round;
-		pointer-events: none;
-		user-select: none;
-	}
-
-	// Подсказка у прицела — тем же приёмом, но мельче.
-	&__hint {
-		font-family: $font-family-ui;
-		font-size: 11px;
-		font-weight: $font-weight-medium;
-		fill: #ffffff;
-		paint-order: stroke;
-		stroke: rgba(15, 23, 42, 0.85);
-		stroke-width: 3px;
-		stroke-linejoin: round;
-		pointer-events: none;
-		user-select: none;
-	}
-
-	&__remove {
-		cursor: pointer;
-		pointer-events: auto;
 	}
 }
 

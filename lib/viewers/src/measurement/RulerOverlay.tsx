@@ -1,5 +1,7 @@
 import React from 'react'
-import { elementToImagePoint, imageToElementPoint, type ViewerInstance } from '@medml/viewers'
+import { elementToImagePoint, imageToElementPoint } from '../uzi-viewer/coords'
+import type { ViewerInstance } from '../uzi-viewer/types'
+import type { PlanePoint } from '../geometry'
 import { lineLabelAnchor, lineLengthPx } from './measurement'
 import type { MeasuredLine } from './measurement'
 import type { RulerMeasurement } from './useRulerMeasurements'
@@ -16,23 +18,47 @@ export interface RulerOverlayProps {
 	onRemove: (id: string) => void
 }
 
-/** Точка в координатах снимка. */
-interface ImagePoint {
-	x: number
-	y: number
-}
-
 const LINE_COLOR = '#06B6D4'
 const DRAFT_COLOR = '#22D3EE'
 
 /**
+ * Подписи — белые с тёмной обводкой: снимок бывает и светлым, и тёмным, а
+ * `paintOrder: 'stroke'` кладёт обводку под заливку, поэтому текст читается в
+ * обоих случаях. Стили инлайновые: пакет визуализации не поставляет css,
+ * чтобы приложениям не приходилось подключать его отдельно.
+ */
+const LABEL_STYLE: React.CSSProperties = {
+	fontSize: 13,
+	fontWeight: 600,
+	fill: '#ffffff',
+	paintOrder: 'stroke',
+	stroke: 'rgba(15, 23, 42, 0.85)',
+	strokeWidth: 3.5,
+	strokeLinejoin: 'round',
+	pointerEvents: 'none',
+	userSelect: 'none',
+}
+
+const HINT_STYLE: React.CSSProperties = {
+	...LABEL_STYLE,
+	fontSize: 11,
+	fontWeight: 500,
+	strokeWidth: 3,
+}
+
+/**
  * Линейка: рисование отрезков и их подписи в мм.
  *
- * Слой полностью самостоятельный — Annotorious здесь не участвует. Через
- * плагин линейка работала ровно один раз: после первого же `createAnnotation`
- * он выходил из режима рисования, и протяжка снова двигала снимок. Плюс
- * руббербенд рисует сам плагин, поэтому показать длину прямо во время
- * протяжки было нечем.
+ * Слой полностью самостоятельный — библиотека разметки здесь не участвует.
+ * Через плагин линейка работала ровно один раз: после первого же
+ * `createAnnotation` он выходил из режима рисования, и протяжка снова двигала
+ * снимок. Плюс руббербенд рисует сам плагин, поэтому показать длину прямо во
+ * время протяжки было нечем.
+ *
+ * Именно поэтому слой живёт в `@medml/viewers`, а не рядом с конкретным
+ * движком разметки: ему нужен только инстанс OSD для пересчёта координат,
+ * поэтому он одинаково работает и над Annotorious 2 (УЗИ), и над
+ * Annotorious 3 (цитология).
  *
  * Координаты храним в системе снимка и пересчитываем в экранные на каждое
  * движение вьюпорта — так линии держатся за изображение при зуме.
@@ -51,8 +77,8 @@ const RulerOverlay: React.FC<RulerOverlayProps> = ({
 
 	// Отрезок, который сейчас тянут, и позиция курсора до начала протяжки:
 	// без видимой точки старта неочевидно, что нужно зажать кнопку.
-	const [draft, setDraft] = React.useState<{ start: ImagePoint; end: ImagePoint } | null>(null)
-	const [hover, setHover] = React.useState<ImagePoint | null>(null)
+	const [draft, setDraft] = React.useState<{ start: PlanePoint; end: PlanePoint } | null>(null)
+	const [hover, setHover] = React.useState<PlanePoint | null>(null)
 
 	// Своего состояния для позиций нет — на движение вьюпорта просто
 	// заставляем слой перерисоваться.
@@ -82,7 +108,7 @@ const RulerOverlay: React.FC<RulerOverlayProps> = ({
 	}, [active])
 
 	const toImagePoint = React.useCallback(
-		(clientX: number, clientY: number): ImagePoint | null => {
+		(clientX: number, clientY: number): PlanePoint | null => {
 			const root = rootRef.current
 			if (!viewer || !root) return null
 
@@ -93,7 +119,7 @@ const RulerOverlay: React.FC<RulerOverlayProps> = ({
 	)
 
 	const toElement = React.useCallback(
-		(point: ImagePoint) => (viewer ? imageToElementPoint(viewer, point.x, point.y) : null),
+		(point: PlanePoint) => (viewer ? imageToElementPoint(viewer, point.x, point.y) : null),
 		[viewer],
 	)
 
@@ -150,7 +176,7 @@ const RulerOverlay: React.FC<RulerOverlayProps> = ({
 	return (
 		<svg
 			ref={rootRef}
-			className='ruler-layer'
+			className='medml-viewer-ruler-layer'
 			style={{
 				position: 'absolute',
 				inset: 0,
@@ -202,7 +228,7 @@ const RulerOverlay: React.FC<RulerOverlayProps> = ({
 interface MeasurementShapeProps {
 	line: MeasuredLine
 	label: string | null
-	toElement: (point: ImagePoint) => ImagePoint | null
+	toElement: (point: PlanePoint) => PlanePoint | null
 	color?: string
 	dashed?: boolean
 	onRemove?: () => void
@@ -251,11 +277,11 @@ const MeasurementShape: React.FC<MeasurementShapeProps> = ({
 
 			{label && anchor && (
 				<text
-					className='ruler-layer__label'
 					x={anchor.x}
 					y={anchor.y}
 					textAnchor='middle'
 					dominantBaseline='middle'
+					style={LABEL_STYLE}
 					transform={`rotate(${anchorImage.angleDeg} ${anchor.x} ${anchor.y})`}
 				>
 					{label}
@@ -264,7 +290,7 @@ const MeasurementShape: React.FC<MeasurementShapeProps> = ({
 
 			{onRemove && (
 				<g
-					className='ruler-layer__remove'
+					style={{ cursor: 'pointer', pointerEvents: 'auto' }}
 					onPointerDown={event => event.stopPropagation()}
 					onClick={onRemove}
 				>
@@ -288,8 +314,8 @@ const MeasurementShape: React.FC<MeasurementShapeProps> = ({
 
 /** Прицел под курсором — иначе непонятно, что нужно зажать и протянуть. */
 const HoverCursor: React.FC<{
-	point: ImagePoint
-	toElement: (point: ImagePoint) => ImagePoint | null
+	point: PlanePoint
+	toElement: (point: PlanePoint) => PlanePoint | null
 }> = ({ point, toElement }) => {
 	const at = toElement(point)
 	if (!at) return null
@@ -298,7 +324,7 @@ const HoverCursor: React.FC<{
 		<g pointerEvents='none'>
 			<circle cx={at.x} cy={at.y} r={5} fill='none' stroke={LINE_COLOR} strokeWidth={2} />
 			<circle cx={at.x} cy={at.y} r={1.5} fill={LINE_COLOR} />
-			<text className='ruler-layer__hint' x={at.x + 14} y={at.y - 12}>
+			<text x={at.x + 14} y={at.y - 12} style={HINT_STYLE}>
 				Зажмите и протяните
 			</text>
 		</g>

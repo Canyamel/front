@@ -1,5 +1,6 @@
 import OpenSeaDragon from 'openseadragon'
 import type { ViewerInstance } from './types'
+import type { PlanePoint } from '../geometry'
 
 /**
  * Преобразование координат между снимком и экраном.
@@ -10,10 +11,7 @@ import type { ViewerInstance } from './types'
  * поэтому вызывающей стороне про OSD знать не нужно.
  */
 
-export interface PlanePoint {
-	x: number
-	y: number
-}
+export type { PlanePoint }
 
 /** Точка внутри элемента вьюера → координаты пикселя изображения. */
 export function elementToImagePoint(

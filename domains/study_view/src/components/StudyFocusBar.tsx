@@ -1,12 +1,12 @@
 import React from 'react'
 import { Button, Card, Space, Typography } from 'antd'
 
-import type { ViewerFocusMode } from './useViewerFocusMode'
+import type { StudyFocusMode } from '../useStudyFocusMode'
 
 const { Title, Text } = Typography
 
-export interface ViewerFocusBarProps {
-	focus: ViewerFocusMode
+export interface StudyFocusBarProps {
+	focus: StudyFocusMode
 	/** Как называется боковая панель в подписи кнопки. */
 	sidebarLabel?: string
 	title?: string
@@ -19,7 +19,7 @@ export interface ViewerFocusBarProps {
  * Панель управления режимом просмотра: скрыть сводку, скрыть боковую панель,
  * либо убрать всё разом и оставить один снимок.
  */
-const ViewerFocusBar: React.FC<ViewerFocusBarProps> = ({
+const StudyFocusBar: React.FC<StudyFocusBarProps> = ({
 	focus,
 	sidebarLabel = 'правую панель',
 	title = 'Режим просмотра',
@@ -59,4 +59,4 @@ const ViewerFocusBar: React.FC<ViewerFocusBarProps> = ({
 	)
 }
 
-export default ViewerFocusBar
+export default StudyFocusBar

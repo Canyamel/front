@@ -11,13 +11,16 @@
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
     "@medml/auth": "*",
+    "@medml/doctor_profile": "*",
     "@medml/layout": "*",
     "@medml/patient_create": "*",
     "@medml/patient_list": "*",
     "@medml/patient_view": "*",
+    "@medml/patients": "*",
     "@medml/shared": "*",
-    "@medml/subscriptions": "*",
     "@medml/store": "*",
+    "@medml/study_view": "*",
+    "@medml/subscriptions": "*",
     "@medml/ui": "*",
     "@medml/viewers": "*",
     "@recogito/annotorious-openseadragon": "^2.7.18",
@@ -28,9 +31,7 @@
     "react-dom": "^18.2.0",
     "react-redux": "^9.0.0",
     "react-router-dom": "^7.13.1",
-    "svg-polygon-points": "^1.4.0",
-    "@medml/doctor_profile": "*",
-    "@medml/patients": "*"
+    "svg-polygon-points": "^1.4.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

@@ -5,13 +5,14 @@ import { Grid } from 'antd'
  * Режим фокуса на снимке: соседние блоки страницы можно убрать, снимок при
  * этом становится выше.
  *
- * Живёт в `@medml/viewers`, потому что это поведение самого рабочего места
- * врача, а не конкретного исследования: и в УЗИ, и в цитологии страница
- * устроена одинаково — сводка сверху, снимок слева, панель справа.
- * Доменного здесь ничего нет, только флаги видимости и высота.
+ * Живёт в домене, а не в `@medml/viewers`: это поведение страницы
+ * исследования, а не движка просмотра — здесь нет ни OpenSeadragon, ни
+ * разметки, только флаги видимости блоков и высота области снимка. И в УЗИ,
+ * и в цитологии страница устроена одинаково: сводка сверху, снимок слева,
+ * панель справа.
  */
 
-export interface ViewerFocusMode {
+export interface StudyFocusMode {
 	/** Показывать ли сводку над снимком. */
 	showOverview: boolean
 	setShowOverview: Dispatch<SetStateAction<boolean>>
@@ -43,7 +44,7 @@ function resolveViewerHeight(
 	return 600
 }
 
-export function useViewerFocusMode(): ViewerFocusMode {
+export function useStudyFocusMode(): StudyFocusMode {
 	const screens = Grid.useBreakpoint()
 
 	const [showOverview, setShowOverview] = useState(true)

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { Card, Col, Form, Grid, Row, Spin, Typography, theme } from 'antd'
-import { useViewerFocusMode, ViewerFocusBar } from '@medml/viewers'
+import { Card, Form, Spin, theme } from 'antd'
+import { StudyWorkspaceLayout, useStudyFocusMode } from '@medml/study_view'
 
 import { useGetThyroidUziDataQuery, useGetUziDevicesQuery } from '@/api/uziApi'
 import { useGetDoctorProfileQuery } from '@/api/doctorApi'
@@ -19,13 +19,15 @@ export interface UziViewPageProps {
 }
 
 /**
- * Страница просмотра/редактирования снимка УЗИ ЩЖ — композиция и разметка.
- * Данные и мутации живут в `model/`, аннотирование — в `viewer/`,
- * печатное заключение — в `features/uzi-report`.
+ * Страница просмотра/редактирования снимка УЗИ ЩЖ.
+ *
+ * Раскладку (сводка сверху, снимок слева, панель справа) держит
+ * `StudyWorkspaceLayout` из `@medml/study_view` — она общая с цитологией.
+ * Здесь остаётся доменное: данные и мутации из `model/`, аннотирование —
+ * в `viewer/`, печатное заключение — в `features/uzi-report`.
  */
 const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const { token } = theme.useToken()
-	const screens = Grid.useBreakpoint()
 
 	const { data, isLoading, error } = useGetThyroidUziDataQuery(uziId)
 	const { data: devicesData } = useGetUziDevicesQuery()
@@ -41,7 +43,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 
 	const studyForm = useThyroidStudyForm({ uziId, data, devices })
 
-	const focus = useViewerFocusMode()
+	const focus = useStudyFocusMode()
 
 	// --- заключение -------------------------------------------------------
 	const { doctorId } = useDoctorId()
@@ -83,87 +85,53 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	}
 
 	const { patient } = data.info
-	const { Title, Text } = Typography
 	const cardStyle = getSurfaceCardStyle(token)
 
 	// Ширину колонки и внешние отступы задаёт PageShell в UziViewRoute.
 	return (
 		<>
-			<ViewerFocusBar focus={focus} style={cardStyle} />
-
-			{focus.showOverview && (
-				<Card style={cardStyle} styles={{ body: { padding: 16 } }}>
-					<Title level={4} style={{ marginBottom: 4 }}>
-						Основная информация
-					</Title>
-					<Text type='secondary'>Сводка по пациенту и диагностике</Text>
-
-					<Row gutter={[12, 12]} style={{ marginTop: 8 }} align='stretch'>
-						<Col xs={24} xl={12}>
-							<PatientInfoSection patient={patient} date={data.info.diagnos_date} />
-						</Col>
-						<Col xs={24} xl={12}>
-							<NoduleTypesSection aiTypes={aiTypes} doctorTypes={doctorTypes} />
-						</Col>
-					</Row>
-				</Card>
-			)}
-
-			<Row gutter={[16, 16]} align='top'>
-				<Col xs={24} lg={focus.showSidebar ? 16 : 24}>
-					<Card title='Редактор/просмотр изображения' style={cardStyle} styles={{ body: { padding: 12 } }}>
-						<Gallery
-							link1={data.image.image}
-							image_count={data.info.image_count ?? 1}
-							slide_template={data.image.slide_template}
-							slide_urls={data.image.slide_urls}
-							seg={editor.displaySegmentation}
-							imageid={data.image.id}
-							isEditMode={editor.isEditMode}
-							onStartEdit={editor.startEdit}
-							onSaveEdit={editor.saveSegments}
-							onCancelEdit={editor.cancelEdit}
-							isSaving={editor.isSaving}
-							hasUnsavedChanges={editor.hasUnsavedChanges}
-							onDraftChangesChange={editor.setPendingChanges}
-							viewerResetKey={editor.viewerResetKey}
-							viewerHeight={focus.viewerHeight}
+			<StudyWorkspaceLayout
+				focus={focus}
+				overviewTitle='Основная информация'
+				overviewPrimary={<PatientInfoSection patient={patient} date={data.info.diagnos_date} />}
+				overviewSecondary={<NoduleTypesSection aiTypes={aiTypes} doctorTypes={doctorTypes} />}
+				viewerTitle='Редактор/просмотр изображения'
+				viewer={
+					<Gallery
+						link1={data.image.image}
+						image_count={data.info.image_count ?? 1}
+						slide_template={data.image.slide_template}
+						slide_urls={data.image.slide_urls}
+						seg={editor.displaySegmentation}
+						imageid={data.image.id}
+						isEditMode={editor.isEditMode}
+						onStartEdit={editor.startEdit}
+						onSaveEdit={editor.saveSegments}
+						onCancelEdit={editor.cancelEdit}
+						isSaving={editor.isSaving}
+						hasUnsavedChanges={editor.hasUnsavedChanges}
+						onDraftChangesChange={editor.setPendingChanges}
+						viewerResetKey={editor.viewerResetKey}
+						viewerHeight={focus.viewerHeight}
+					/>
+				}
+				sidebar={
+					<Form form={studyForm.form} layout='vertical'>
+						<StudyDataSection
+							form={studyForm.form}
+							devices={devices}
+							modalVisible={studyForm.modalVisible}
+							setModalVisible={studyForm.setModalVisible}
+							onSave={studyForm.handleSave}
+							saving={studyForm.saving}
 						/>
-					</Card>
-				</Col>
 
-				{focus.showSidebar && (
-					<Col xs={24} lg={8}>
-						<div
-							style={{
-								position: screens.lg ? 'sticky' : 'static',
-								top: screens.lg ? 12 : 0,
-								display: 'flex',
-								flexDirection: 'column',
-								gap: 12,
-								maxHeight: screens.lg ? 'calc(100vh - 96px)' : 'none',
-								overflow: screens.lg ? 'auto' : 'visible',
-								paddingRight: 2,
-							}}
-						>
-							<Form form={studyForm.form} layout='vertical'>
-								<StudyDataSection
-									form={studyForm.form}
-									devices={devices}
-									modalVisible={studyForm.modalVisible}
-									setModalVisible={studyForm.setModalVisible}
-									onSave={studyForm.handleSave}
-									saving={studyForm.saving}
-								/>
-
-								<Card size='small' style={cardStyle} styles={{ body: { padding: 12 } }}>
-									<ActionButtons onSave={studyForm.handleSave} onOpenReport={handleOpenReport} />
-								</Card>
-							</Form>
-						</div>
-					</Col>
-				)}
-			</Row>
+						<Card size='small' style={cardStyle} styles={{ body: { padding: 12 } }}>
+							<ActionButtons onSave={studyForm.handleSave} onOpenReport={handleOpenReport} />
+						</Card>
+					</Form>
+				}
+			/>
 
 			<ReportModal
 				open={reportOpen}

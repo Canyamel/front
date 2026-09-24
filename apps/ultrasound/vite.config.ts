@@ -49,6 +49,7 @@ export default defineConfig(({ mode }) => {
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),
 				'@medml/viewers': path.resolve(__dirname, '../../lib/viewers/src'),
 				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
+				'@medml/study_view': path.resolve(__dirname, '../../domains/study_view/src'),
 				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
 				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
 				'@medml/patients': path.resolve(__dirname, '../../domains/patients/src'),

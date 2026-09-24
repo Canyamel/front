@@ -13,7 +13,6 @@ import {
 import "@/lib/cytologyApi";
 
 import cytologySlice from "./slices/cytology.slice";
-import refSlice from "./slices/ref.slice";
 import segmentSlice from "./slices/segment.slice";
 
 export const createCytologyViewStore = () => {
@@ -24,7 +23,6 @@ export const createCytologyViewStore = () => {
       loading: loadingSlice.reducer,
       error: errorSlice.reducer,
       cytology: cytologySlice.reducer,
-      ref: refSlice.reducer,
       segment: segmentSlice.reducer,
     },
     middleware: (getDefaultMiddleware) =>

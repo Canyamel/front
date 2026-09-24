@@ -1,11 +1,13 @@
-import type { SegmentPoint } from '../model/types'
+import type { PlanePoint, PlaneSize } from '../geometry'
 
 /**
  * Измерения на снимке: длина отрезка, габариты контура и перевод пикселей
  * в миллиметры.
  *
  * Модуль чистый — без React, Annotorious и DOM, чтобы формулы можно было
- * читать и проверять отдельно от вьюера.
+ * читать и проверять отдельно от вьюера. Доменного здесь тоже ничего нет:
+ * на вход идут точки в координатах снимка, поэтому и УЗИ, и цитология
+ * пользуются одними и теми же формулами.
  */
 
 export interface MeasuredLine {
@@ -16,10 +18,7 @@ export interface MeasuredLine {
 }
 
 /** Габариты контура в пикселях изображения. */
-export interface ContourSize {
-	widthPx: number
-	heightPx: number
-}
+export type ContourSize = PlaneSize
 
 /**
  * Достаёт отрезок из аннотации инструмента «линия» (selector-pack рисует
@@ -115,7 +114,7 @@ export function pxToMm(px: number, pxPerMm: number | null): number | null {
 }
 
 /** Габариты контура по ограничивающему прямоугольнику. */
-export function contourSizePx(points: SegmentPoint[]): ContourSize | null {
+export function contourSizePx(points: PlanePoint[]): ContourSize | null {
 	if (!points || points.length === 0) return null
 
 	let minX = Infinity
@@ -136,12 +135,12 @@ export function contourSizePx(points: SegmentPoint[]): ContourSize | null {
 }
 
 /**
- * Наибольшие габариты узла по всем его контурам.
- * У узла может быть несколько контуров (на разных кадрах) — берём максимум,
- * это и есть размер образования, который врач вносит в заключение.
+ * Наибольшие габариты объекта разметки по всем его контурам.
+ * У одного объекта может быть несколько контуров (на разных кадрах) — берём
+ * максимум, это и есть размер, который врач вносит в заключение.
  */
-export function segmentSizePx(
-	contours: Array<{ points: SegmentPoint[] }> | undefined,
+export function contourGroupSizePx(
+	contours: Array<{ points: PlanePoint[] }> | undefined,
 ): ContourSize | null {
 	if (!contours || contours.length === 0) return null
 

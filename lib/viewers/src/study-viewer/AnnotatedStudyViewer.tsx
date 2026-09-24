@@ -1,0 +1,405 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { InputNumber, Modal, Typography, message } from 'antd'
+
+import UziViewer from '../uzi-viewer/UziViewer'
+import type { ViewerInstance } from '../uzi-viewer/types'
+import {
+	BrushCanvasOverlay,
+	createMask,
+	isMaskEmpty,
+	maskToPolygon,
+	type BrushMask,
+} from '../brush'
+import {
+	RulerOverlay,
+	calcPxPerMm,
+	lineLengthPx,
+	useRulerMeasurements,
+	type MeasuredLine,
+} from '../measurement'
+import ViewerToolPanel from './ViewerToolPanel'
+import ViewerStatusState from './ViewerStatusState'
+import ViewerLegendOverlay from './ViewerLegendOverlay'
+import ViewerAnnotationsToggle from './ViewerAnnotationsToggle'
+import {
+	BRUSH_TOOL,
+	CALIBRATE_TOOL,
+	DEFAULT_VIEWER_TOOLS,
+	PAN_TOOL,
+	isDrawingTool,
+	isReadOnlyTool,
+	isRulerLikeTool,
+	type BrushMode,
+	type ViewerToolId,
+} from './tools'
+import type { AnnotatedStudyViewerProps } from './types'
+
+/**
+ * Рабочее место врача над снимком — один компонент для всех 2D-контуров.
+ *
+ * Собирает в одно целое то, что раньше было разведено по приложениям:
+ *
+ * - движок просмотра (`<UziViewer />`: zoom/pan/rotate/постранично);
+ * - панель инструментов с общим набором id (`ViewerToolPanel`);
+ * - линейку и задание масштаба по эталонному отрезку (`RulerOverlay`);
+ * - кисть-заполнение с превращением наброска в контур (`BrushCanvasOverlay`);
+ * - легенду разметки и переключатель её видимости;
+ * - состояния «загрузка / ошибка / нет снимка».
+ *
+ * Про конкретную библиотеку разметки компонент не знает: приложение передаёт
+ * слой через `annotationLayer` (см. `ViewerAnnotationLayer`). Поэтому УЗИ на
+ * Annotorious 2 и цитология на Annotorious 3 получают одинаковый набор
+ * возможностей из одного места.
+ */
+const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
+	images,
+	annotationLayer,
+	tools = DEFAULT_VIEWER_TOOLS,
+	activeTool: controlledTool,
+	onToolChange,
+	readOnly = true,
+	height = 600,
+	className,
+	navigationEnabled = true,
+	onIndexChange,
+	status,
+	legendItems = [],
+	legendTitle,
+	onPxPerMmChange,
+	annotationsVisible,
+	onAnnotationsVisibleChange,
+	overlaySlot,
+	customToolbarSlot,
+	toolPanelExtra,
+}) => {
+	const [osdViewer, setOsdViewer] = useState<ViewerInstance | null>(null)
+	const [currentPage, setCurrentPage] = useState(0)
+
+	// Инструмент можно вести снаружи, но обычно это внутреннее состояние:
+	// приложению интересен результат разметки, а не выбранный инструмент.
+	const [internalTool, setInternalTool] = useState<ViewerToolId>(PAN_TOOL)
+	const requestedTool = controlledTool ?? internalTool
+
+	/**
+	 * В режиме просмотра остаются только инструменты, которые ничего не меняют:
+	 * навигация, линейка и задание масштаба. Рисование и кисть требуют
+	 * редактирования.
+	 */
+	const availableTools = useMemo(
+		() => (readOnly ? tools.filter(isReadOnlyTool) : tools),
+		[readOnly, tools],
+	)
+
+	// Активный инструмент выводим, а не храним: при выходе из редактирования
+	// выбранный контур/кисть иначе остались бы активными, но нерабочими.
+	const activeTool = availableTools.includes(requestedTool) ? requestedTool : PAN_TOOL
+
+	// Масштаб выводится из эталонного отрезка: врач проводит линию по шкале
+	// снимка и указывает её длину в миллиметрах. Автоматически коэффициент
+	// взять неоткуда, а вводить его числом врач не может — пиксели на миллиметр
+	// на глаз не считаются.
+	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+
+	// Отрезок, для которого ждём ввод длины. Пока он не null — открыт диалог.
+	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)
+	const [calibrationMm, setCalibrationMm] = useState<number | null>(null)
+
+	const [brushMode, setBrushMode] = useState<BrushMode>('draw')
+	const [brushRadius, setBrushRadius] = useState(12)
+	const [mask, setMask] = useState<BrushMask | null>(null)
+	const [sketchVersion, setSketchVersion] = useState(0)
+
+	const ruler = useRulerMeasurements()
+
+	// Колбэки слоя разметки держим в ref: инстанс движка пересоздаётся только
+	// при смене набора кадров, и новый инлайн-объект `annotationLayer` не должен
+	// тянуть за собой переподключение — вместе с ним со снимка ушла бы разметка.
+	const layerRef = useRef(annotationLayer)
+
+	useEffect(() => {
+		layerRef.current = annotationLayer
+	}, [annotationLayer])
+
+	const handleToolChange = useCallback(
+		(tool: ViewerToolId) => {
+			setInternalTool(tool)
+			onToolChange?.(tool)
+		},
+		[onToolChange],
+	)
+
+	useEffect(() => {
+		onPxPerMmChange?.(pxPerMm)
+	}, [pxPerMm, onPxPerMmChange])
+
+	// Рисовать слоем разметки можно только его собственными инструментами:
+	// на навигации, кисти и линейке он обязан отдать перетаскивание вьюеру.
+	const drawingEnabled = !readOnly && isDrawingTool(activeTool)
+
+	const brushActive = !readOnly && activeTool === BRUSH_TOOL && availableTools.includes(BRUSH_TOOL)
+
+	// Набросок привязан к кадру: при переходе на другой кадр он теряет смысл.
+	useEffect(() => {
+		setMask(null)
+		setSketchVersion(v => v + 1)
+	}, [images, currentPage])
+
+	/**
+	 * Маску создаём только когда врач взял кисть, и держим до смены кадра —
+	 * переключение инструментов набросок не теряет.
+	 *
+	 * Аллокация ленивая не ради экономии: маска привязана к размерам снимка, а
+	 * цитология открывает whole-slide изображения в десятки тысяч пикселей по
+	 * стороне. Создавать под них растр при обычном просмотре нельзя — именно на
+	 * этом страница падала с `RangeError: Array buffer allocation failed`.
+	 * (Сам растр вдобавок ограничен по размеру — см. `createMask`.)
+	 */
+	useEffect(() => {
+		if (!brushActive) return
+
+		const frame = images[currentPage]
+		const { width, height } = frame ?? {}
+		if (!width || !height) return
+
+		setMask(prev => prev ?? createMask(width, height))
+	}, [brushActive, images, currentPage])
+
+	useEffect(() => {
+		layerRef.current?.setTool(activeTool, drawingEnabled)
+	}, [activeTool, drawingEnabled])
+
+	// Маска мутируется на месте, поэтому ссылка не меняется и React сам
+	// пересчитать не может — версию наброска двигают штрихи и очистка.
+	const hasSketch = useMemo(
+		() => Boolean(mask && !isMaskEmpty(mask)),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[mask, sketchVersion],
+	)
+
+	const handleClearSketch = useCallback(() => {
+		const frame = images[currentPage]
+		if (!frame?.width || !frame?.height) return
+		setMask(createMask(frame.width, frame.height))
+		setSketchVersion(v => v + 1)
+	}, [images, currentPage])
+
+	const handleConfirmSketch = useCallback(() => {
+		if (!mask) return
+
+		const addPolygon = layerRef.current?.addPolygon
+		if (!addPolygon) {
+			message.warning('Слой разметки не поддерживает добавление контура кистью')
+			return
+		}
+
+		const polygon = maskToPolygon(mask, 2)
+		if (!polygon) {
+			message.warning('Набросок слишком мал — контур не построен')
+			return
+		}
+
+		if (addPolygon(polygon)) {
+			message.success(`Контур создан (${polygon.length} точек)`)
+			handleClearSketch()
+			return
+		}
+
+		// Слой отказался — набросок оставляем, иначе работа врача исчезла бы
+		// без объяснений.
+		message.warning('Контур не сохранён: разметку сейчас некуда добавить')
+	}, [mask, handleClearSketch])
+
+	const calibrating = activeTool === CALIBRATE_TOOL
+
+	/**
+	 * Отрезок дорисован. В режиме линейки он становится измерением, в режиме
+	 * калибровки — эталоном, для которого спрашиваем длину в миллиметрах.
+	 */
+	const handleLineDrawn = useCallback(
+		(line: MeasuredLine, page: number) => {
+			if (calibrating) {
+				setCalibrationPx(lineLengthPx(line))
+				setCalibrationMm(null)
+				return
+			}
+			ruler.add(line, page)
+		},
+		[calibrating, ruler],
+	)
+
+	const applyCalibration = useCallback(() => {
+		if (calibrationPx == null || calibrationMm == null) return
+
+		const next = calcPxPerMm(calibrationPx, calibrationMm)
+		if (next == null) {
+			message.error('Длина должна быть больше нуля')
+			return
+		}
+
+		setPxPerMm(next)
+		setCalibrationPx(null)
+		// Сразу возвращаем в навигацию: масштаб задают один раз.
+		handleToolChange(PAN_TOOL)
+		message.success(`Масштаб задан: ${next.toFixed(2)} px / мм`)
+	}, [calibrationPx, calibrationMm, handleToolChange])
+
+	const handleIndexChange = useCallback(
+		(index: number) => {
+			setCurrentPage(index)
+			onIndexChange?.(index)
+		},
+		[onIndexChange],
+	)
+
+	/**
+	 * Колбэк обязан быть стабильным: вьюер пересоздаёт инстанс OSD при смене
+	 * набора кадров, и лишнее пересоздание стёрло бы разметку. Инструмент,
+	 * выбранный до открытия снимка, слой применяет сам — он запоминает
+	 * последний `setTool` и повторяет его при подключении.
+	 */
+	const handleInstanceReady = useCallback((viewer: ViewerInstance, container: HTMLDivElement) => {
+		setOsdViewer(viewer)
+		layerRef.current?.attach(viewer, container)
+	}, [])
+
+	const handleInstanceWillDestroy = useCallback(() => {
+		layerRef.current?.detach()
+		setOsdViewer(null)
+	}, [])
+
+	// Линейка не меняет разметку, поэтому доступна и в режиме просмотра.
+	const showRuler = isRulerLikeTool(activeTool) && availableTools.includes(activeTool)
+	const showLegend = legendItems.length > 0 && annotationsVisible !== false
+
+	/**
+	 * Встроенный переключатель видимости разметки и доменные кнопки приложения
+	 * живут в одном слоте, поэтому склеиваем их здесь — приложению не нужно
+	 * знать, что вьюер тоже что-то в этот слот кладёт.
+	 */
+	const canToggleAnnotations =
+		typeof annotationsVisible === 'boolean' && Boolean(onAnnotationsVisibleChange)
+
+	if (status) {
+		return (
+			<div className={className}>
+				<ViewerStatusState status={status} height={height} />
+			</div>
+		)
+	}
+
+	return (
+		<div className={['medml-study-viewer', className].filter(Boolean).join(' ')}>
+			{availableTools.length > 0 && (
+				<ViewerToolPanel
+					tools={availableTools}
+					activeTool={activeTool}
+					onToolChange={handleToolChange}
+					pxPerMm={pxPerMm}
+					onResetScale={() => {
+						setPxPerMm(null)
+						handleToolChange(CALIBRATE_TOOL)
+					}}
+					brushMode={brushMode}
+					onBrushModeChange={setBrushMode}
+					brushRadius={brushRadius}
+					onBrushRadiusChange={setBrushRadius}
+					hasSketch={hasSketch}
+					onConfirmSketch={handleConfirmSketch}
+					onClearSketch={handleClearSketch}
+					measurementCount={
+						ruler.measurements.filter(item => item.page === currentPage).length
+					}
+					onClearMeasurements={ruler.clear}
+					extra={toolPanelExtra}
+				/>
+			)}
+
+			<UziViewer
+				images={images}
+				onIndexChange={handleIndexChange}
+				// Инструменты выбираются в панели над снимком, встроенный
+				// список тулбара не используем.
+				toolbarConfig={{ tools: [] }}
+				height={height}
+				readOnly={readOnly}
+				navigationEnabled={navigationEnabled}
+				onInstanceReady={handleInstanceReady}
+				onInstanceWillDestroy={handleInstanceWillDestroy}
+				emptyState={<ViewerStatusState status={{ kind: 'empty' }} height={height} />}
+				overlaySlot={context => (
+					<>
+						{showLegend && (
+							<ViewerLegendOverlay items={legendItems} title={legendTitle} />
+						)}
+
+						<RulerOverlay
+							viewer={osdViewer}
+							active={showRuler}
+							measurements={ruler.measurements}
+							currentPage={currentPage}
+							pxPerMm={pxPerMm}
+							labelFor={ruler.labelFor}
+							onAdd={handleLineDrawn}
+							onRemove={ruler.remove}
+						/>
+
+						{brushActive && (
+							<BrushCanvasOverlay
+								viewer={osdViewer}
+								mask={mask}
+								radius={brushRadius}
+								erasing={brushMode === 'erase'}
+								onStrokeEnd={() => setSketchVersion(v => v + 1)}
+							/>
+						)}
+
+						{typeof overlaySlot === 'function' ? overlaySlot(context) : overlaySlot}
+					</>
+				)}
+				customToolbarSlot={context => (
+					<>
+						{canToggleAnnotations && (
+							<ViewerAnnotationsToggle
+								visible={annotationsVisible as boolean}
+								onToggle={() => onAnnotationsVisibleChange?.(!annotationsVisible)}
+							/>
+						)}
+						{typeof customToolbarSlot === 'function'
+							? customToolbarSlot(context)
+							: customToolbarSlot}
+					</>
+				)}
+			/>
+
+			<Modal
+				title='Длина эталонного отрезка'
+				open={calibrationPx != null}
+				onOk={applyCalibration}
+				onCancel={() => setCalibrationPx(null)}
+				okText='Применить'
+				cancelText='Отмена'
+				okButtonProps={{ disabled: calibrationMm == null || calibrationMm <= 0 }}
+				destroyOnHidden
+			>
+				<Typography.Paragraph type='secondary'>
+					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким
+					миллиметрам он соответствует по шкале снимка.
+				</Typography.Paragraph>
+
+				<InputNumber
+					autoFocus
+					value={calibrationMm ?? undefined}
+					onChange={value => setCalibrationMm(typeof value === 'number' ? value : null)}
+					onPressEnter={applyCalibration}
+					min={0.1}
+					step={1}
+					addonAfter='мм'
+					placeholder='например, 10'
+					style={{ width: '100%' }}
+				/>
+			</Modal>
+		</div>
+	)
+}
+
+export default AnnotatedStudyViewer
