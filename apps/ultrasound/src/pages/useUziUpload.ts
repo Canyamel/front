@@ -1,6 +1,7 @@
 import * as React from 'react'
-import { message } from 'antd'
+import { message, Upload } from 'antd'
 import type { UploadFile, UploadProps } from 'antd'
+import { getFileExtension } from '@medml/shared'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
 import {
@@ -24,6 +25,21 @@ function extractUploadedStudyId(response: unknown): string | null {
 		return String(raw)
 	}
 	return null
+}
+
+/** Форматы из макета: DICOM · TIF · JPG · PNG. */
+const UPLOAD_EXTENSIONS = new Set(['dcm', 'dicom', 'tif', 'tiff', 'jpg', 'jpeg', 'png'])
+
+const UNSUPPORTED_FILE_MESSAGE = 'Поддерживаются DICOM (в том числе без расширения), TIF, JPG и PNG'
+
+/**
+ * DICOM с аппаратов обычно приходит без расширения или с именем-UID
+ * («1.2.840.113619.2.55», «IM0001.001») — такие имена пропускаем,
+ * содержимое проверяет бэкенд.
+ */
+function isAllowedUploadName(name: string): boolean {
+	const ext = getFileExtension(name)
+	return ext === '' || UPLOAD_EXTENSIONS.has(ext) || /^\d+$/.test(ext)
 }
 
 /** Один файл в antd Upload. */
@@ -115,10 +131,14 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 		() => ({
 			name: 'file',
 			multiple: false,
-			// Форматы из макета: DICOM · TIF · JPG · PNG.
-			accept: '.dcm,.dicom,.tif,.tiff,.jpg,.jpeg,.png',
+			// `accept` намеренно не задан: браузер спрятал бы в диалоге выбора
+			// DICOM без расширения, а именно так их отдают аппараты УЗИ.
 			maxCount: 1,
 			beforeUpload: next => {
+				if (!isAllowedUploadName(next.name)) {
+					message.error(UNSUPPORTED_FILE_MESSAGE)
+					return Upload.LIST_IGNORE
+				}
 				setFile(next as File)
 				return false
 			},
