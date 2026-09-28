@@ -108,31 +108,35 @@ const StudyDataSection: React.FC<StudyDataSectionProps> = ({
 				</Form.Item>
 
 				<Divider>Левая доля</Divider>
-				<Form.Item label='Длина (мм)' name='left_length'>
+				<Form.Item label='Длина (мм)' name='left_lobe_length'>
 					<Input type='number' />
 				</Form.Item>
-				<Form.Item label='Ширина (мм)' name='left_width'>
+				<Form.Item label='Ширина (мм)' name='left_lobe_width'>
 					<Input type='number' />
 				</Form.Item>
-				<Form.Item label='Толщина (мм)' name='left_depth'>
+				<Form.Item label='Толщина (мм)' name='left_lobe_thickness'>
 					<Input type='number' />
 				</Form.Item>
 
 				<Divider>Правая доля</Divider>
-				<Form.Item label='Длина (мм)' name='right_length'>
+				<Form.Item label='Длина (мм)' name='right_lobe_length'>
 					<Input type='number' />
 				</Form.Item>
-				<Form.Item label='Ширина (мм)' name='right_width'>
+				<Form.Item label='Ширина (мм)' name='right_lobe_width'>
 					<Input type='number' />
 				</Form.Item>
-				<Form.Item label='Толщина (мм)' name='right_depth'>
+				<Form.Item label='Толщина (мм)' name='right_lobe_thickness'>
 					<Input type='number' />
 				</Form.Item>
 
-				<Form.Item label='Объем железы (см³)' name='volume'>
+				<Form.Item
+					label='Объем железы (см³)'
+					name='volume'
+					extra='Только для заключения, на сервере не сохраняется. Пусто — сумма объёмов долей.'
+				>
 					<Input type='number' />
 				</Form.Item>
-				<Form.Item label='Перешеек (мм)' name='isthmus'>
+				<Form.Item label='Перешеек (мм)' name='isthmus_thickness'>
 					<Input type='number' />
 				</Form.Item>
 				<Form.Item label='Структура' name='structure'>

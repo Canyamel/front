@@ -8,6 +8,7 @@ import { useGetMedPatientByIdQuery } from '@/api/patientProfileApi'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
 import { ReportModal, useReportExtras } from '@/features/uzi-report'
 import { getSurfaceCardStyle } from '@/styles/uiPatterns'
+import { toSameOriginMediaUrl, toSameOriginMediaUrls } from '@/lib/mediaUrl'
 
 import { Gallery } from './gallery'
 import { ActionButtons, NoduleTypesSection, PatientInfoSection, StudyDataSection } from './sidebar'
@@ -28,6 +29,10 @@ export interface UziViewPageProps {
  * Данные и мутации живут в `model/`, аннотирование — в `viewer/`,
  * печатное заключение — в `features/uzi-report`.
  */
+/** Запас под тень карточек в прокручиваемом сайдбаре (см. shadow.card). */
+const SIDEBAR_SHADOW_ROOM = 12
+const SIDEBAR_SHADOW_ROOM_BOTTOM = 40
+
 const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const { token } = theme.useToken()
 	const screens = Grid.useBreakpoint()
@@ -133,10 +138,10 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				<Col xs={24} lg={focus.showSidebar ? 16 : 24}>
 					<Card title='Редактор/просмотр изображения' style={cardStyle} styles={{ body: { padding: 12 } }}>
 						<Gallery
-							link1={data.image.image}
+							link1={toSameOriginMediaUrl(data.image.image)}
 							image_count={data.info.image_count ?? 1}
-							slide_template={data.image.slide_template}
-							slide_urls={data.image.slide_urls}
+							slide_template={toSameOriginMediaUrls(data.image.slide_template)}
+							slide_urls={toSameOriginMediaUrls(data.image.slide_urls)}
 							seg={editor.displaySegmentation}
 							imageid={data.image.id}
 							isEditMode={editor.isEditMode}
@@ -159,16 +164,30 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						<div
 							style={{
 								position: screens.lg ? 'sticky' : 'static',
-								top: screens.lg ? 12 : 0,
 								display: 'flex',
 								flexDirection: 'column',
 								gap: 12,
-								maxHeight: screens.lg ? 'calc(100vh - 96px)' : 'none',
-								overflow: screens.lg ? 'auto' : 'visible',
-								paddingRight: 2,
+								...(screens.lg
+									? {
+											// Прокручиваемый блок обрезает тень карточек (shadow.card
+											// 0 12px 36px) по своим краям — на фоне был виден
+											// прямоугольник. Даём тени место внутри блока и
+											// компенсируем отрицательным margin, чтобы карточки
+											// остались на прежних местах.
+											top: 0,
+											padding: `${SIDEBAR_SHADOW_ROOM}px ${SIDEBAR_SHADOW_ROOM + 2}px ${SIDEBAR_SHADOW_ROOM_BOTTOM}px ${SIDEBAR_SHADOW_ROOM}px`,
+											margin: `-${SIDEBAR_SHADOW_ROOM}px -${SIDEBAR_SHADOW_ROOM + 2}px -${SIDEBAR_SHADOW_ROOM_BOTTOM}px -${SIDEBAR_SHADOW_ROOM}px`,
+											maxHeight: `calc(100vh - 84px + ${SIDEBAR_SHADOW_ROOM + SIDEBAR_SHADOW_ROOM_BOTTOM}px)`,
+											overflow: 'auto',
+										}
+									: { overflow: 'visible' }),
 							}}
 						>
-							<Form form={studyForm.form} layout='vertical'>
+							<Form
+								form={studyForm.form}
+								layout='vertical'
+								style={{ display: 'flex', flexDirection: 'column', gap: 5 }}
+							>
 								<StudyDataSection
 									form={studyForm.form}
 									devices={devices}

@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
 	// Go-шлюз с billing. По умолчанию тот же docker-compose, что и у цитологии.
 	const billingTarget = env.VITE_BILLING_PROXY_TARGET ?? 'http://localhost:8080'
 
+	// Снимки из MinIO. Фронт ходит на относительный /uzi-images/...
+	const mediaTarget = env.VITE_MEDIA_PROXY_TARGET ?? 'https://localhost'
+
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
@@ -59,6 +62,11 @@ export default defineConfig(({ mode }) => {
 		},
 		server: {
 			proxy: {
+				'/uzi-images': {
+					target: mediaTarget,
+					changeOrigin: true,
+					secure: false,
+				},
 				// billing живёт только в Go-шлюзе (/api/v1), даже когда всё
 				// остальное приложение смотрит на Django. Правило должно идти
 				// раньше общего '/api' — Vite сопоставляет ключи по порядку.
