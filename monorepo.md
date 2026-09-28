@@ -96,6 +96,7 @@ npm run build:mri
 | @medml/patient_list    | таблица пациентов              |
 | @medml/patient_create  | создание карты пациента        |
 | @medml/patient_view    | профиль пациента               |
+| @medml/study_view      | страница исследования со снимком |
 | @medml/cytology_upload | UI загрузки слайда             |
 
 ---
@@ -115,7 +116,7 @@ npm run build:mri
 
 | Пакет                  | Контур              | Стек                        |
 | ---------------------- | ------------------- | --------------------------- |
-| @medml/viewers         | 2D                  | Annotorious, OpenSeadragon  |
+| @medml/viewers         | 2D                  | OpenSeadragon, общий вьюер  |
 | @medml/ct-mri-viewer   | DICOM               | Cornerstone3D               |
 | @medml/cytology-upload | интеграция загрузки | chunked upload, Vite plugin |
 
@@ -152,7 +153,7 @@ lib (infra) → lib (shared)
 Запрещено, например:
 
 - домены зависеть от приложений;
-- домены зависеть от viewers/ct-mri-viewer;
+- домены зависеть от viewers/ct-mri-viewer (`@medml/study_view` получает просмотровщик слотом);
 - инфраструктура тянуть предметную логику приложений.
 
 ---

@@ -1,12 +1,13 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Button, Col, Divider, Form, Input, Modal, Row, Space, Switch, Typography } from 'antd'
+import { Alert, Button, Col, Divider, Form, Input, Modal, Row, Space, Switch, Typography } from 'antd'
 import type { FormInstance } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
 
 import type { DoctorProfile } from '@/api/doctorApi'
 import type { ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
+import { MISSING_SCALE_WARNING } from '@/features/uzi-view/model/thyroidDimensions'
 
-import { buildReportModel } from '../model/buildReportModel'
+import { buildReportModel, needsScaleCalibration } from '../model/buildReportModel'
 import type { ReportExtras } from '../model/types'
 import { renderReportHtml } from './reportHtml'
 import { useDebouncedValue } from './useDebouncedValue'
@@ -73,6 +74,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 		[data, values, doctor, patientBirthDate, extras, pxPerMm],
 	)
 
+	const showScaleWarning = useMemo(() => needsScaleCalibration(data, pxPerMm), [data, pxPerMm])
+
 	// Перерисовываем документ не на каждый символ, иначе iframe мигает.
 	const debouncedModel = useDebouncedValue(model, 400)
 	const html = useMemo(() => renderReportHtml(debouncedModel), [debouncedModel])
@@ -124,6 +127,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
 		>
 			<Row gutter={16} style={{ height: '100%' }}>
 				<Col span={formColSpan} style={{ height: '100%', overflowY: 'auto', paddingRight: 8 }}>
+					{showScaleWarning && (
+						<Alert type='warning' showIcon message={MISSING_SCALE_WARNING} style={{ marginBottom: 12 }} />
+					)}
 					<SectionTitle>Информация об исследовании</SectionTitle>
 					<Field label='Предварительный диагноз'>
 						<Input.TextArea
@@ -211,7 +217,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					<Row gutter={12}>
 						<Col span={8}>
 							<Field label='Перешеек, толщина (мм)'>
-								<Input type='number' value={fv('isthmus')} onChange={e => setFv('isthmus', e.target.value)} />
+								<Input type='number' value={fv('isthmus_thickness')} onChange={e => setFv('isthmus_thickness', e.target.value)} />
 							</Field>
 						</Col>
 						<Col span={8}>
@@ -225,7 +231,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 						Правая доля, мм
 					</Text>
 					<Row gutter={12}>
-						{(['right_length', 'right_width', 'right_depth'] as const).map((name, index) => (
+						{(['right_lobe_length', 'right_lobe_width', 'right_lobe_thickness'] as const).map((name, index) => (
 							<Col span={8} key={name}>
 								<Field label={['Длина', 'Ширина', 'Толщина'][index]}>
 									<Input type='number' value={fv(name)} onChange={e => setFv(name, e.target.value)} />
@@ -238,7 +244,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 						Левая доля, мм
 					</Text>
 					<Row gutter={12}>
-						{(['left_length', 'left_width', 'left_depth'] as const).map((name, index) => (
+						{(['left_lobe_length', 'left_lobe_width', 'left_lobe_thickness'] as const).map((name, index) => (
 							<Col span={8} key={name}>
 								<Field label={['Длина', 'Ширина', 'Толщина'][index]}>
 									<Input type='number' value={fv(name)} onChange={e => setFv(name, e.target.value)} />

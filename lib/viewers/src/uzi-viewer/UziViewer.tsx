@@ -24,6 +24,7 @@ const UziViewer: React.FC<UziViewerProps> = ({
 	className,
 	emptyState,
 	onZoomChange,
+	zoomLimits,
 	onRotationChange,
 	onViewerReady,
 	onInstanceReady,
@@ -43,6 +44,7 @@ const UziViewer: React.FC<UziViewerProps> = ({
 		viewer,
 		currentIndex: internalIndex,
 		zoom,
+		nativeZoom,
 		rotation,
 		goToIndex,
 		nextIndex,
@@ -58,6 +60,7 @@ const UziViewer: React.FC<UziViewerProps> = ({
 		onBeforeDestroy: osd => onInstanceWillDestroyRef.current?.(osd),
 		onPageChange: index => onIndexChange?.(index),
 		onZoomChange: level => onZoomChange?.(level),
+		zoomLimits,
 	})
 
 	useEffect(() => {
@@ -111,6 +114,7 @@ const UziViewer: React.FC<UziViewerProps> = ({
 			overlayContext={overlayContext}
 			toolbarConfig={toolbarConfig}
 			zoom={zoom}
+			nativeZoom={nativeZoom}
 			activeTool={activeTool}
 			onToolChange={onToolChange}
 			onZoomIn={zoomIn}

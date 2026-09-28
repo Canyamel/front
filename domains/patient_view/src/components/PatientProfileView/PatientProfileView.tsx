@@ -1,172 +1,101 @@
-'use client';
+'use client'
 
-import * as React from 'react';
-import { Breadcrumb, Card, Col, Divider, Empty, Flex, Row, Spin, Tag, Typography } from 'antd';
-import type { BreadcrumbProps } from 'antd';
+import * as React from 'react'
+import { Card, Empty, Flex, Skeleton } from 'antd'
 
-import type { PatientProfileViewModel } from '../../types';
+import type { PatientProfileViewModel } from '../../types'
+
+import './PatientProfileView.scss'
 
 export type PatientProfileViewProps = {
-  /** Данные после маппинга из API */
-  patient: PatientProfileViewModel | null | undefined;
-  loading?: boolean;
-  className?: string;
-  /** Заголовок в карточке (по умолчанию — ФИО пациента) */
-  title?: React.ReactNode;
-  /** Переход к списку пациентов (первая крошка) */
-  onBack?: () => void;
-  backLabel?: string;
-  /**
-   * Вторая крошка. Если не задано — берётся ФИО пациента, иначе «Пациент» / «…» при загрузке.
-   */
-  breadcrumbCurrentLabel?: string;
-  /** Панель действий справа от хлебных крошек */
-  actions?: React.ReactNode;
-  /** Блок под карточкой пациента: таблица снимков и т.д. */
-  children?: React.ReactNode;
-};
+	patient: PatientProfileViewModel | null | undefined
+	loading?: boolean
+	className?: string
+	title?: React.ReactNode
+	attendingDoctor?: string
+	actions?: React.ReactNode
+	children?: React.ReactNode
+	onBack?: () => void
+	/** @deprecated См. `onBack`. */
+	backLabel?: string
+	/** @deprecated См. `onBack`. */
+	breadcrumbCurrentLabel?: string
+}
 
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  lineHeight: '20px',
-  marginBottom: 4,
-  color: 'rgba(0, 0, 0, 0.45)',
-};
+/** «Соколова Анна Петровна» → «СА». */
+function initialsFromFullName(fullName: string | undefined): string {
+	const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean)
+	return parts
+		.slice(0, 2)
+		.map(part => part[0]!.toUpperCase())
+		.join('')
+}
 
-function diagnosisToString(diagnosis: PatientProfileViewModel['diagnosis']): string {
-  if (diagnosis == null || diagnosis === '') return '—';
-  return diagnosis;
+/** Строка под ФИО: «Полис 1782 9012 … · a.sokolova@mail.ru · д. р. 12.03.1984». */
+function buildMetaLine(patient: PatientProfileViewModel): string {
+	return [
+		patient.policyNumber?.trim() ? `Полис ${patient.policyNumber.trim()}` : null,
+		patient.email?.trim() || null,
+		patient.birthDate?.trim() ? `д. р. ${patient.birthDate.trim()}` : null,
+	]
+		.filter(Boolean)
+		.join(' · ')
+}
+
+function Chip({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'success' }) {
+	return <span className={`patient-head__chip patient-head__chip--${tone}`}>{children}</span>
 }
 
 export function PatientProfileView({
-  patient,
-  loading,
-  className,
-  title,
-  onBack,
-  backLabel = 'Пациенты',
-  breadcrumbCurrentLabel,
-  actions,
-  children,
+	patient,
+	loading,
+	className,
+	title,
+	attendingDoctor,
+	actions,
+	children,
 }: PatientProfileViewProps) {
-  const nameInCard = title ?? patient?.fullName ?? 'Пациент';
+	const diagnosis = patient?.diagnosis?.trim()
 
-  const currentBreadcrumbTitle =
-    breadcrumbCurrentLabel ??
-    (loading && !patient ? '…' : patient?.fullName?.trim() || 'Пациент');
+	return (
+		<div className={['patient-profile', className].filter(Boolean).join(' ')}>
+			<Card className='patient-head' styles={{ body: { padding: 24 } }}>
+				{loading && !patient ? (
+					<Skeleton avatar active paragraph={{ rows: 2 }} />
+				) : patient ? (
+					<Flex vertical gap={16}>
+						<div className='patient-head__top'>
+							<div className='patient-head__identity'>
+								<span className='patient-head__avatar' aria-hidden='true'>
+									{initialsFromFullName(patient.fullName)}
+								</span>
+								<div className='patient-head__titles'>
+									<div className='patient-head__name-row'>
+										<h1 className='patient-head__name'>{title ?? (patient.fullName || 'Пациент')}</h1>
+										<Chip tone={patient.active ? 'success' : 'neutral'}>
+											{patient.active ? 'Активен' : 'Неактивен'}
+										</Chip>
+									</div>
+									{buildMetaLine(patient) ? <p className='patient-head__meta'>{buildMetaLine(patient)}</p> : null}
+								</div>
+							</div>
+							{actions ? <div className='patient-head__actions'>{actions}</div> : null}
+						</div>
 
-  const breadcrumbItems = React.useMemo<BreadcrumbProps['items']>(() => {
-    const current = <span style={{ color: 'rgba(0,0,0,0.88)' }}>{currentBreadcrumbTitle}</span>;
-    if (!onBack) {
-      return [{ title: current }];
-    }
-    return [
-      {
-        title: (
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              onBack();
-            }}
-          >
-            {backLabel}
-          </a>
-        ),
-      },
-      { title: current },
-    ];
-  }, [onBack, backLabel, currentBreadcrumbTitle]);
+						<div className='patient-head__chips'>
+							<Chip>Диагноз: {diagnosis || 'не указан'}</Chip>
+							{patient.malignancy != null ? (
+								<Chip>Злокачественность: {patient.malignancy ? 'есть' : 'нет'}</Chip>
+							) : null}
+							{attendingDoctor ? <Chip>Лечащий врач: {attendingDoctor}</Chip> : null}
+						</div>
+					</Flex>
+				) : (
+					<Empty description='Нет данных о пациенте' />
+				)}
+			</Card>
 
-  return (
-    <div className={className}>
-      <Flex vertical gap={16} style={{ width: '100%' }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-          <Breadcrumb items={breadcrumbItems} style={{ margin: 0 }} />
-          {actions ? <Flex gap={8}>{actions}</Flex> : null}
-        </Flex>
-
-        <Card
-          styles={{ body: { padding: 24 } }}
-          style={{
-            borderRadius: 12,
-            width: '100%',
-            border: '1px solid rgba(0,0,0,0.06)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-          }}
-        >
-          {loading && !patient ? (
-            <Flex justify="center" align="center" style={{ minHeight: 200 }}>
-              <Spin size="large" />
-            </Flex>
-          ) : patient ? (
-            <>
-              <Typography.Title level={4} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.02em' }}>
-                {nameInCard}
-              </Typography.Title>
-              {patient.policyNumber?.trim() ? (
-                <Typography.Text type="secondary" style={{ fontSize: 14, display: 'block', marginTop: 6 }}>
-                  Полис {patient.policyNumber}
-                </Typography.Text>
-              ) : null}
-
-              <Divider style={{ margin: '20px 0' }} />
-
-              <Row gutter={[24, 20]}>
-                <Col xs={24} sm={12} md={8}>
-                  <Typography.Text style={labelStyle}>Статус</Typography.Text>
-                  <div>
-                    <Tag color={patient.active ? 'processing' : 'default'} style={{ margin: 0 }}>
-                      {patient.active ? 'Активен' : 'Неактивен'}
-                    </Tag>
-                  </div>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <Typography.Text style={labelStyle}>Дата рождения</Typography.Text>
-                  <Typography.Text style={{ fontSize: 15 }}>{patient.birthDate?.trim() ? patient.birthDate : '—'}</Typography.Text>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <Typography.Text style={labelStyle}>Email</Typography.Text>
-                  <Typography.Text style={{ fontSize: 15 }}>{patient.email?.trim() ? patient.email : '—'}</Typography.Text>
-                </Col>
-              </Row>
-
-              <Divider style={{ margin: '20px 0' }} />
-
-              <Typography.Text style={labelStyle}>Заболевание</Typography.Text>
-              <div style={{ marginBottom: 16 }}>
-                {patient.malignancy ? (
-                  <Tag color="warning" style={{ margin: 0 }}>
-                    Присутствует
-                  </Tag>
-                ) : (
-                  <Typography.Text type="secondary" italic style={{ fontSize: 15 }}>
-                    отсутствует
-                  </Typography.Text>
-                )}
-              </div>
-              <Typography.Text style={labelStyle}>Диагноз</Typography.Text>
-              <Typography.Paragraph
-                style={{
-                  marginBottom: 0,
-                  marginTop: 4,
-                  whiteSpace: 'pre-wrap',
-                  fontSize: 15,
-                  lineHeight: 1.6,
-                  color: 'rgba(0,0,0,0.85)',
-                }}
-              >
-                {diagnosisToString(patient.diagnosis)}
-              </Typography.Paragraph>
-            </>
-          ) : (
-            <Empty description="Нет данных о пациенте" />
-          )}
-        </Card>
-
-        {children ? <div style={{ width: '100%' }}>{children}</div> : null}
-      </Flex>
-    </div>
-  );
+			{children ? <div className='patient-profile__content'>{children}</div> : null}
+		</div>
+	)
 }

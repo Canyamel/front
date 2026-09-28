@@ -1,21 +1,17 @@
 import type { DoctorProfile } from '@/api/doctorApi'
 import { formatProjection } from '@/lib/projection'
 import type { Segment, ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
-import { pxToMm } from '@/features/uzi-view/viewer/measurement'
+import {
+	hasPhysicalPixelSpacing,
+	lobeVolumeCm3,
+	positiveNumber,
+	readBackendVolumes,
+} from '@/features/uzi-view/model/thyroidDimensions'
+import { pxToMm } from '@medml/viewers'
 
 import type { ReportExtras, ReportLobe, ReportNodule, ThyroidReportModel } from './types'
 
 const DASH = '—'
-
-/**
- * Коэффициент эллипсоида для объёма доли ЩЖ: V = 0.479 × Д × Ш × Т.
- */
-const ELLIPSOID_FACTOR = 0.479
-
-function toNumber(value: unknown): number {
-	const n = Number(value)
-	return Number.isFinite(n) ? n : 0
-}
 
 function text(value: unknown, fallback = DASH): string {
 	const s = value == null ? '' : String(value).trim()
@@ -23,23 +19,49 @@ function text(value: unknown, fallback = DASH): string {
 }
 
 function num(value: unknown, digits = 2, fallback = DASH): string {
-	const n = Number(value)
-	if (!Number.isFinite(n) || n === 0) return fallback
-	return String(Number(n.toFixed(digits)))
+	const n = positiveNumber(value)
+	return n == null ? fallback : String(Number(n.toFixed(digits)))
 }
 
-function lobeVolume(length: unknown, width: unknown, depth: unknown): number {
-	const cubicMm = ELLIPSOID_FACTOR * toNumber(length) * toNumber(width) * toNumber(depth)
-	return Number((cubicMm / 1000).toFixed(2))
-}
+/**
+ * Доля в заключении. Размеры — миллиметры из формы (канонические имена,
+ * см. `thyroidDimensions.ts`). Объём считаем сами, если есть все три
+ * размера: так он учитывает правку врача. Иначе берём объём бэкенда.
+ */
+function buildLobe(
+	values: Record<string, unknown>,
+	side: 'right' | 'left',
+	backendVolume: number | undefined,
+): { lobe: ReportLobe; volume: number | undefined } {
+	const length = positiveNumber(values[`${side}_lobe_length`])
+	const width = positiveNumber(values[`${side}_lobe_width`])
+	const thickness = positiveNumber(values[`${side}_lobe_thickness`])
+	const volume = lobeVolumeCm3(length, width, thickness) ?? backendVolume
 
-function buildLobe(length: unknown, width: unknown, depth: unknown): ReportLobe {
 	return {
-		length: num(length),
-		width: num(width),
-		depth: num(depth),
-		volume: num(lobeVolume(length, width, depth)),
+		lobe: {
+			length: num(length),
+			width: num(width),
+			depth: num(thickness),
+			volume: num(volume),
+		},
+		volume,
 	}
+}
+
+/** Размеры узла в пикселях*/
+const PX_SIZE_KEYS = ['width_px', 'height_px', 'max_dim_px', 'min_dim_px']
+
+export function needsScaleCalibration(data: ThyroidUziApiResponse, pxPerMm: number | null | undefined): boolean {
+	if (pxPerMm != null) return false
+	if (hasPhysicalPixelSpacing(data.info.details as unknown as Record<string, unknown>)) return false
+
+	return getReportSegments(data.segmentation || []).some(segment => {
+		const details = (segment.details ?? {}) as Record<string, unknown>
+		const hasMm = Object.keys(details).some(key => key.endsWith('_mm') && positiveNumber(details[key]) != null)
+		const hasPx = PX_SIZE_KEYS.some(key => positiveNumber(details[key]) != null)
+		return hasPx && !hasMm
+	})
 }
 
 /**
@@ -86,9 +108,7 @@ function positive(details: Record<string, unknown>, key: string): number | undef
 }
 
 /**
- * Размер в миллиметрах: сначала то, что посчитал бэкенд (`*_mm`, есть,
- * когда у снимка известен масштаб пикселя), иначе тот же размер в пикселях
- * (`*_px`), переведённый по калибровке врача во вьюере.
+ * Размер в миллиметрах: сначала то, что посчитал бэкенд, иначе тот же размер в пикселях, переведённый по калибровке врача во вьюере.
  */
 function mmValue(
 	details: Record<string, unknown>,
@@ -104,15 +124,7 @@ function mmValue(
 }
 
 /**
- * Размеры узла по данным бэкенда (`nodule_metrics.calculate_nodule_measurements`).
- * На поперечном снимке измеряются ширина и толщина, на продольном — длина
- * и толщина; бэкенд хранит их под разными полями для каждой проекции:
- *
- * - cross: ширина — `cross_width_mm`, толщина — `cross_height_mm`;
- * - long:  длина — `long_{side}_max_dim_mm`, толщина — `long_{side}_min_dim_mm`,
- *          где side — доля (`left` / `right`).
- *
- * Медицинские названия размеров задаются только здесь.
+ * Размеры узла по данным бэкенда.
  */
 function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | null | undefined): string {
 	const details = (segment.details ?? {}) as Record<string, unknown>
@@ -142,11 +154,7 @@ function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | 
 	return parts.join(', ')
 }
 
-function buildNodules(
-	segments: Segment[],
-	study: StudyProjection,
-	pxPerMm: number | null | undefined,
-): ReportNodule[] {
+function buildNodules(segments: Segment[], study: StudyProjection, pxPerMm: number | null | undefined): ReportNodule[] {
 	return getReportSegments(segments).map((segment, index) => ({
 		number: index + 1,
 		tirads: segment.details?.nodule_type ?? undefined,
@@ -277,16 +285,16 @@ export function buildReportModel({
 	)
 	const nodulesDescription = buildNodulesDescription(nodules)
 
-	const right = buildLobe(values.right_length, values.right_width, values.right_depth)
-	const left = buildLobe(values.left_length, values.left_width, values.left_depth)
+	const backendVolumes = readBackendVolumes(data.info.details as unknown as Record<string, unknown>)
+	const right = buildLobe(values, 'right', backendVolumes.right)
+	const left = buildLobe(values, 'left', backendVolumes.left)
 
-	// Объём железы врач может задать руками; иначе считаем как сумму долей.
-	const manualVolume = toNumber(values.volume)
+	// Объём железы: введённый врачом → сумма долей (если известны обе) →
+	// то, что посчитал бэкенд. Нули не печатаем.
 	const total =
-		manualVolume > 0
-			? manualVolume
-			: lobeVolume(values.right_length, values.right_width, values.right_depth) +
-				lobeVolume(values.left_length, values.left_width, values.left_depth)
+		positiveNumber(values.volume) ??
+		(right.volume != null && left.volume != null ? Number((right.volume + left.volume).toFixed(2)) : undefined) ??
+		backendVolumes.total
 
 	const patientName = [patient.last_name, patient.first_name, patient.fathers_name]
 		.filter(part => part && String(part).trim())
@@ -322,9 +330,9 @@ export function buildReportModel({
 		sizeDescription: text(extras.sizeDescription, ''),
 		mobility: text(extras.mobility, ''),
 
-		isthmus: num(values.isthmus),
-		right,
-		left,
+		isthmus: num(values.isthmus_thickness),
+		right: right.lobe,
+		left: left.lobe,
 		totalVolume: num(total),
 
 		echogenicity: text(values.echogenicity),

@@ -1,6 +1,5 @@
-import { BRUSH_TOOL, CALIBRATE_TOOL, RULER_TOOL } from "@medml/viewers";
-
-export type Tools = "rectangle" | "polygon" | "move" | typeof BRUSH_TOOL | typeof RULER_TOOL | typeof CALIBRATE_TOOL;
+// Инструменты рисования больше не свои: общий список id живёт в
+// `@medml/viewers` (`ViewerToolId`) и одинаков для УЗИ и цитологии.
 export type Modes = "view" | "edit";
 export type Modals = "addNode" | "editNode";
 

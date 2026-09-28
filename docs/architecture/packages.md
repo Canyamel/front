@@ -28,7 +28,7 @@
 | `@medml/shared` | Типы, утилиты, константы |
 | `@medml/store` | Redux, RTK Query, auth slice |
 | `@medml/ui` | Ant Design, провайдеры |
-| `@medml/viewers` | 2D-просмотр, Annotorious |
+| `@medml/viewers` | 2D-просмотр: движок OSD + общее рабочее место врача |
 | `@medml/ct-mri-viewer` | DICOM, Cornerstone |
 | `@medml/cytology-upload` | Chunked upload |
 | `@medml/config` | Webpack/Next для КТ/МРТ |

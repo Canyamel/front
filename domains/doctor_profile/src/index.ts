@@ -4,4 +4,5 @@ export type { DoctorProfileCardProps } from './components/DoctorProfileCard/Doct
 export { DoctorProfileEditPage } from './pages/DoctorProfileEditPage';
 export type { DoctorProfileEditPageProps } from './pages/DoctorProfileEditPage';
 
+export { toDoctorShortName } from './shortName';
 export type { DoctorProfileViewModel, DoctorProfileFormValues } from './types';

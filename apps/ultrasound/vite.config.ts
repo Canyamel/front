@@ -37,18 +37,19 @@ export default defineConfig(({ mode }) => {
 	// Go-шлюз с billing. По умолчанию тот же docker-compose, что и у цитологии.
 	const billingTarget = env.VITE_BILLING_PROXY_TARGET ?? 'http://localhost:8080'
 
+	// Снимки из MinIO. Фронт ходит на относительный /uzi-images/...
+	const mediaTarget = env.VITE_MEDIA_PROXY_TARGET ?? 'https://localhost'
+
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
-			// УЗИ-контур рендерит через @medml/viewers (OpenSeadragon + Annotorious
-			// от @recogito). Единый инстанс openseadragon обязателен: две копии
-			// ломают привязку Annotorious к вьюеру.
 			dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom', 'openseadragon'],
 			alias: {
 				'@': path.resolve(__dirname, 'src'),
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),
 				'@medml/viewers': path.resolve(__dirname, '../../lib/viewers/src'),
 				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
+				'@medml/study_view': path.resolve(__dirname, '../../domains/study_view/src'),
 				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
 				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
 				'@medml/patients': path.resolve(__dirname, '../../domains/patients/src'),
@@ -57,6 +58,11 @@ export default defineConfig(({ mode }) => {
 		},
 		server: {
 			proxy: {
+				'/uzi-images': {
+					target: mediaTarget,
+					changeOrigin: true,
+					secure: false,
+				},
 				// billing живёт только в Go-шлюзе (/api/v1), даже когда всё
 				// остальное приложение смотрит на Django. Правило должно идти
 				// раньше общего '/api' — Vite сопоставляет ключи по порядку.

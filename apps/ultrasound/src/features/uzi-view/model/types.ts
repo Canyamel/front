@@ -103,25 +103,55 @@ export interface SegmentDraftChange {
 	segment_group?: string | number
 }
 
+/**
+ * `details` исследования. Размеры ЩЖ приходят в двух форматах — читать их
+ * только через `readThyroidDimensions`, напрямую
+ * поля не использовать.
+ */
 export interface InfoDetails {
 	cdk: string
 	echogenicity: string
-	isthmus: number
-	left_depth: number
-	left_length: number
-	left_width: number
 	position: string
 	profile: string
 	result: string
-	right_depth: number
-	right_length: number
-	right_width: number
 	rln: string
 	structure: string
 	additional_data: string
 	projection_type?: string
 	anatomy_side?: string | null
 	projection_side?: string | null
+
+	// Размеры ЩЖ, миллиметры. Пишет только нейросеть; после ручной правки
+	// врача не обновляются.
+	isthmus_thickness?: number
+	right_lobe_length?: number
+	right_lobe_width?: number
+	right_lobe_thickness?: number
+	left_lobe_length?: number
+	left_lobe_width?: number
+	left_lobe_thickness?: number
+
+	// Legacy-размеры ЩЖ, сантиметры. Их пишут и нейросеть, и
+	// сохранение формы; при создании исследования бэкенд ставит сюда 0.
+	isthmus?: number
+	right_length?: number
+	right_width?: number
+	right_depth?: number
+	left_length?: number
+	left_width?: number
+	left_depth?: number
+
+	// Объёмы, см³. Бэкенд собирает их по последним исследованиям пациента.
+	right_lobe_volume?: number
+	left_lobe_volume?: number
+	volume?: number
+	right_volume?: number
+	left_volume?: number
+	total_volume?: number
+
+	// Физический размер пикселя из файла, мм/пиксель.
+	h_pixel_spacing?: number
+	w_pixel_spacing?: number
 }
 
 export interface Info {

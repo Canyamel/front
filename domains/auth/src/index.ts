@@ -5,6 +5,7 @@ export {
   DEFAULT_LOGIN_ROUTE,
   DEFAULT_PROTECTED_ROUTE_MATCHER,
 } from "./constants/routes";
+export { AuthSwitchLink } from "./components";
 export { sanitizeInternalPath } from "./utils/sanitizeCallbackUrl";
 export { AuthLayoutSpa } from "./components";
 export { default as AuthLayout } from "./components/AuthLayout/AuthLayout";
@@ -13,6 +14,7 @@ export { AuthApiProvider, useAuthApi } from "./contexts/AuthApiContext";
 export type {
   RegisterPayload,
   LoginPayload,
+  LoginOptions,
   AuthLoginResponse,
   IAuthApi,
   RefreshTokenPayload,

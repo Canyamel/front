@@ -1,34 +1,21 @@
 import './viewer.scss'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { InputNumber, Modal, Typography, message } from 'antd'
-import {
-	UziViewer,
-	useRulerMeasurements,
-	SegmentsVisibilityToggle,
-	BrushCanvasOverlay,
-	RulerOverlay,
-	createMask,
-	isMaskEmpty,
-	maskToPolygon,
-	maskScaleFor,
-} from '@medml/viewers'
-import type { ViewerImage, ViewerInstance, BrushMask } from '@medml/viewers'
+import { AnnotatedStudyViewer, ViewerAnnotationsToggle, contourGroupSizePx, formatMm, pxToMm } from '@medml/viewers'
+import type { ViewerImage, ViewerLegendItem } from '@medml/viewers'
 
 import { useThyroidAnnotator } from './useThyroidAnnotator'
-import NodeLegendOverlay from './NodeLegendOverlay'
-import ViewerToolPanel from './ViewerToolPanel'
-import { BRUSH_TOOL, CALIBRATE_TOOL, PAN_TOOL, isRulerLikeTool, type BrushMode, type ViewerToolId } from './constants'
-import { calcPxPerMm, lineLengthPx, type MeasuredLine } from './measurement'
+import ThyroidAnnotationPopup from './ThyroidAnnotationPopup'
+import { UZI_VIEWER_TOOLS } from './constants'
 import type { ThyroidAnnotatedViewerProps } from './types'
 
 /**
- * Доменная обёртка над `<UziViewer />` (`@medml/viewers`).
+ * Доменная обёртка над `<AnnotatedStudyViewer />` (`@medml/viewers`).
  *
- * Чистое управление OpenSeadragon и общие инструменты измерения (линейка,
- * кисть, растровая маска) живут в `@medml/viewers`; здесь — разметка УЗИ
- * через Annotorious (`useThyroidAnnotator`), легенда узлов и структур ЩЖ и
- * связка инструментов с панелью врача.
+ * Всё поведение рабочего места — инструменты, линейка с калибровкой, кисть,
+ * легенда, состояния загрузки — живёт в общем вьюере. Здесь остаётся только
+ * доменное: кадры снимка УЗИ, слой разметки на Annotorious 3
+ * (`useThyroidAnnotator`) и подписи легенды с габаритами узлов в миллиметрах.
  */
 const ThyroidAnnotatedViewer = ({
 	image,
@@ -36,276 +23,135 @@ const ThyroidAnnotatedViewer = ({
 	imageid,
 	readOnly = true,
 	height = 600,
+	status,
 	currentGroup,
 	onDraftChangesChange,
 	onViewerApiReady,
 	onPxPerMmChange,
 	thyroidStructures,
 }: ThyroidAnnotatedViewerProps) => {
-	const [osdViewer, setOsdViewer] = useState<ViewerInstance | null>(null)
 	const [currentPage, setCurrentPage] = useState(0)
-
-	const [activeTool, setActiveTool] = useState<ViewerToolId>(PAN_TOOL)
-
+	const [annotationsVisible, setAnnotationsVisible] = useState(true)
+	const [structuresVisible, setStructuresVisible] = useState(true)
 	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
 
-	// Отрезок, для которого ждём ввод длины. Пока он не null — открыт диалог.
-	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)
-	const [calibrationMm, setCalibrationMm] = useState<number | null>(null)
-
-	const [brushMode, setBrushMode] = useState<BrushMode>('draw')
-	const [brushRadius, setBrushRadius] = useState(12)
-	const [mask, setMask] = useState<BrushMask | null>(null)
-	const [sketchVersion, setSketchVersion] = useState(0)
-
-	const ruler = useRulerMeasurements()
+	// Масштаб нужен не только легенде, но и заключению (размеры узлов в мм),
+	// поэтому поднимаем его наверх.
+	const handlePxPerMmChange = useCallback(
+		(next: number | null) => {
+			setPxPerMm(next)
+			onPxPerMmChange?.(next)
+		},
+		[onPxPerMmChange],
+	)
 
 	const images: ViewerImage[] = useMemo(() => {
 		const list = Array.isArray(image) ? image : image ? [image] : []
 		return list.map((tile, index) => ({
 			id: `${imageid}-${index}`,
 			url: tile.url,
+			// ImageTile уже является валидным OSD tileSource ({ type: 'image', url, ... }).
 			tileSource: tile as unknown as ViewerImage['tileSource'],
 			width: tile.width,
 			height: tile.height,
 		}))
 	}, [image, imageid])
 
-	// Маска живёт в координатах снимка (с поправкой на maskScale), поэтому её
-	// размер — размер кадра. `maskScaleFor` ужимает маску для нетипично
-	// крупных кадров — иначе `Uint8Array` на полное разрешение может не
-	// выделиться («Array buffer allocation failed»).
-	const frame = images[currentPage]
-	const maskScale = useMemo(
-		() => (frame?.width && frame?.height ? maskScaleFor(frame.width, frame.height) : 1),
-		[frame?.width, frame?.height],
-	)
-
-	useEffect(() => {
-		if (!frame?.width || !frame?.height) {
-			setMask(null)
-			return
-		}
-		setMask(createMask(frame.width * maskScale, frame.height * maskScale))
-		setSketchVersion(v => v + 1)
-	}, [images, currentPage, maskScale])
-
 	const {
-		showSegments,
-		toggleSegments,
+		layer,
+		annotator,
+		selected,
+		removeAnnotation,
 		uniqueNodes,
-		showStructures,
-		toggleStructures,
 		structureItems,
 		hasStructures,
 		flushPendingSelection,
-		addPolygonFromPoints,
 	} = useThyroidAnnotator({
-		osdViewer,
 		images,
 		seg,
-		tool: activeTool,
 		readOnly,
 		currentPage,
+		annotationsVisible,
+		structuresVisible,
 		currentGroup,
 		thyroidStructures,
 		onDraftChangesChange,
 	})
 
+	// Императивный API отдаём наружу: галерея дожидается несохранённого
+	// выделения перед отправкой сегментов на бэкенд.
 	useEffect(() => {
 		onViewerApiReady?.({ flushPendingSelection })
 	}, [flushPendingSelection, onViewerApiReady])
 
-	// Масштаб задаётся здесь, а нужен ещё и заключению — поднимаем наверх.
-	useEffect(() => {
-		onPxPerMmChange?.(pxPerMm)
-	}, [pxPerMm, onPxPerMmChange])
+	const legendItems = useMemo<ViewerLegendItem[]>(
+		() => [
+			...uniqueNodes.map((node): ViewerLegendItem => {
+				const segment = seg.find(item => item.id === node.id)
+				const size = contourGroupSizePx(segment?.data)
+				const width = size ? pxToMm(size.widthPx, pxPerMm) : null
+				const height = size ? pxToMm(size.heightPx, pxPerMm) : null
 
-	// Маска мутируется на месте, поэтому ссылка не меняется и React сам
-	// пересчитать не может — версию наброска двигают штрихи и очистка.
-	const hasSketch = useMemo(
-		() => Boolean(mask && !isMaskEmpty(mask)),
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-		[mask, sketchVersion],
+				return {
+					id: node.id,
+					color: node.color,
+					title: `Узел ${node.displayIndex}`,
+					subtitle: width != null && height != null ? `${formatMm(width)} × ${formatMm(height)}` : null,
+					badge: `TI-RADS ${node.type}`,
+					muted: !node.onPage,
+					hint: node.onPage ? undefined : 'На этом кадре контура нет',
+				}
+			}),
+			...(structuresVisible
+				? structureItems.map(
+						(item): ViewerLegendItem => ({
+							id: `structure-${item.key}`,
+							color: item.color,
+							title: item.label,
+							badge: item.confidence != null ? `${Math.round(item.confidence * 100)}%` : null,
+							section: 'Структуры ЩЖ:',
+							dashed: true,
+						}),
+					)
+				: []),
+		],
+		[uniqueNodes, seg, pxPerMm, structuresVisible, structureItems],
 	)
 
-	const handleClearSketch = useCallback(() => {
-		if (!frame?.width || !frame?.height) return
-		setMask(createMask(frame.width * maskScale, frame.height * maskScale))
-		setSketchVersion(v => v + 1)
-	}, [frame, maskScale])
-
-	const handleConfirmSketch = useCallback(() => {
-		if (!mask) return
-
-		const polygon = maskToPolygon(mask, 2)
-		if (!polygon) {
-			message.warning('Набросок слишком мал — контур не построен')
-			return
-		}
-
-		// Контур найден в пикселях маски — переводим в пиксели изображения.
-		const points = polygon.map(point => ({ x: point.x / maskScale, y: point.y / maskScale }))
-
-		if (addPolygonFromPoints(points)) {
-			message.success(`Контур создан (${points.length} точек)`)
-			handleClearSketch()
-		}
-	}, [mask, maskScale, addPolygonFromPoints, handleClearSketch])
-
-	const calibrating = activeTool === CALIBRATE_TOOL
-
-	/**
-	 * Отрезок дорисован. В режиме линейки он становится измерением, в режиме
-	 * калибровки — эталоном, для которого спрашиваем длину в миллиметрах.
-	 */
-	const handleLineDrawn = useCallback(
-		(line: MeasuredLine, page: number) => {
-			if (calibrating) {
-				setCalibrationPx(lineLengthPx(line))
-				setCalibrationMm(null)
-				return
-			}
-			ruler.add(line, page)
-		},
-		[calibrating, ruler],
-	)
-
-	const applyCalibration = useCallback(() => {
-		if (calibrationPx == null || calibrationMm == null) return
-
-		const next = calcPxPerMm(calibrationPx, calibrationMm)
-		if (next == null) {
-			message.error('Длина должна быть больше нуля')
-			return
-		}
-
-		setPxPerMm(next)
-		setCalibrationPx(null)
-		// Сразу возвращаем в навигацию: масштаб задают один раз.
-		setActiveTool(PAN_TOOL)
-		message.success(`Масштаб задан: ${next.toFixed(2)} px / мм`)
-	}, [calibrationPx, calibrationMm])
-
-	const showBrush = !readOnly && activeTool === BRUSH_TOOL
-
-	// Панель инструментов и снимок делят отведённую странице высоту, а не
-	// занимают её каждый целиком: иначе в редакторе снимок вылезает из
-	// карточки ровно на высоту панели.
 	return (
-		<div
-			style={{
-				height,
-				display: 'flex',
-				flexDirection: 'column',
-				minHeight: 0,
-			}}
-		>
-			{!readOnly && (
-				<ViewerToolPanel
-					activeTool={activeTool}
-					onToolChange={setActiveTool}
-					pxPerMm={pxPerMm}
-					onResetScale={() => {
-						setPxPerMm(null)
-						setActiveTool(CALIBRATE_TOOL)
-					}}
-					brushMode={brushMode}
-					onBrushModeChange={setBrushMode}
-					brushRadius={brushRadius}
-					onBrushRadiusChange={setBrushRadius}
-					hasSketch={hasSketch}
-					onConfirmSketch={handleConfirmSketch}
-					onClearSketch={handleClearSketch}
-					measurementCount={ruler.measurements.filter(item => item.page === currentPage).length}
-					onClearMeasurements={ruler.clear}
-				/>
-			)}
-
-			<div style={{ flex: 1, minHeight: 0 }}>
-				<UziViewer
-					images={images}
-					onIndexChange={setCurrentPage}
-					toolbarConfig={{ tools: [] }}
-					height='100%'
+		<AnnotatedStudyViewer
+			images={images}
+			annotationLayer={layer}
+			tools={UZI_VIEWER_TOOLS}
+			readOnly={readOnly}
+			height={height}
+			status={status}
+			onIndexChange={setCurrentPage}
+			onPxPerMmChange={handlePxPerMmChange}
+			legendItems={legendItems}
+			legendTitle={uniqueNodes.length > 0 ? 'Узлы:' : 'Структуры ЩЖ:'}
+			annotationsVisible={annotationsVisible}
+			onAnnotationsVisibleChange={setAnnotationsVisible}
+			annotationsToggleLabel={hasStructures ? 'Узлы' : undefined}
+			overlaySlot={
+				<ThyroidAnnotationPopup
+					viewer={annotator?.viewer ?? null}
+					annotation={selected}
+					nodes={uniqueNodes}
 					readOnly={readOnly}
-					onInstanceReady={viewer => setOsdViewer(viewer)}
-					onInstanceWillDestroy={() => setOsdViewer(null)}
-					overlaySlot={() => (
-						<>
-							<NodeLegendOverlay
-								nodes={showSegments ? uniqueNodes : []}
-								structures={showStructures ? structureItems : []}
-								seg={seg}
-								pxPerMm={pxPerMm}
-							/>
-
-							<RulerOverlay
-								viewer={osdViewer}
-								active={!readOnly && isRulerLikeTool(activeTool)}
-								measurements={ruler.measurements}
-								currentPage={currentPage}
-								pxPerMm={pxPerMm}
-								labelFor={ruler.labelFor}
-								onAdd={handleLineDrawn}
-								onRemove={ruler.remove}
-							/>
-
-							{showBrush && (
-								<BrushCanvasOverlay
-									viewer={osdViewer}
-									mask={mask}
-									radius={brushRadius}
-									erasing={brushMode === 'erase'}
-									scale={maskScale}
-									onStrokeEnd={() => setSketchVersion(v => v + 1)}
-								/>
-							)}
-						</>
-					)}
-					customToolbarSlot={
-						<div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-							<SegmentsVisibilityToggle
-								label={hasStructures ? 'Узлы' : undefined}
-								visible={showSegments}
-								onToggle={toggleSegments}
-							/>
-							{hasStructures && (
-								<SegmentsVisibilityToggle label='Доли' visible={showStructures} onToggle={toggleStructures} />
-							)}
-						</div>
-					}
+					onRemove={removeAnnotation}
 				/>
-			</div>
-
-			<Modal
-				title='Длина эталонного отрезка'
-				open={calibrationPx != null}
-				onOk={applyCalibration}
-				onCancel={() => setCalibrationPx(null)}
-				okText='Применить'
-				cancelText='Отмена'
-				okButtonProps={{ disabled: calibrationMm == null || calibrationMm <= 0 }}
-				destroyOnHidden
-			>
-				<Typography.Paragraph type='secondary'>
-					Вы провели отрезок длиной {calibrationPx?.toFixed(0)} px. Укажите, скольким миллиметрам он соответствует по
-					шкале снимка.
-				</Typography.Paragraph>
-
-				<InputNumber
-					autoFocus
-					value={calibrationMm ?? undefined}
-					onChange={value => setCalibrationMm(typeof value === 'number' ? value : null)}
-					onPressEnter={applyCalibration}
-					min={0.1}
-					step={1}
-					addonAfter='мм'
-					placeholder='например, 10'
-					style={{ width: '100%' }}
-				/>
-			</Modal>
-		</div>
+			}
+			customToolbarSlot={
+				hasStructures ? (
+					<ViewerAnnotationsToggle
+						label='Доли'
+						visible={structuresVisible}
+						onToggle={() => setStructuresVisible(prev => !prev)}
+					/>
+				) : undefined
+			}
+		/>
 	)
 }
 

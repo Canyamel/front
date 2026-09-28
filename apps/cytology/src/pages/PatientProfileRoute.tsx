@@ -1,15 +1,17 @@
 import * as React from 'react'
-import { EditOutlined, MoreOutlined } from '@ant-design/icons'
+import { EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Card, Dropdown, Input, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Button, Card, Dropdown, Input, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
 import dayjs from 'dayjs'
 import { PatientCreateModal, stripPolicyDigits, type PatientCreateValuesCytology } from '@medml/patient_create'
 import { PatientProfileView } from '@medml/patient_view'
-import { PageShell } from '@medml/layout'
+import { NotFoundPage, PageShell } from '@medml/layout'
+import { isNotFoundError } from '@medml/shared'
 
 import { goMissingEndpoints } from '@/lib/cytologyRoutes'
+import { useCurrentDoctor } from '@/lib/useCurrentDoctor'
 import {
 	useGetPatientShotsByCardIdQuery,
 	useUpdatePatientCardMutation,
@@ -18,6 +20,24 @@ import {
 
 const { Search } = Input
 
+const AI_FILTER_VALUES = { processed: 'processed', pending: 'pending', unknown: 'unknown' } as const
+
+function aiFilterKey(value: boolean | null): string {
+	if (value === true) return AI_FILTER_VALUES.processed
+	if (value === false) return AI_FILTER_VALUES.pending
+	return AI_FILTER_VALUES.unknown
+}
+
+function AiProcessedTag({ value }: { value: boolean | null }) {
+	if (value === true) return <Tag color='green'>Обработан ИИ</Tag>
+	if (value === false) return <Tag color='gold'>Ожидает ИИ</Tag>
+	return (
+		<Tooltip title='Сервер пока не присылает признак обработки ИИ'>
+			<Typography.Text type='secondary'>—</Typography.Text>
+		</Tooltip>
+	)
+}
+
 function useStudyColumns(): ColumnsType<CytologyStudyRow> {
 	return React.useMemo(
 		() => [
@@ -25,26 +45,39 @@ function useStudyColumns(): ColumnsType<CytologyStudyRow> {
 				title: 'Дата забора',
 				dataIndex: 'cytologyDateLabel',
 				key: 'cytologyDateLabel',
-				width: '16%',
+				width: '14%',
 				sorter: (a, b) => a.cytologyDateSort - b.cytologyDateSort,
 			},
 			{
 				title: 'Номер исследования',
 				dataIndex: 'numberLabel',
 				key: 'numberLabel',
-				width: '22%',
+				width: '18%',
 			},
 			{
 				title: 'Локализация',
 				dataIndex: 'materialTypeLabel',
 				key: 'materialTypeLabel',
-				width: '24%',
+				width: '20%',
 			},
 			{
 				title: 'Категория',
 				dataIndex: 'bethesdaLabel',
 				key: 'bethesdaLabel',
-				width: '16%',
+				width: '14%',
+			},
+			{
+				title: 'ИИ',
+				dataIndex: 'aiProcessed',
+				key: 'aiProcessed',
+				width: '14%',
+				filters: [
+					{ text: 'Обработан ИИ', value: AI_FILTER_VALUES.processed },
+					{ text: 'Ожидает ИИ', value: AI_FILTER_VALUES.pending },
+					{ text: 'Нет данных', value: AI_FILTER_VALUES.unknown },
+				],
+				onFilter: (value, row) => aiFilterKey(row.aiProcessed) === value,
+				render: (_value, row) => <AiProcessedTag value={row.aiProcessed} />,
 			},
 			{
 				title: '',
@@ -86,20 +119,20 @@ export default function PatientProfileRoute() {
 	const [studyPage, setStudyPage] = React.useState(1)
 	const [studyPageSize, setStudyPageSize] = React.useState(10)
 
-	const { data, isFetching, isLoading } = useGetPatientShotsByCardIdQuery({ cardId, patientId }, { skip: !cardId })
+	const { data, error, isFetching, isLoading } = useGetPatientShotsByCardIdQuery(
+		{ cardId, patientId },
+		{ skip: !cardId },
+	)
 
 	const [updatePatientCard, { isLoading: isUpdating }] = useUpdatePatientCardMutation()
+	const { shortName: attendingDoctor } = useCurrentDoctor()
 
 	const patient = data?.patient ?? null
 
-	// Значения вынесены в отдельные переменные до useMemo: внутри тела они
-	// читались то через `data?.`, то через `data.`, и React Compiler выводил
-	// зависимостью объект `data.editDefaults` целиком, а не перечисленные поля.
 	const editDefaults = data?.editDefaults
 	const patientDiagnosis = data?.patient?.diagnosis
 
-	// Здесь же дата превращается в Dayjs: в кэше RTK Query она лежит строкой,
-	// потому что Redux хранит только сериализуемое, а DatePicker ждёт Dayjs.
+	// Здесь же дата превращается в Dayjs: в кэше RTK Query она лежит строкой
 	const editInitialValues = React.useMemo<PatientCreateValuesCytology | undefined>(() => {
 		if (!editDefaults) return undefined
 		const diagnosis = editDefaults.diagnosis ?? patientDiagnosis ?? ''
@@ -162,6 +195,19 @@ export default function PatientProfileRoute() {
 
 	const loading = isLoading || isFetching
 
+	const patientNotFound =
+		!cardId || isNotFoundError(error) || (!loading && !error && data != null && data.patient == null)
+
+	if (patientNotFound) {
+		return (
+			<NotFoundPage
+				title='Пациент не найден'
+				description='Карта пациента удалена или ссылка неверна. Вернитесь к списку пациентов.'
+				homePath='/patients'
+			/>
+		)
+	}
+
 	return (
 		<PageShell>
 			{!cardId ? (
@@ -171,32 +217,22 @@ export default function PatientProfileRoute() {
 					<PatientProfileView
 						patient={patient}
 						loading={loading}
-						onBack={() => navigate('/patients')}
-						backLabel='Пациенты'
+						attendingDoctor={attendingDoctor}
 						actions={
-							<Space wrap>
-								<Tooltip
-									title={
-										canEditPatient
-											? undefined
-											: 'В Go-шлюзе нечем менять ФИО, полис и почту пациента'
-									}
-								>
-									<Button
-										icon={<EditOutlined />}
-										onClick={() => setEditOpen(true)}
-										disabled={!patient || !canEditPatient}
-									>
+							<>
+								{canEditPatient ? (
+									<Button icon={<EditOutlined />} onClick={() => setEditOpen(true)} disabled={!patient}>
 										Редактировать
 									</Button>
-								</Tooltip>
+								) : null}
 								<Button
 									type='primary'
+									icon={<PlusOutlined />}
 									onClick={() => navigate(`/upload_photo?patientId=${encodeURIComponent(cardId)}`)}
 								>
 									Добавить снимок
 								</Button>
-							</Space>
+							</>
 						}
 					>
 						<Card

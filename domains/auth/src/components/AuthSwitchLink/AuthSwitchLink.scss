@@ -1,0 +1,28 @@
+@use '@medml/ui/styles/tokens' as *;
+
+.auth-switch {
+	display: flex;
+	align-items: center;
+	gap: $spacing-lg;
+	width: 100%;
+	margin-top: $spacing-lg;
+	padding-top: $spacing-lg;
+	border-top: 1px solid $color-border;
+
+	font-family: $font-family-ui;
+	font-size: $font-size-body-sm;
+	line-height: 1.2;
+
+	&__prompt {
+		color: $color-text-secondary;
+	}
+
+	&__link {
+		font-weight: $font-weight-semibold;
+		color: $color-cyan;
+
+		&:hover {
+			color: $color-blue;
+		}
+	}
+}

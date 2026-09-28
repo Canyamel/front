@@ -9,6 +9,7 @@ import PatientProfileRoute from '@/pages/PatientProfileRoute'
 import PatientsRoute from '@/pages/PatientsRoute'
 import DiagnosticIsRunningRoute from '@/pages/DiagnosticIsRunningRoute'
 import PlaceholderRoute from '@/pages/PlaceholderRoute'
+import NotFoundRoute from '@/pages/NotFoundRoute'
 import RegisterRoute from '@/pages/RegisterRoute'
 import SubscriptionRoute from '@/pages/SubscriptionRoute'
 import SubscriptionReturnRoute from '@/pages/SubscriptionReturnRoute'
@@ -94,7 +95,14 @@ const routes: RouteObject[] = [
 				path: 'diagnosis_is_complete/:id',
 				element: <PlaceholderRoute title='Статус завершения диагностики' />,
 			},
-			{ path: '*', element: <Navigate to='/auth/login' replace /> },
+			{
+				path: '*',
+				element: (
+					<RequireAuth>
+						<NotFoundRoute />
+					</RequireAuth>
+				),
+			},
 		],
 	},
 ]

@@ -33,7 +33,10 @@ export default function UziViewRoute() {
 				</Link>
 			}
 		>
-			<UziViewPage uziId={uziId.trim()} />
+			{/* key: при переходе к другому снимку сбрасываем всё состояние страницы,
+			    в том числе калибровку линейкой — масштаб одного снимка не должен
+			    попасть на другой. */}
+			<UziViewPage key={uziId.trim()} uziId={uziId.trim()} />
 		</PageShell>
 	)
 }

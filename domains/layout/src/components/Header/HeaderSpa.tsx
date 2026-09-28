@@ -14,15 +14,15 @@ export interface HeaderNavItem {
 	label: string
 	to: string
 	matchPaths?: string[]
-	/** Счётчик справа от подписи (непрочитанное и т.п.). */
 	badge?: number
 }
 
 export interface HeaderSpaProps {
-	/** Очистка токенов вне Redux (например localStorage refresh/access). */
 	onLogoutClearStorage?: () => void
 	navItems?: HeaderNavItem[]
 	userInitials?: string
+	userName?: string
+	userFullName?: string
 }
 
 const DEFAULT_NAV_ITEMS: HeaderNavItem[] = [
@@ -35,6 +35,8 @@ export default function HeaderSpa({
 	onLogoutClearStorage,
 	navItems = DEFAULT_NAV_ITEMS,
 	userInitials,
+	userName,
+	userFullName,
 }: HeaderSpaProps) {
 	const dispatch = useAppDispatch()
 	const navigate = useNavigate()
@@ -44,8 +46,6 @@ export default function HeaderSpa({
 	const [menuOpen, setMenuOpen] = React.useState(false)
 
 	const isAuthenticated = Boolean(accessToken)
-	const showLoginButton = !isAuthenticated && pathname !== '/auth/login'
-	const showRegisterButton = !isAuthenticated && pathname === '/auth/login'
 
 	// Панель закрывается при переходе, иначе остаётся открытой поверх страницы.
 	React.useEffect(() => {
@@ -82,14 +82,18 @@ export default function HeaderSpa({
 			<div className='app-bar__actions'>
 				{isAuthenticated && (
 					<>
-						{userInitials && (
-							<span className='app-bar__avatar' aria-hidden='true'>
-								{userInitials}
+						{(userInitials || userName) && (
+							<span className='app-bar__user' title={userFullName || userName}>
+								{userInitials && (
+									<span className='app-bar__avatar' aria-hidden='true'>
+										{userInitials}
+									</span>
+								)}
+								{userName && <span className='app-bar__user-name'>{userName}</span>}
 							</span>
 						)}
 						<Button onClick={handleLogout}>Выйти</Button>
 
-						{/* На узких экранах навигация уезжает сюда (см. Header.scss). */}
 						<Button
 							className='app-bar__burger'
 							icon={<MenuOutlined />}
@@ -97,18 +101,6 @@ export default function HeaderSpa({
 							onClick={() => setMenuOpen(true)}
 						/>
 					</>
-				)}
-
-				{showLoginButton && (
-					<NavLink to='/auth/login'>
-						<Button>Вход</Button>
-					</NavLink>
-				)}
-
-				{showRegisterButton && (
-					<NavLink to='/auth/register'>
-						<Button>Регистрация</Button>
-					</NavLink>
 				)}
 			</div>
 

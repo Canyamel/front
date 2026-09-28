@@ -3,13 +3,14 @@
 import './page.scss'
 
 import { useCallback, useState } from 'react'
-import { Button, Form, Input } from 'antd'
+import { Button, Checkbox, Form, Input } from 'antd'
 import { EmailIcon, LogoMark, PasswordIcon } from '@medml/ui'
 import { validateEmail } from '../../utils/validateEmail'
 import AuthFormWrapper from '../../components/AuthFormWrapper'
+import AuthSwitchLink from '../../components/AuthSwitchLink/AuthSwitchLink'
 import { useAuthError } from '../../contexts/AuthErrorContext'
 import { useAuthApi } from '../../contexts/AuthApiContext'
-import { DEFAULT_POST_AUTH_PATH } from '../../constants/routes'
+import { DEFAULT_POST_AUTH_PATH, DEFAULT_REGISTER_ROUTE } from '../../constants/routes'
 import { sanitizeInternalPath } from '../../utils/sanitizeCallbackUrl'
 
 const { Password } = Input
@@ -17,18 +18,27 @@ const { Password } = Input
 interface LoginFormData {
 	email: string
 	password: string
+	remember: boolean
 }
 
 interface LoginPageProps {
 	onSuccess?: () => void
 	onError?: (error: string) => void
-	/** Куда уйти, если пользователь уже авторизован (по умолчанию — список пациентов) */
 	authedRedirectTo?: string
 	/** Из query `callbackUrl` (передаётся из server page) */
 	callbackUrl?: string | null
+	registerHref?: string
+	onRegisterClick?: () => void
 }
 
-const LoginPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PATH, callbackUrl }: LoginPageProps) => {
+const LoginPage = ({
+	onSuccess,
+	onError,
+	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
+	callbackUrl,
+	registerHref = DEFAULT_REGISTER_ROUTE,
+	onRegisterClick,
+}: LoginPageProps) => {
 	const authApi = useAuthApi()
 	const [form] = Form.useForm<LoginFormData>()
 	const [disabledButton, setDisabledButton] = useState(true)
@@ -42,7 +52,7 @@ const LoginPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PA
 				setHasError(false)
 				setErrorMessage(null)
 
-				await authApi.login({ email: values.email, password: values.password })
+				await authApi.login({ email: values.email, password: values.password }, { remember: values.remember })
 
 				setHasError(false)
 				setErrorMessage(null)
@@ -107,7 +117,7 @@ const LoginPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PA
 
 			<Form
 				className='login-form'
-				initialValues={{ email: '', password: '' }}
+				initialValues={{ email: '', password: '', remember: false }}
 				form={form}
 				onFinish={handleSubmit}
 				onFinishFailed={handleFinishFailed}
@@ -129,21 +139,47 @@ const LoginPage = ({ onSuccess, onError, authedRedirectTo = DEFAULT_POST_AUTH_PA
 						},
 					]}
 				>
-					<Input prefix={<EmailIcon />} type='email' size='large' placeholder='Email' />
+					{/* name + autoComplete — чтобы браузер предложил сохранить пароль
+					    и подставлял его при следующем входе. */}
+					<Input
+						prefix={<EmailIcon />}
+						type='email'
+						name='email'
+						autoComplete='username'
+						size='large'
+						placeholder='example@mail.ru'
+					/>
 				</Form.Item>
 
 				<Form.Item label='Пароль' name='password' rules={[{ required: true, message: 'Введите пароль пользователя' }]}>
-					<Password prefix={<PasswordIcon />} size='large' placeholder='Пароль' />
+					<Password
+						prefix={<PasswordIcon />}
+						name='password'
+						autoComplete='current-password'
+						size='large'
+						placeholder='Пароль'
+					/>
 				</Form.Item>
-				<Form.Item>
+				<div className='login-options'>
+					<Form.Item name='remember' valuePropName='checked' noStyle>
+						<Checkbox className='login-remember'>Запомнить меня</Checkbox>
+					</Form.Item>
+					<Button type='link' className='login-forgot-password'>
+						Забыли пароль?
+					</Button>
+				</div>
+				<Form.Item className='login-submit'>
 					<Button type='primary' htmlType='submit' size='large' block disabled={disabledButton}>
 						{hasError ? 'Неверные данные' : 'Войти'}
 					</Button>
 				</Form.Item>
 			</Form>
-			<Button type='link' className='login-forgot-password'>
-				Забыли пароль?
-			</Button>
+			<AuthSwitchLink
+				prompt='Нет аккаунта?'
+				label='Зарегистрироваться'
+				href={registerHref}
+				onNavigate={onRegisterClick}
+			/>
 		</AuthFormWrapper>
 	)
 }
