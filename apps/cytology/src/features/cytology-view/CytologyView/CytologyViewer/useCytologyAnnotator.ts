@@ -1,183 +1,200 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createOSDAnnotator } from "@annotorious/openseadragon";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createOSDAnnotator } from '@annotorious/openseadragon'
 import type {
-    Annotation,
-    DrawingStyleExpression,
-    ImageAnnotation,
-    OpenSeadragonAnnotator,
-    PolygonGeometry,
-    RectangleGeometry,
-} from "@annotorious/openseadragon";
-import type { ViewerInstance } from "@medml/viewers";
+	Annotation,
+	DrawingStyleExpression,
+	ImageAnnotation,
+	OpenSeadragonAnnotator,
+	PolygonGeometry,
+	RectangleGeometry,
+} from '@annotorious/openseadragon'
+import type { PlanePoint, ViewerAnnotationLayer, ViewerInstance, ViewerToolId } from '@medml/viewers'
+import { isDrawingTool } from '@medml/viewers'
 
-import { Tools } from "@cytology/core/types/basic";
-import { ISegmentStack } from "@cytology/core/types/segments";
+import { ISegmentStack } from '@cytology/core/types/segments'
 
-import { generateAnnotation } from "./Viewer/utils/generateAnnotation";
-import { IPoint } from "./Viewer/interfaces/queries";
+import { generateAnnotation } from './Viewer/utils/generateAnnotation'
+import { IPoint } from './Viewer/interfaces/queries'
 
-import "@annotorious/openseadragon/annotorious-openseadragon.css";
+import '@annotorious/openseadragon/annotorious-openseadragon.css'
 
 /**
  * Слой аннотаций поверх инстанса OpenSeadragon из `@medml/viewers`.
- *
- * Раньше цитология поднимала собственный OpenSeadragon через
- * `<OpenSeadragonViewer>` из `@annotorious/react` — то есть держала второй
- * движок мимо общего пакета, со своей навигацией и своими настройками жестов.
- * Любая правка вьюера делалась дважды и расходилась с УЗИ.
- *
- * Теперь движок один, а Annotorious подключается к уже готовому инстансу через
- * `createOSDAnnotator` — тем же приёмом, что и в УЗИ: там к инстансу из
- * `onInstanceReady` цепляется Annotorious 2, здесь — третий.
  */
 
 export interface UseCytologyAnnotatorOptions {
-    segments: ISegmentStack[];
-    style?: DrawingStyleExpression<ImageAnnotation>;
-    /** Разрешено ли рисовать: в режиме просмотра и на инструменте «перемещение» — нет. */
-    drawingEnabled: boolean;
-    tool: Tools;
-    onAddSegment: (contour: IPoint[]) => void;
-    onChangeSegment: (segmentId: string, contour: IPoint[]) => void;
+	segments: ISegmentStack[]
+	style?: DrawingStyleExpression<ImageAnnotation>
+	drawingEnabled: boolean
+	onAddSegment: (contour: IPoint[]) => void
+	onChangeSegment: (segmentId: string, contour: IPoint[]) => void
 }
 
 export interface UseCytologyAnnotatorResult {
-    /** `null`, пока вьюер не открыл изображение. */
-    annotator: OpenSeadragonAnnotator | null;
-    /** Для `onInstanceReady` общего вьюера. */
-    attach: (viewer: ViewerInstance) => void;
-    /** Для `onInstanceWillDestroy` общего вьюера. */
-    detach: () => void;
+	annotator: OpenSeadragonAnnotator | null
+	layer: ViewerAnnotationLayer
 }
 
-type Geometry = Partial<RectangleGeometry> & Partial<PolygonGeometry>;
+type Geometry = Partial<RectangleGeometry> & Partial<PolygonGeometry>
 
 /** Контур из геометрии Annotorious: у прямоугольника углы считаем сами. */
 function contourFromAnnotation(annotation: Annotation): IPoint[] | null {
-    const selector = (annotation as { target?: { selector?: { geometry?: Geometry } } }).target
-        ?.selector;
-    const geometry = selector?.geometry;
+	const selector = (annotation as { target?: { selector?: { geometry?: Geometry } } }).target?.selector
+	const geometry = selector?.geometry
 
-    if (!geometry) {
-        return null;
-    }
+	if (!geometry) {
+		return null
+	}
 
-    if (Array.isArray(geometry.points)) {
-        return geometry.points.map((point) => ({
-            x: Math.round(point[0]),
-            y: Math.round(point[1]),
-        }));
-    }
+	if (Array.isArray(geometry.points)) {
+		return geometry.points.map(point => ({
+			x: Math.round(point[0]),
+			y: Math.round(point[1]),
+		}))
+	}
 
-    const { x, y, w, h } = geometry;
-    if (x === undefined || y === undefined || w === undefined || h === undefined) {
-        return null;
-    }
+	const { x, y, w, h } = geometry
+	if (x === undefined || y === undefined || w === undefined || h === undefined) {
+		return null
+	}
 
-    return [
-        { x: Math.round(x), y: Math.round(y) },
-        { x: Math.round(x + w), y: Math.round(y) },
-        { x: Math.round(x + w), y: Math.round(y + h) },
-        { x: Math.round(x), y: Math.round(y + h) },
-    ];
+	return [
+		{ x: Math.round(x), y: Math.round(y) },
+		{ x: Math.round(x + w), y: Math.round(y) },
+		{ x: Math.round(x + w), y: Math.round(y + h) },
+		{ x: Math.round(x), y: Math.round(y + h) },
+	]
 }
 
 export function useCytologyAnnotator({
-    segments,
-    style,
-    drawingEnabled,
-    tool,
-    onAddSegment,
-    onChangeSegment,
+	segments,
+	style,
+	drawingEnabled,
+	onAddSegment,
+	onChangeSegment,
 }: UseCytologyAnnotatorOptions): UseCytologyAnnotatorResult {
-    const [annotator, setAnnotator] = useState<OpenSeadragonAnnotator | null>(null);
-    const annotatorRef = useRef<OpenSeadragonAnnotator | null>(null);
+	const [annotator, setAnnotator] = useState<OpenSeadragonAnnotator | null>(null)
+	const annotatorRef = useRef<OpenSeadragonAnnotator | null>(null)
 
-    // Обработчики держим в ref: пересоздавать аннотатор из-за нового колбэка
-    // нельзя — вместе с ним со снимка пропадёт вся разметка.
-    const handlersRef = useRef({ onAddSegment, onChangeSegment });
+	// Обработчики держим в ref: пересоздавать аннотатор из-за нового колбэка
+	// нельзя — вместе с ним со снимка пропадёт вся разметка.
+	const handlersRef = useRef({ onAddSegment, onChangeSegment })
+	// Инструмент, выбранный до открытия снимка, применяем сразу после attach.
+	// `enabled` — разрешение по режиму от вьюера, `drawing` — итог с учётом
+	// доменного условия; храним оба, чтобы переприменять запрос вьюера.
+	const toolRef = useRef<{ tool: ViewerToolId; enabled: boolean; drawing: boolean }>({
+		tool: 'pan',
+		enabled: false,
+		drawing: false,
+	})
+	const canDrawRef = useRef(drawingEnabled)
 
-    useEffect(() => {
-        handlersRef.current = { onAddSegment, onChangeSegment };
-    }, [onAddSegment, onChangeSegment]);
+	useEffect(() => {
+		handlersRef.current = { onAddSegment, onChangeSegment }
+	}, [onAddSegment, onChangeSegment])
 
-    // Создание и уничтожение висят на колбэках вьюера, а не на эффекте: жизнь
-    // аннотатора совпадает с жизнью инстанса OSD, а про неё общий вьюер
-    // сообщает сам — через onInstanceReady / onInstanceWillDestroy.
-    const attach = useCallback((viewer: ViewerInstance) => {
-        const instance = createOSDAnnotator(viewer);
+	useEffect(() => {
+		canDrawRef.current = drawingEnabled
+	}, [drawingEnabled])
 
-        instance.on("createAnnotation", (annotation: ImageAnnotation) => {
-            const contour = contourFromAnnotation(annotation);
-            if (contour) {
-                handlersRef.current.onAddSegment(contour);
-            }
-        });
+	const attach = useCallback((viewer: ViewerInstance) => {
+		const instance = createOSDAnnotator(viewer)
 
-        instance.on("updateAnnotation", (annotation: ImageAnnotation) => {
-            const contour = contourFromAnnotation(annotation);
-            if (contour) {
-                handlersRef.current.onChangeSegment(annotation.id, contour);
-            }
-        });
+		instance.on('createAnnotation', (annotation: ImageAnnotation) => {
+			const contour = contourFromAnnotation(annotation)
+			if (contour) {
+				handlersRef.current.onAddSegment(contour)
+			}
+		})
 
-        annotatorRef.current = instance;
-        setAnnotator(instance);
-    }, []);
+		instance.on('updateAnnotation', (annotation: ImageAnnotation) => {
+			const contour = contourFromAnnotation(annotation)
+			if (contour) {
+				handlersRef.current.onChangeSegment(annotation.id, contour)
+			}
+		})
 
-    const detach = useCallback(() => {
-        const instance = annotatorRef.current;
-        annotatorRef.current = null;
-        setAnnotator(null);
+		annotatorRef.current = instance
+		setAnnotator(instance)
 
-        if (!instance) {
-            return;
-        }
+		applyTool(instance, toolRef.current.tool, toolRef.current.drawing)
+	}, [])
 
-        try {
-            instance.destroy();
-        } catch (error) {
-            console.warn("useCytologyAnnotator: не удалось уничтожить аннотатор", error);
-        }
-    }, []);
+	const detach = useCallback(() => {
+		const instance = annotatorRef.current
+		annotatorRef.current = null
+		setAnnotator(null)
 
-    // Стиль — отдельным эффектом: он меняется при переключении режима и
-    // выбранной группы сегментов, а разметка при этом остаётся прежней.
-    useEffect(() => {
-        annotator?.setStyle(style);
-    }, [annotator, style]);
+		if (!instance) {
+			return
+		}
 
-    useEffect(() => {
-        if (!annotator) {
-            return;
-        }
+		try {
+			instance.destroy()
+		} catch (error) {
+			console.warn('useCytologyAnnotator: не удалось уничтожить аннотатор', error)
+		}
+	}, [])
 
-        annotator.clearAnnotations();
+	const setTool = useCallback((tool: ViewerToolId, enabled: boolean) => {
+		const drawing = enabled && isDrawingTool(tool) && canDrawRef.current
+		toolRef.current = { tool, enabled, drawing }
+		applyTool(annotatorRef.current, tool, drawing)
+	}, [])
 
-        if (segments.length > 0) {
-            annotator.setAnnotations(
-                segments.flatMap((segment) => generateAnnotation(segment)) as ImageAnnotation[],
-                true
-            );
-        }
-    }, [annotator, segments]);
+	const addPolygon = useCallback((points: PlanePoint[]) => {
+		if (points.length < 3 || !canDrawRef.current) {
+			return false
+		}
 
-    useEffect(() => {
-        if (!annotator) {
-            return;
-        }
+		handlersRef.current.onAddSegment(points.map(point => ({ x: Math.round(point.x), y: Math.round(point.y) })))
+		return true
+	}, [])
 
-        // "brush"/"ruler"/"calibrate" работают мимо Annotorious, на собственных
-        // слоях (RulerOverlay/BrushCanvasOverlay из @medml/viewers) — v3 не
-        // знает таких инструментов рисования, поэтому Annotorious включаем
-        // только для его собственных rectangle/polygon.
-        const canDraw = drawingEnabled && (tool === "rectangle" || tool === "polygon");
+	// Стиль — отдельным эффектом: он меняется при переключении режима и
+	// выбранной группы сегментов, а разметка при этом остаётся прежней.
+	useEffect(() => {
+		annotator?.setStyle(style)
+	}, [annotator, style])
 
-        if (canDraw) {
-            annotator.setDrawingTool(tool);
-        }
-        annotator.setDrawingEnabled(canDraw);
-    }, [annotator, drawingEnabled, tool]);
+	useEffect(() => {
+		if (!annotator) {
+			return
+		}
 
-    return { annotator, attach, detach };
+		annotator.clearAnnotations()
+
+		if (segments.length > 0) {
+			annotator.setAnnotations(segments.flatMap(segment => generateAnnotation(segment)) as ImageAnnotation[], true)
+		}
+	}, [annotator, segments])
+
+	// Право рисовать может пропасть и без смены инструмента — например, когда
+	// врач снял выбор группы сегментов.
+	useEffect(() => {
+		const { tool, enabled } = toolRef.current
+		setTool(tool, enabled)
+	}, [drawingEnabled, setTool])
+
+	const layer = useMemo<ViewerAnnotationLayer>(
+		() => ({ attach, detach, setTool, addPolygon }),
+		[attach, detach, setTool, addPolygon],
+	)
+
+	return { annotator, layer }
+}
+
+function applyTool(annotator: OpenSeadragonAnnotator | null, tool: ViewerToolId, drawing: boolean): void {
+	if (!annotator) {
+		return
+	}
+
+	try {
+		if (drawing) {
+			annotator.setDrawingTool(tool as never)
+		}
+		annotator.setDrawingEnabled(drawing)
+	} catch (error) {
+		console.error(`Не удалось включить инструмент «${tool}»:`, error)
+	}
 }

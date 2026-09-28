@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Alert, Spin } from 'antd'
-import OpenSeadragonViewer from '../viewer/ThyroidAnnotatedViewer'
+import type { ViewerStatus } from '@medml/viewers'
+import ThyroidAnnotatedViewer from '../viewer/ThyroidAnnotatedViewer'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
 import { useGalleryImageSource } from './useGalleryImageSource'
@@ -56,6 +56,19 @@ const Gallery = ({
 		[seg],
 	)
 
+	const status = useMemo<ViewerStatus | null>(() => {
+		if (isLoading) return { kind: 'loading', title: 'Подготовка кадров снимка…' }
+		if (slidesUnavailable) {
+			return {
+				kind: 'error',
+				title: 'Кадры снимка ещё не готовы',
+				description:
+					'Для TIFF и DICOM бэкенд готовит PNG-нарезку. Если снимок загружен только что — обновите страницу через минуту.',
+			}
+		}
+		return null
+	}, [isLoading, slidesUnavailable])
+
 	if (!link1) {
 		return <NoImageState />
 	}
@@ -74,44 +87,20 @@ const Gallery = ({
 				hasUnsavedChanges={hasUnsavedChanges}
 			/>
 
-			{isLoading ? (
-				<div
-					style={{
-						display: 'flex',
-						alignItems: 'center',
-						justifyContent: 'center',
-						minHeight: viewerHeight,
-					}}
-				>
-					<Spin size='large' />
-				</div>
-			) : slidesUnavailable ? (
-				<div style={{ minHeight: viewerHeight, display: 'flex', alignItems: 'center' }}>
-					<Alert
-						type='warning'
-						showIcon
-						style={{ width: '100%' }}
-						message='Кадры снимка ещё не готовы'
-						description='Для TIFF и DICOM бэкенд готовит PNG-нарезку. Если снимок загружен только что — обновите страницу через минуту.'
-					/>
-				</div>
-			) : (
-				<div>
-					<OpenSeadragonViewer
-						key={`viewer-${viewerResetKey}-${isEditMode ? 'edit' : 'view'}`}
-						image={imageSource}
-						seg={seg}
-						imageid={imageid}
-						height={viewerHeight}
-						readOnly={!isEditMode}
-						currentGroup={selectedGroup}
-						onDraftChangesChange={onDraftChangesChange}
-						onViewerApiReady={handleViewerApiReady}
-						onPxPerMmChange={onPxPerMmChange}
-						thyroidStructures={thyroidStructures}
-					/>
-				</div>
-			)}
+			<ThyroidAnnotatedViewer
+				key={`viewer-${viewerResetKey}-${isEditMode ? 'edit' : 'view'}`}
+				image={imageSource}
+				seg={seg}
+				imageid={imageid}
+				height={viewerHeight}
+				status={status}
+				readOnly={!isEditMode}
+				currentGroup={selectedGroup}
+				onDraftChangesChange={onDraftChangesChange}
+				onViewerApiReady={handleViewerApiReady}
+				onPxPerMmChange={onPxPerMmChange}
+				thyroidStructures={thyroidStructures}
+			/>
 		</div>
 	)
 }

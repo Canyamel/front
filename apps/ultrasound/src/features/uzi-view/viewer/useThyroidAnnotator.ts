@@ -1,169 +1,191 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Annotorious from '@recogito/annotorious-openseadragon'
-import SelectorPack from '@recogito/annotorious-selector-pack'
-import '@recogito/annotorious-openseadragon/dist/annotorious.min.css'
-import type { ViewerImage, ViewerInstance } from '@medml/viewers'
+import { UserSelectAction, createOSDAnnotator } from '@annotorious/openseadragon'
+import type {
+	AnnotationState,
+	DrawingStyle,
+	ImageAnnotation,
+	OpenSeadragonAnnotator,
+	Selection,
+} from '@annotorious/openseadragon'
+import '@annotorious/openseadragon/annotorious-openseadragon.css'
+import type { PlanePoint, ViewerAnnotationLayer, ViewerImage, ViewerInstance, ViewerToolId } from '@medml/viewers'
+import { isDrawingTool } from '@medml/viewers'
 import type { Segment, SegmentDraftChange, SegmentPoint } from '../model/types'
 import type { ThyroidStructureJson } from '../structures'
-import { DRAWING_TOOLS, TI_RADS_OPTIONS, isDrawingTool, type ViewerToolId } from './constants'
+import { NODE_COLORS } from './constants'
 import {
+	buildPolygonAnnotation,
 	buildSegmentAnnotationsByPage,
 	buildStructureAnnotationsForPage,
-	buildUniqueNodes,
-	getAnnotationGroup,
-	getAnnotationPoints,
 	buildStructureLegendItems,
+	buildUniqueNodes,
+	getAnnotationProps,
+	getAnnotationPoints,
 	isStructureAnnotationId,
-	STRUCTURE_ANNOTATION_CLASS,
 	type StructureLegendItem,
+	type ThyroidAnnotation,
 	type UniqueNode,
 } from './thyroidAnnotations'
 
-/**
- * Переключает инструмент рисования.
- *
- * Обёрнуто в try/catch намеренно: `setDrawingTool` внутри Annotorious ищет
- * инструмент по identifier и сразу вызывает `new Tool(...)`. Неизвестный id
- * там превращается в `new undefined()`, и падение уносило бы за собой весь
- * вьюер. Лучше остаться на предыдущем инструменте и написать в консоль.
- */
-function applyViewerTool(anno: any, tool: ViewerToolId, readOnly: boolean): void {
-	if (!anno) return
+type Annotator = OpenSeadragonAnnotator<ImageAnnotation, ImageAnnotation>
 
-	const drawing = !readOnly && isDrawingTool(tool)
+/** Цвет по умолчанию для контура, у которого ещё нет узла. */
+const FALLBACK_NODE_COLOR = '#FF0000'
+
+function applyTool(annotator: Annotator | null, tool: ViewerToolId, drawing: boolean): void {
+	if (!annotator) return
 
 	try {
 		if (drawing) {
-			anno.setDrawingTool(DRAWING_TOOLS[tool])
+			annotator.setDrawingTool(tool as never)
 		}
-		// Плагин по умолчанию ждёт зажатый Shift; включаем рисование явно,
-		// иначе выбранный инструмент visually активен, но не работает.
-		anno.setDrawingEnabled(drawing)
+		annotator.setDrawingEnabled(drawing)
 	} catch (error) {
 		console.error(`Не удалось включить инструмент «${tool}»:`, error)
 	}
 }
 
+function makeLocalId(): string {
+	return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 export interface UseThyroidAnnotatorOptions {
-	/** Живой инстанс движка рендера из `@medml/viewers` (onInstanceReady). */
-	osdViewer: ViewerInstance | null
 	images: ViewerImage[]
 	seg: Segment[]
-	tool: ViewerToolId
 	readOnly: boolean
 	currentPage: number
+	annotationsVisible: boolean
+	structuresVisible?: boolean
 	currentGroup?: string | number
 	thyroidStructures?: ThyroidStructureJson
 	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
 }
 
 export interface UseThyroidAnnotatorResult {
-	showSegments: boolean
-	toggleSegments: () => void
+	layer: ViewerAnnotationLayer
+	annotator: Annotator | null
+	selected: ThyroidAnnotation | null
+	removeAnnotation: (id: string) => void
 	uniqueNodes: UniqueNode[]
-	/** Показ контуров долей/перешейка — отдельно от узлов. */
-	showStructures: boolean
-	toggleStructures: () => void
-	/** Структуры ЩЖ текущего кадра — для легенды. */
 	structureItems: StructureLegendItem[]
-	/** Есть ли структуры хотя бы на одном кадре (иначе кнопка не нужна). */
 	hasStructures: boolean
 	flushPendingSelection: () => Promise<void>
-	/**
-	 * Добавить контур, полученный не из Annotorious (кисть-заполнение).
-	 * Точки — в координатах изображения. Возвращает `false`, если контур
-	 * вырожденный или редактор недоступен.
-	 */
-	addPolygonFromPoints: (points: Array<{ x: number; y: number }>) => boolean
 }
 
 /**
- * Весь жизненный цикл Annotorious для результатов УЗИ ЩЖ в одном месте:
- * подключение к живому инстансу OpenSeadragon (переданному из
- * `@medml/viewers` через `onInstanceReady`), построение аннотаций из
- * доменных данных (узлы + контуры структур, через `thyroidAnnotations.ts`)
- * и обработка create/update/delete в черновики изменений.
+ * Жизненный цикл Annotorious 3 для результатов УЗИ ЩЖ: подключение к живому
+ * инстансу OpenSeadragon, построение аннотаций из доменных данных (узлы +
+ * контуры структур, через `thyroidAnnotations.ts`) и перевод
+ * create/update/delete в черновики изменений.
  *
- * Это "OpenSeadragon-glue" слой — знает про Annotorious и про доменные
- * данные УЗИ, но ничего не рендерит сам и не знает про чистое управление
- * OSD (zoom/pan/rotate), которое остаётся в `@medml/viewers`.
+ * Наружу хук отдаёт `layer` — реализацию общего контракта
+ * `ViewerAnnotationLayer` из `@medml/viewers`. Та же версия Annotorious и тот
+ * же подход, что в цитологии (`useCytologyAnnotator`).
+ *
+ * Особенности Annotorious 3, на которых здесь всё построено:
+ *
+ * - `clearAnnotations()` рассылает `deleteAnnotation` по всем контурам.
+ *   Поэтому кадр меняется только через `setAnnotations(list, true)` — это
+ *   «удалённая» загрузка, событий она не шлёт. Иначе смена кадра записала
+ *   бы все узлы в черновик на удаление.
+ * - `updateAnnotation` приходит, когда с изменённого контура снимается
+ *   выделение. Чтобы досохранить правку перед отправкой, достаточно
+ *   `cancelSelected()` и дождаться события (`flushPendingSelection`).
+ * - Контуры, добавленные через API (`addAnnotation`), `createAnnotation` не
+ *   шлют — кисть проводит черновик сама.
+ * - Встроенного попапа и удаления по Delete нет: удаление — из карточки
+ *   контура (`removeAnnotation`).
  */
 export function useThyroidAnnotator({
-	osdViewer,
 	images,
 	seg,
-	tool,
 	readOnly,
 	currentPage,
+	annotationsVisible,
+	structuresVisible = true,
 	currentGroup,
 	thyroidStructures,
 	onDraftChangesChange,
 }: UseThyroidAnnotatorOptions): UseThyroidAnnotatorResult {
-	const annoRef = useRef<any>(null)
-	const currentGroupRef = useRef<string | number | undefined>(currentGroup)
-	// Обработчики Annotorious вешаются один раз на инстанс, поэтому активный
-	// инструмент и колбэк калибровки читаются через ref — иначе в замыкании
-	// осталось бы значение с момента подписки.
-	const toolRef = useRef(tool)
-	toolRef.current = tool
-	const showSegmentsRef = useRef(true)
-	const showStructuresRef = useRef(true)
-	const pageAnnotationsRef = useRef<Record<number, any[]>>({})
-	const pageStructureAnnotationsRef = useRef<Record<number, any[]>>({})
+	const annoRef = useRef<Annotator | null>(null)
+	const unsubscribeSelectionRef = useRef<(() => void) | null>(null)
+	const [annotator, setAnnotator] = useState<Annotator | null>(null)
+	const [selectedId, setSelectedId] = useState<string | null>(null)
+
+	// Обработчики Annotorious вешаются один раз на инстанс, поэтому кадр,
+	// видимость и прочее читаются через ref — иначе в замыкании осталось бы
+	// значение с момента подписки.
+	const currentGroupRef = useRef(currentGroup)
+	const currentPageRef = useRef(currentPage)
+	const readOnlyRef = useRef(readOnly)
+	const annotationsVisibleRef = useRef(annotationsVisible)
+	const structuresVisibleRef = useRef(structuresVisible)
+	const toolRef = useRef<{ tool: ViewerToolId; drawing: boolean }>({ tool: 'pan', drawing: false })
+	const onDraftChangesChangeRef = useRef(onDraftChangesChange)
+
+	/** Контуры узлов по кадрам: источник истины для перерисовки кадра. */
+	const pageAnnotationsRef = useRef<Record<number, ThyroidAnnotation[]>>({})
+	const pageStructureAnnotationsRef = useRef<Record<number, ThyroidAnnotation[]>>({})
+	/**
+	 * На каком кадре живёт контур. Событие `updateAnnotation` может прийти
+	 * уже после переключения кадра, поэтому кадр берём отсюда, а не из
+	 * текущего.
+	 */
+	const annotationPageRef = useRef<Map<string, number>>(new Map())
 	const draftChangesRef = useRef<SegmentDraftChange[]>([])
 
-	const [showSegments, setShowSegments] = useState(true)
-	const [showStructures, setShowStructures] = useState(true)
-	const [pageAnnotations, setPageAnnotations] = useState<Record<number, any[]>>({})
+	/** Цвет узла по id группы — чтобы новый контур сразу красился в цвет узла. */
+	const groupColorRef = useRef<Map<string, string>>(new Map())
 
 	useEffect(() => {
 		currentGroupRef.current = currentGroup
-	}, [currentGroup])
+		currentPageRef.current = currentPage
+		readOnlyRef.current = readOnly
+		annotationsVisibleRef.current = annotationsVisible
+		structuresVisibleRef.current = structuresVisible
+		onDraftChangesChangeRef.current = onDraftChangesChange
+	}, [currentGroup, currentPage, readOnly, annotationsVisible, structuresVisible, onDraftChangesChange])
 
 	useEffect(() => {
-		showSegmentsRef.current = showSegments
-		showStructuresRef.current = showStructures
-	}, [showSegments, showStructures])
+		groupColorRef.current = new Map(
+			seg.map((segment, index) => [String(segment.id), NODE_COLORS[index % NODE_COLORS.length]]),
+		)
+	}, [seg])
 
-	// Глобальные стили аннотаций — не зависят от жизненного цикла инстанса OSD.
-	useEffect(() => {
-		const style = document.createElement('style')
-		style.textContent = `
-      .a9s-annotation .a9s-inner {
-        stroke-width: 2px;
-        stroke-opacity: 0.8;
-        fill-opacity: 0.3;
-      }
-    `
-		document.head.appendChild(style)
-		return () => {
-			if (document.head.contains(style)) {
-				document.head.removeChild(style)
-			}
+	const updateAnnotationsForPage = useCallback((pageIndex: number) => {
+		const anno = annoRef.current
+		if (!anno) return
+
+		const annotations = [
+			...(structuresVisibleRef.current ? pageStructureAnnotationsRef.current[pageIndex] || [] : []),
+			...(annotationsVisibleRef.current ? pageAnnotationsRef.current[pageIndex] || [] : []),
+		]
+
+		try {
+			// replace = true: «удалённая» загрузка без create/delete событий.
+			anno.setAnnotations(annotations, true)
+		} catch (error) {
+			console.error('Не удалось показать разметку кадра:', error)
 		}
 	}, [])
 
-	const upsertPageAnnotation = useCallback((annotation: any, pageIndex: number) => {
-		setPageAnnotations(prev => {
-			const next: Record<number, any[]> = {}
-			Object.entries(prev).forEach(([key, value]) => {
-				next[Number(key)] = (value || []).filter(item => String(item.id) !== String(annotation.id))
-			})
-			next[pageIndex] = [...(next[pageIndex] || []), annotation]
-			pageAnnotationsRef.current = next
-			return next
+	const upsertPageAnnotation = useCallback((annotation: ThyroidAnnotation, pageIndex: number) => {
+		const next: Record<number, ThyroidAnnotation[]> = {}
+		Object.entries(pageAnnotationsRef.current).forEach(([key, value]) => {
+			next[Number(key)] = (value || []).filter(item => item.id !== annotation.id)
 		})
+		next[pageIndex] = [...(next[pageIndex] || []), annotation]
+		pageAnnotationsRef.current = next
+		annotationPageRef.current.set(annotation.id, pageIndex)
 	}, [])
 
 	const removePageAnnotation = useCallback((annotationId: string) => {
-		setPageAnnotations(prev => {
-			const next: Record<number, any[]> = {}
-			Object.entries(prev).forEach(([key, value]) => {
-				next[Number(key)] = (value || []).filter(annotation => String(annotation.id) !== annotationId)
-			})
-			pageAnnotationsRef.current = next
-			return next
+		const next: Record<number, ThyroidAnnotation[]> = {}
+		Object.entries(pageAnnotationsRef.current).forEach(([key, value]) => {
+			next[Number(key)] = (value || []).filter(annotation => annotation.id !== annotationId)
 		})
+		pageAnnotationsRef.current = next
+		annotationPageRef.current.delete(annotationId)
 	}, [])
 
 	const syncDraftChanges = useCallback(
@@ -182,219 +204,250 @@ export function useThyroidAnnotator({
 			let next = prev.filter(change => change.annotationId !== annotationId)
 
 			if (type === 'delete') {
-				if (existing?.type === 'create') {
-					draftChangesRef.current = next
-					onDraftChangesChange?.(next)
-					return
+				// Удалили ещё не сохранённый контур — на бэкенд отправлять нечего.
+				if (existing?.type !== 'create') {
+					next = [...next, { annotationId, type: 'delete', segment_group: segmentGroup }]
 				}
-
-				next = [...next, { annotationId, type: 'delete', segment_group: segmentGroup }]
-				draftChangesRef.current = next
-				onDraftChangesChange?.(next)
-				return
-			}
-
-			const nextChange: SegmentDraftChange = {
-				annotationId,
-				type: existing?.type === 'create' ? 'create' : type,
-				points,
-				segment_group: segmentGroup,
-			}
-
-			next = [...next, nextChange]
-			draftChangesRef.current = next
-			onDraftChangesChange?.(next)
-		},
-		[onDraftChangesChange],
-	)
-
-	const updateAnnotationsForPage = useCallback(
-		(pageIndex: number, annotationsMap: Record<number, any[]> = pageAnnotationsRef.current) => {
-			if (!annoRef.current) return
-
-			try {
-				annoRef.current.clearAnnotations()
-
-				const annotationsForPage = [
-					...(showStructuresRef.current ? pageStructureAnnotationsRef.current[pageIndex] || [] : []),
-					...(showSegmentsRef.current ? annotationsMap[pageIndex] || [] : []),
+			} else {
+				next = [
+					...next,
+					{
+						annotationId,
+						type: existing?.type === 'create' ? 'create' : type,
+						points,
+						segment_group: segmentGroup,
+					},
 				]
-
-				annotationsForPage.forEach((annotation: any) => {
-					try {
-						annoRef.current.addAnnotation(annotation)
-					} catch (error) {
-						console.error('Error adding annotation:', error)
-					}
-				})
-			} catch (err) {
-				console.error('Error updating annotations:', err)
 			}
+
+			draftChangesRef.current = next
+			onDraftChangesChangeRef.current?.(next)
 		},
 		[],
 	)
 
-	// Контуры структур ЩЖ для текущей страницы — построение вынесено в
-	// чистую функцию buildStructureAnnotationsForPage.
+	// Контуры структур ЩЖ для текущей страницы.
 	useEffect(() => {
-		const source = images[currentPage]?.url || ''
-		// Если к снимку не приложен JSON структур — показываем демонстрационные
-		// контуры (поведение исходного вьюера).
-		const structures = thyroidStructures
 		pageStructureAnnotationsRef.current = {
 			...pageStructureAnnotationsRef.current,
-			[currentPage]: buildStructureAnnotationsForPage(structures, currentPage, source),
+			[currentPage]: buildStructureAnnotationsForPage(thyroidStructures, currentPage),
 		}
-		updateAnnotationsForPage(currentPage, pageAnnotationsRef.current)
-	}, [currentPage, images, thyroidStructures, updateAnnotationsForPage])
+		updateAnnotationsForPage(currentPage)
+	}, [currentPage, thyroidStructures, updateAnnotationsForPage])
 
-	// Аннотации узлов (segments) — построение вынесено в buildSegmentAnnotationsByPage.
+	// Контуры узлов: после сохранения RTK Query перечитывает снимок, и
+	// разметка пересобирается с серверными id.
 	useEffect(() => {
-		const pageAnnotationsMap = buildSegmentAnnotationsByPage(seg, images)
-		pageAnnotationsRef.current = pageAnnotationsMap
-		setPageAnnotations(pageAnnotationsMap)
-		updateAnnotationsForPage(currentPage, pageAnnotationsMap)
+		const byPage = buildSegmentAnnotationsByPage(seg, images)
+		pageAnnotationsRef.current = byPage
+		const pages = new Map<string, number>()
+		Object.entries(byPage).forEach(([page, list]) => list.forEach(item => pages.set(item.id, Number(page))))
+		annotationPageRef.current = pages
+		updateAnnotationsForPage(currentPage)
 	}, [seg, images, currentPage, updateAnnotationsForPage])
 
-	// Перерисовка при переключении видимости/странице.
+	// Перерисовка при переключении видимости разметки.
 	useEffect(() => {
-		if (!annoRef.current) return
-		updateAnnotationsForPage(currentPage, pageAnnotations)
-	}, [showSegments, showStructures, currentPage, pageAnnotations, updateAnnotationsForPage])
+		updateAnnotationsForPage(currentPage)
+	}, [annotationsVisible, structuresVisible, currentPage, updateAnnotationsForPage])
 
-	// Подключение Annotorious к живому инстансу OpenSeadragon. Инстанс
-	// принадлежит @medml/viewers — сюда он попадает через onInstanceReady.
-	useEffect(() => {
-		if (!osdViewer) return
+	/**
+	 * Стиль контура. Невыделенные контуры Annotorious 3 рисует через WebGL,
+	 * поэтому CSS до них не достаёт — всё оформление задаётся здесь.
+	 * Структуры ЩЖ: тонкая линия и почти прозрачная заливка, чтобы их нельзя
+	 * было спутать с узлами.
+	 */
+	const style = useCallback((annotation: ImageAnnotation, state?: AnnotationState): DrawingStyle => {
+		const props = getAnnotationProps(annotation)
+		const selected = Boolean(state?.selected)
 
-		const annotateState = Annotorious(osdViewer, {
-			readOnly,
-			widgets: [
-				'COMMENT',
-				{
-					widget: 'TAG',
-					vocabulary: TI_RADS_OPTIONS,
-				},
-			],
-			// Цвет контура/заливки из body с purpose 'color' — через встроенный
-			// formatter Annotorious, без ручного querySelector + setTimeout
-			// (в прежней версии это была гонка с перерисовкой аннотаций).
-			formatter: (annotation: any) => {
-				const colorBody = annotation.body?.find((b: any) => b.purpose === 'color')
-				const nodeColor = colorBody?.value || '#FF0000'
-				const style = `stroke:${nodeColor}; fill:${nodeColor};`
-				// Доли/перешеек рисуются иначе, чем узлы (пунктир, слабая заливка).
-				return isStructureAnnotationId(annotation.id) ? { className: STRUCTURE_ANNOTATION_CLASS, style } : { style }
-			},
-		})
+		if (props?.kind === 'structure') {
+			const color = props.color as DrawingStyle['stroke']
+			return { stroke: color, strokeWidth: selected ? 2 : 1.5, strokeOpacity: 0.9, fill: color, fillOpacity: 0.08 }
+		}
 
-		// Порядок важен: SelectorPack регистрирует инструменты, а
-		// `setDrawingTool` ищет их по identifier и сразу инстанцирует
-		// (`new Tool(...)`). Если инструмент ещё не зарегистрирован, внутри
-		// Annotorious получается `new undefined()` — исключение обрывало
-		// инициализацию, и вьюер переставал реагировать вовсе.
-		//
-		// Список передаётся вторым аргументом: ключ `tools` в конфиге самого
-		// Annotorious selector-pack не читает.
-		SelectorPack(annotateState, { tools: ['ellipse', 'point', 'freehand', 'line'] })
-		applyViewerTool(annotateState, toolRef.current, readOnly)
+		const group = props?.group ?? findDraftGroup(draftChangesRef.current, annotation.id)
+		const color = (props?.color ??
+			(group != null ? groupColorRef.current.get(String(group)) : undefined) ??
+			FALLBACK_NODE_COLOR) as DrawingStyle['stroke']
 
-		annoRef.current = annotateState
+		return { stroke: color, strokeWidth: selected ? 3 : 2, strokeOpacity: 0.85, fill: color, fillOpacity: 0.3 }
+	}, [])
 
-		window.setTimeout(() => {
-			updateAnnotationsForPage(currentPage, pageAnnotationsRef.current)
-		}, 0)
+	/**
+	 * Подключение Annotorious к живому инстансу OpenSeadragon. Инстанс
+	 * принадлежит `@medml/viewers`; сюда он попадает через контракт слоя.
+	 *
+	 * Режим просмотра задаётся при создании: `Gallery` монтирует вьюер заново
+	 * при входе в редактирование (`key` включает `isEditMode`).
+	 */
+	const attach = useCallback(
+		(viewer: ViewerInstance) => {
+			const isReadOnly = readOnlyRef.current
 
-		if (!readOnly) {
-			annotateState.on('createAnnotation', (annotation: any, overrideId: any) => {
+			const instance = createOSDAnnotator<ImageAnnotation, ImageAnnotation>(viewer, {
+				drawingEnabled: false,
+				// Контур можно выделить, чтобы увидеть карточку узла; править —
+				// только узлы и только в режиме редактирования.
+				userSelectAction: (annotation: ImageAnnotation) =>
+					isReadOnly || getAnnotationProps(annotation)?.kind === 'structure'
+						? UserSelectAction.SELECT
+						: UserSelectAction.EDIT,
+				style,
+			})
+
+			annoRef.current = instance
+			setAnnotator(instance)
+			applyTool(instance, toolRef.current.tool, toolRef.current.drawing)
+			updateAnnotationsForPage(currentPageRef.current)
+
+			unsubscribeSelectionRef.current = instance.state.selection.subscribe((selection: Selection) => {
+				setSelectedId(selection.selected?.[0]?.id ?? null)
+			})
+
+			if (isReadOnly) return
+
+			// Нарисованный контур: вешаем на него текущий узел и заводим черновик.
+			instance.on('createAnnotation', (annotation: ImageAnnotation) => {
 				try {
-					const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-					const selectedGroup = currentGroupRef.current?.toString()
-
-					if (selectedGroup && Array.isArray(annotation.body)) {
-						annotation.body = [
-							...annotation.body.filter((item: any) => !['group', 'node-id'].includes(item.purpose)),
-							{
-								type: 'TextualBody',
-								value: selectedGroup,
-								purpose: 'group',
-							},
-							{
-								type: 'TextualBody',
-								value: selectedGroup,
-								purpose: 'node-id',
-							},
-						]
+					const page = currentPageRef.current
+					const group = currentGroupRef.current?.toString()
+					const withProps: ThyroidAnnotation = {
+						...annotation,
+						properties: {
+							kind: 'node',
+							color: (group && groupColorRef.current.get(group)) || FALLBACK_NODE_COLOR,
+							group,
+						},
 					}
-
-					overrideId(localId)
-					const localAnnotation = { ...annotation, id: localId }
-					upsertPageAnnotation(localAnnotation, currentPage)
-					syncDraftChanges(
-						localId,
-						'create',
-						getAnnotationPoints(localAnnotation, currentPage),
-						getAnnotationGroup(localAnnotation, currentGroupRef.current),
-					)
+					instance.updateAnnotation(withProps)
+					upsertPageAnnotation(withProps, page)
+					syncDraftChanges(withProps.id, 'create', getAnnotationPoints(withProps, page), group)
 				} catch (error) {
 					console.error('Error creating draft annotation:', error)
 				}
 			})
 
-			annotateState.on('updateAnnotation', (annotation: any) => {
+			instance.on('updateAnnotation', (annotation: ImageAnnotation) => {
 				try {
-					upsertPageAnnotation(annotation, currentPage)
+					if (isStructureAnnotationId(annotation.id)) return
+					const page = annotationPageRef.current.get(annotation.id) ?? currentPageRef.current
+					upsertPageAnnotation(annotation as ThyroidAnnotation, page)
 					syncDraftChanges(
-						String(annotation.id),
+						annotation.id,
 						'update',
-						getAnnotationPoints(annotation, currentPage),
-						getAnnotationGroup(annotation, currentGroupRef.current),
+						getAnnotationPoints(annotation, page),
+						getAnnotationProps(annotation)?.group ?? currentGroupRef.current,
 					)
 				} catch (error) {
 					console.error('Error updating draft annotation:', error)
 				}
 			})
 
-			annotateState.on('deleteAnnotation', (annotation: any) => {
+			instance.on('deleteAnnotation', (annotation: ImageAnnotation) => {
 				try {
-					removePageAnnotation(String(annotation.id))
-					syncDraftChanges(String(annotation.id), 'delete', [], getAnnotationGroup(annotation, currentGroupRef.current))
+					if (isStructureAnnotationId(annotation.id)) return
+					removePageAnnotation(annotation.id)
+					syncDraftChanges(
+						annotation.id,
+						'delete',
+						[],
+						getAnnotationProps(annotation)?.group ?? currentGroupRef.current,
+					)
 				} catch (error) {
 					console.error('Error deleting draft annotation:', error)
 				}
 			})
-		}
+		},
+		[style, syncDraftChanges, upsertPageAnnotation, removePageAnnotation, updateAnnotationsForPage],
+	)
 
-		return () => {
+	const detach = useCallback(() => {
+		const instance = annoRef.current
+		annoRef.current = null
+		unsubscribeSelectionRef.current?.()
+		unsubscribeSelectionRef.current = null
+		setAnnotator(null)
+		setSelectedId(null)
+		if (!instance) return
+
+		try {
+			instance.destroy()
+		} catch (err) {
+			console.warn('Error destroying annotations:', err)
+		}
+	}, [])
+
+	const setTool = useCallback((tool: ViewerToolId, enabled: boolean) => {
+		// Рисовать можно только инструментами самого Annotorious; на навигации,
+		// кисти и линейке рисование выключается, иначе оно забирает перетаскивание.
+		const drawing = enabled && isDrawingTool(tool)
+		toolRef.current = { tool, drawing }
+		applyTool(annoRef.current, tool, drawing)
+	}, [])
+
+	/**
+	 * Кисть отдаёт растровую маску, а формат хранения у нас — полигон.
+	 * Готовый контур оформляется в такую же аннотацию, как нарисованная, и
+	 * проходит обычным путём черновиков.
+	 */
+	const addPolygon = useCallback(
+		(points: PlanePoint[]) => {
+			const anno = annoRef.current
+			if (!anno || points.length < 3) return false
+
+			const page = currentPageRef.current
+			const group = currentGroupRef.current?.toString()
+			const annotation = buildPolygonAnnotation(makeLocalId(), points, {
+				kind: 'node',
+				color: (group && groupColorRef.current.get(group)) || FALLBACK_NODE_COLOR,
+				group,
+			})
+
 			try {
-				annotateState.destroy()
-			} catch (err) {
-				console.warn('Error destroying annotations:', err)
+				anno.addAnnotation(annotation)
+			} catch (error) {
+				console.error('Не удалось добавить контур кисти:', error)
+				return false
 			}
-			if (annoRef.current === annotateState) {
-				annoRef.current = null
-			}
-		}
-		// `tool` намеренно НЕ в зависимостях: смена инструмента не должна
-		// пересоздавать инстанс Annotorious (это стирало бы аннотации).
-		// Актуальное значение читается через toolRef, применяется эффектом ниже.
-	}, [
-		osdViewer,
-		readOnly,
-		currentPage,
-		syncDraftChanges,
-		upsertPageAnnotation,
-		removePageAnnotation,
-		updateAnnotationsForPage,
-	])
 
-	useEffect(() => {
-		if (!annoRef.current) return
-		applyViewerTool(annoRef.current, tool, readOnly)
-	}, [tool, readOnly])
+			upsertPageAnnotation(annotation, page)
+			syncDraftChanges(annotation.id, 'create', getAnnotationPoints(annotation, page), group)
+			return true
+		},
+		[syncDraftChanges, upsertPageAnnotation],
+	)
 
-	const toggleSegments = useCallback(() => setShowSegments(prev => !prev), [])
-	const toggleStructures = useCallback(() => setShowStructures(prev => !prev), [])
+	const removeAnnotation = useCallback((id: string) => {
+		if (isStructureAnnotationId(id) || readOnlyRef.current) return
+		// Событие `deleteAnnotation` само уберёт контур из кадра и черновика.
+		annoRef.current?.removeAnnotation(id)
+	}, [])
+
+	/**
+	 * Досохранить правку выделенного контура: `updateAnnotation` Annotorious 3
+	 * шлёт при снятии выделения, асинхронно (setTimeout). Ждём с запасом,
+	 * чтобы черновик успел обновиться до отправки на бэкенд.
+	 */
+	const flushPendingSelection = useCallback(async () => {
+		const anno = annoRef.current
+		if (!anno || anno.getSelected().length === 0) return
+		anno.cancelSelected()
+		await new Promise(resolve => setTimeout(resolve, 30))
+	}, [])
+
+	const layer = useMemo<ViewerAnnotationLayer>(
+		() => ({ attach, detach, setTool, addPolygon }),
+		[attach, detach, setTool, addPolygon],
+	)
+
+	const selected = useMemo<ThyroidAnnotation | null>(
+		() => (selectedId && annotator ? ((annotator.getAnnotationById(selectedId) as ThyroidAnnotation) ?? null) : null),
+		[annotator, selectedId],
+	)
+
+	// Легенда — все узлы; отмечаем, какие есть на текущем кадре.
+	const uniqueNodes = useMemo(() => buildUniqueNodes(seg, currentPage), [seg, currentPage])
 
 	const structureItems = useMemo(
 		() => buildStructureLegendItems(thyroidStructures, currentPage),
@@ -405,69 +458,19 @@ export function useThyroidAnnotator({
 		[thyroidStructures],
 	)
 
-	// Легенда — все узлы; отмечаем, какие есть на текущем кадре.
-	const uniqueNodes = useMemo(() => buildUniqueNodes(seg, currentPage), [seg, currentPage])
-
-	/**
-	 * Кисть отдаёт растровую маску, а формат хранения у нас — полигон.
-	 * Здесь готовый контур оформляется в такую же аннотацию, какую создал бы
-	 * Annotorious, и проходит обычным путём черновиков — форматы совпадают.
-	 */
-	const addPolygonFromPoints = useCallback(
-		(points: Array<{ x: number; y: number }>) => {
-			if (!annoRef.current || points.length < 3) return false
-
-			const selectedGroup = currentGroupRef.current?.toString()
-			const localId = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-			const svgPoints = points.map(p => `${p.x},${p.y}`).join(' ')
-
-			const annotation = {
-				type: 'Annotation',
-				'@context': 'http://www.w3.org/ns/anno.jsonld',
-				id: localId,
-				body: selectedGroup
-					? [
-							{ type: 'TextualBody', value: selectedGroup, purpose: 'group' },
-							{ type: 'TextualBody', value: selectedGroup, purpose: 'node-id' },
-						]
-					: [],
-				target: {
-					selector: {
-						type: 'SvgSelector',
-						value: `<svg><polygon points="${svgPoints}"></polygon></svg>`,
-					},
-				},
-			}
-
-			try {
-				annoRef.current.addAnnotation(annotation)
-			} catch (error) {
-				console.error('Не удалось добавить контур кисти:', error)
-				return false
-			}
-
-			upsertPageAnnotation(annotation, currentPage)
-			syncDraftChanges(localId, 'create', getAnnotationPoints(annotation, currentPage), selectedGroup)
-			return true
-		},
-		[currentPage, syncDraftChanges, upsertPageAnnotation],
-	)
-
-	const flushPendingSelection = useCallback(async () => {
-		if (annoRef.current?.saveSelected) {
-			await annoRef.current.saveSelected()
-		}
-	}, [])
-
 	return {
-		showSegments,
-		toggleSegments,
+		layer,
+		annotator,
+		selected,
+		removeAnnotation,
 		uniqueNodes,
-		showStructures,
-		toggleStructures,
 		structureItems,
 		hasStructures,
 		flushPendingSelection,
-		addPolygonFromPoints,
 	}
+}
+
+/** Узел ещё не сохранённого контура — из черновика. */
+function findDraftGroup(changes: SegmentDraftChange[], annotationId: string): string | number | undefined {
+	return changes.find(change => change.annotationId === annotationId)?.segment_group
 }

@@ -1,5 +1,3 @@
-/// <reference types="vite/client" /
-
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
@@ -45,15 +43,13 @@ export default defineConfig(({ mode }) => {
 	return {
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
-			// УЗИ-контур рендерит через @medml/viewers (OpenSeadragon + Annotorious
-			// от @recogito). Единый инстанс openseadragon обязателен: две копии
-			// ломают привязку Annotorious к вьюеру.
 			dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom', 'openseadragon'],
 			alias: {
 				'@': path.resolve(__dirname, 'src'),
 				'@medml/ui': path.resolve(__dirname, '../../lib/ui/src'),
 				'@medml/viewers': path.resolve(__dirname, '../../lib/viewers/src'),
 				'@medml/patient_view': path.resolve(__dirname, '../../domains/patient_view/src'),
+				'@medml/study_view': path.resolve(__dirname, '../../domains/study_view/src'),
 				'@medml/patient_create': path.resolve(__dirname, '../../domains/patient_create/src'),
 				'@medml/doctor_profile': path.resolve(__dirname, '../../domains/doctor_profile/src'),
 				'@medml/patients': path.resolve(__dirname, '../../domains/patients/src'),

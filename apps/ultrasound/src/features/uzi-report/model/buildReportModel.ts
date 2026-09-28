@@ -7,7 +7,7 @@ import {
 	positiveNumber,
 	readBackendVolumes,
 } from '@/features/uzi-view/model/thyroidDimensions'
-import { pxToMm } from '@/features/uzi-view/viewer/measurement'
+import { pxToMm } from '@medml/viewers'
 
 import type { ReportExtras, ReportLobe, ReportNodule, ThyroidReportModel } from './types'
 
@@ -26,9 +26,7 @@ function num(value: unknown, digits = 2, fallback = DASH): string {
 /**
  * Доля в заключении. Размеры — миллиметры из формы (канонические имена,
  * см. `thyroidDimensions.ts`). Объём считаем сами, если есть все три
- * размера: так он учитывает правку врача. Иначе берём объём бэкенда — он
- * собран по нескольким исследованиям пациента, на одном снимке всех трёх
- * размеров обычно нет.
+ * размера: так он учитывает правку врача. Иначе берём объём бэкенда.
  */
 function buildLobe(
 	values: Record<string, unknown>,
@@ -51,7 +49,7 @@ function buildLobe(
 	}
 }
 
-/** Размеры узла в пикселях — их можно перевести только по калибровке. */
+/** Размеры узла в пикселях*/
 const PX_SIZE_KEYS = ['width_px', 'height_px', 'max_dim_px', 'min_dim_px']
 
 export function needsScaleCalibration(data: ThyroidUziApiResponse, pxPerMm: number | null | undefined): boolean {
@@ -110,9 +108,7 @@ function positive(details: Record<string, unknown>, key: string): number | undef
 }
 
 /**
- * Размер в миллиметрах: сначала то, что посчитал бэкенд (`*_mm`, есть,
- * когда у снимка известен масштаб пикселя), иначе тот же размер в пикселях
- * (`*_px`), переведённый по калибровке врача во вьюере.
+ * Размер в миллиметрах: сначала то, что посчитал бэкенд, иначе тот же размер в пикселях, переведённый по калибровке врача во вьюере.
  */
 function mmValue(
 	details: Record<string, unknown>,
@@ -128,15 +124,7 @@ function mmValue(
 }
 
 /**
- * Размеры узла по данным бэкенда (`nodule_metrics.calculate_nodule_measurements`).
- * На поперечном снимке измеряются ширина и толщина, на продольном — длина
- * и толщина; бэкенд хранит их под разными полями для каждой проекции:
- *
- * - cross: ширина — `cross_width_mm`, толщина — `cross_height_mm`;
- * - long:  длина — `long_{side}_max_dim_mm`, толщина — `long_{side}_min_dim_mm`,
- *          где side — доля (`left` / `right`).
- *
- * Медицинские названия размеров задаются только здесь.
+ * Размеры узла по данным бэкенда.
  */
 function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | null | undefined): string {
 	const details = (segment.details ?? {}) as Record<string, unknown>

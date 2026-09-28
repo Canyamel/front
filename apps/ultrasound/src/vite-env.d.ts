@@ -19,9 +19,3 @@ interface ImportMeta {
 	readonly env: ImportMetaEnv
 }
 
-declare module "@recogito/annotorious-openseadragon";
-declare module "@recogito/annotorious-selector-pack";
-declare module "svg-polygon-points" {
-	export function fromGeoJSON(coords: number[][]): { toString(): string };
-	export function toGeoJSON(svg: string): number[][][];
-}

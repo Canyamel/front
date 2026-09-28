@@ -16,6 +16,7 @@ import {
 } from "@cytology/core/service/cytology";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { prepareCytologyInfo } from "@cytology/core/functions/prepareCytologyInfo";
+import { mapToSegmentStack } from "@cytology/core/adapters/mapToSegmentStack";
 
 import {
     IGroupedSegments,
@@ -77,12 +78,15 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
     }, [cytologyEditedInfo]);
 
     useEffect(() => {
-        const options = new Set(segmentTypes).difference(
-            new Set(segmentStack.map((item) => item.seg_type))
+        // Доступны типы, для которых ещё нет группы сегментов. Раньше здесь
+        // вычитали коды из объектов справочника — список не сокращался.
+        const used = new Set(segmentStack.map((item) => item.seg_type));
+        setAvailableOptions(
+            segmentTypes
+                .map((type) => type.code as SegmentType)
+                .filter((code) => !used.has(code))
         );
-
-        setAvailableOptions(Array.from(options));
-    }, [segmentStack]);
+    }, [segmentStack, segmentTypes]);
 
     const handleSave = useCallback(async () => {
         if (!cytologyId || isSaving) {
@@ -123,11 +127,11 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
 
         for (const segType of typesToLoad) {
             const segmentsByType = await getSegmentsByType({
-                id: newReviseId,
+                id: String(newReviseId),
                 segType,
             }).unwrap();
 
-            allNewSegments.push(...segmentsByType);
+            allNewSegments.push(...mapToSegmentStack(segmentsByType));
         }
 
         allNewSegments.forEach((seg) => {
@@ -203,7 +207,7 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({
             promises.push(
                 patchCytologyInfo({
                     id: newReviseId,
-                    body: cytologyEditedInfoRef.current,
+                    body: { ...cytologyEditedInfoRef.current },
                 }).unwrap()
             );
         }

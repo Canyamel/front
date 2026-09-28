@@ -16,6 +16,7 @@
       "@medml/doctor_profile": ["../../domains/doctor_profile/src"],
       "@medml/patients": ["../../domains/patients/src"],
       "@medml/patient_view": ["../../domains/patient_view/src"],
+      "@medml/study_view": ["../../domains/study_view/src"],
       "@medml/auth": ["../../domains/auth/src"],
       "@medml/layout": ["../../domains/layout/src"],
       "@medml/shared": ["../../lib/shared/src"],

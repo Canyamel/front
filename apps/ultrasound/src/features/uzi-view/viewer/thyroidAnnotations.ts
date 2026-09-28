@@ -1,5 +1,6 @@
-import { fromGeoJSON, toGeoJSON } from 'svg-polygon-points'
-import type { ViewerImage } from '@medml/viewers'
+import { ShapeType } from '@annotorious/openseadragon'
+import type { ImageAnnotation, PolygonGeometry, RectangleGeometry } from '@annotorious/openseadragon'
+import type { PlanePoint, ViewerImage } from '@medml/viewers'
 import type { Segment, SegmentPoint } from '../model/types'
 import { getStructureFrame, type ThyroidStructureJson } from '../structures'
 import { STRUCTURE_KEY_SEPARATOR } from '../model/segmentation'
@@ -20,45 +21,82 @@ export function getProbabilityValue(segment: { details?: unknown } | undefined, 
 	return undefined
 }
 
-export function getAnnotationGroup(annotation: any, fallback?: string | number): string | number | undefined {
-	const groupBody = annotation?.body?.find((item: any) => item.purpose === 'group')
-	return groupBody?.value ?? fallback
+export interface ThyroidAnnotationProps {
+	kind: 'node' | 'structure'
+	color: string
+	group?: string
+	displayIndex?: number
+	tirads?: string | number
+	isAi?: boolean
+	probabilities?: Record<string, string>
+	label?: string
+	confidence?: number
 }
 
-export function getAnnotationPoints(annotation: any, pageIndex: number): SegmentPoint[] {
-	const selectorValue = annotation?.target?.selector?.value || ''
+export type ThyroidAnnotation = ImageAnnotation & { properties?: ThyroidAnnotationProps }
 
-	if (selectorValue.includes('<polygon')) {
-		const svgValue = selectorValue.split('"')[1]
-		const coords = toGeoJSON(svgValue)
-		if (coords[0]) {
-			return coords[0].map((point: any) => ({
-				x: parseInt(point[0]),
-				y: parseInt(point[1]),
-				z: pageIndex,
-			}))
-		}
-	}
-
-	if (selectorValue.includes('xywh=')) {
-		const rectValues = selectorValue.split(':')[1].split(',')
-		const [x, y, width, height] = rectValues.map((value: string) => parseInt(value))
-
-		return [
-			{ x, y, z: pageIndex },
-			{ x: x + width, y, z: pageIndex },
-			{ x: x + width, y: y + height, z: pageIndex },
-			{ x, y: y + height, z: pageIndex },
-		]
-	}
-
-	return []
+export function getAnnotationProps(annotation: unknown): ThyroidAnnotationProps | undefined {
+	return (annotation as ThyroidAnnotation | undefined)?.properties
 }
 
-/**
- * Префикс id аннотаций структур ЩЖ. Это не контуры узлов: их правки
- * и удаление не должны попадать в черновик сохранения сегментов.
- */
+export function getAnnotationGroup(annotation: unknown, fallback?: string | number): string | number | undefined {
+	return getAnnotationProps(annotation)?.group ?? fallback
+}
+
+type AnyGeometry = Partial<PolygonGeometry> & Partial<RectangleGeometry>
+
+/** Точки контура в координатах снимка; прямоугольник разворачивается в 4 угла. */
+export function getAnnotationPoints(annotation: unknown, pageIndex: number): SegmentPoint[] {
+	const geometry = (annotation as ThyroidAnnotation | undefined)?.target?.selector?.geometry as AnyGeometry | undefined
+	if (!geometry) return []
+
+	if (Array.isArray(geometry.points)) {
+		return geometry.points.map(([x, y]) => ({ x: Math.round(x), y: Math.round(y), z: pageIndex }))
+	}
+
+	const { x, y, w, h } = geometry
+	if (x == null || y == null || w == null || h == null) return []
+
+	return [
+		{ x: Math.round(x), y: Math.round(y), z: pageIndex },
+		{ x: Math.round(x + w), y: Math.round(y), z: pageIndex },
+		{ x: Math.round(x + w), y: Math.round(y + h), z: pageIndex },
+		{ x: Math.round(x), y: Math.round(y + h), z: pageIndex },
+	]
+}
+
+/** Полигон в формате Annotorious 3. `bounds` обязателен — по нему идёт hit-test. */
+export function buildPolygonAnnotation(
+	id: string,
+	points: PlanePoint[] | number[][],
+	properties: ThyroidAnnotationProps,
+): ThyroidAnnotation {
+	const coords = points.map(point => (Array.isArray(point) ? [point[0], point[1]] : [point.x, point.y]))
+	const xs = coords.map(([x]) => x)
+	const ys = coords.map(([, y]) => y)
+
+	return {
+		id,
+		bodies: [],
+		properties,
+		target: {
+			annotation: id,
+			selector: {
+				type: ShapeType.POLYGON,
+				geometry: {
+					points: coords,
+					bounds: {
+						minX: Math.min(...xs),
+						minY: Math.min(...ys),
+						maxX: Math.max(...xs),
+						maxY: Math.max(...ys),
+					},
+				} as PolygonGeometry,
+			},
+		},
+	}
+}
+
 export const STRUCTURE_ANNOTATION_ID_PREFIX = 'structure_'
 
 export const isStructureAnnotationId = (id: unknown): boolean =>
@@ -70,20 +108,12 @@ const STRUCTURE_LABELS: Record<string, string> = {
 	isthmus: 'Перешеек',
 }
 
-/**
- * Цвета структур ЩЖ. Подобраны вне палитры узлов (`NODE_COLORS`), а сами
- * контуры рисуются пунктиром и почти без заливки (класс
- * `a9s-structure`, см. viewer.scss) — чтобы долю нельзя было принять за узел.
- */
 const STRUCTURE_COLORS: Record<string, string> = {
 	right_lobe: '#5DADE2',
 	left_lobe: '#48C9B0',
 	isthmus: '#C39BD3',
 }
 const STRUCTURE_FALLBACK_COLOR = '#AAB7B8'
-
-/** CSS-класс, который formatter Annotorious вешает на контуры структур. */
-export const STRUCTURE_ANNOTATION_CLASS = 'a9s-structure'
 
 const structureBaseName = (key: string): string => key.split(STRUCTURE_KEY_SEPARATOR)[0]
 
@@ -119,61 +149,32 @@ export function buildStructureLegendItems(
 export function buildStructureAnnotationsForPage(
 	structures: ThyroidStructureJson | undefined,
 	pageIndex: number,
-	imageUrl: string,
-): any[] {
+): ThyroidAnnotation[] {
 	const pageData = getStructureFrame(structures, pageIndex)
 	if (!pageData) return []
 
-	return Object.entries(pageData).reduce<any[]>((acc, [structureName, details]) => {
-		if (!details?.coords || details.coords.length < 3) return acc
-
-		const svgPoints = fromGeoJSON(details.coords).toString()
-		const svgSelector = `<svg><polygon points="${svgPoints}"></polygon></svg>`
+	return Object.entries(pageData).flatMap(([structureName, details]) => {
+		if (!details?.coords || details.coords.length < 3) return []
+		const base = structureBaseName(structureName)
 
 		return [
-			...acc,
-			{
-				type: 'Annotation',
-				body: [
-					{
-						type: 'TextualBody',
-						value: STRUCTURE_LABELS[structureBaseName(structureName)] || structureBaseName(structureName),
-						purpose: 'tagging',
-					},
-					{
-						type: 'TextualBody',
-						value: details.confidence
-							? `Достоверность ${(details.confidence * 100).toFixed(1)}%`
-							: 'Достоверность неизвестна',
-						purpose: 'commenting',
-					},
-					{
-						type: 'TextualBody',
-						value: STRUCTURE_COLORS[structureBaseName(structureName)] ?? STRUCTURE_FALLBACK_COLOR,
-						purpose: 'color',
-					},
-				],
-				target: {
-					source: imageUrl,
-					selector: {
-						type: 'SvgSelector',
-						value: svgSelector,
-					},
-				},
-				'@context': 'http://www.w3.org/ns/anno.jsonld',
-				id: `${STRUCTURE_ANNOTATION_ID_PREFIX}${structureName}_page_${pageIndex}`,
-			},
+			buildPolygonAnnotation(`${STRUCTURE_ANNOTATION_ID_PREFIX}${structureName}_page_${pageIndex}`, details.coords, {
+				kind: 'structure',
+				color: STRUCTURE_COLORS[base] ?? STRUCTURE_FALLBACK_COLOR,
+				label: STRUCTURE_LABELS[base] || base,
+				confidence: details.confidence,
+			}),
 		]
-	}, [])
+	})
 }
 
 /** Аннотации узлов (segments), сгруппированные по страницам снимка. */
 export function buildSegmentAnnotationsByPage(
 	segments: Segment[] | undefined,
 	images: ViewerImage[],
-): Record<number, any[]> {
+): Record<number, ThyroidAnnotation[]> {
 	const actualPages = images.length || 1
-	const pageAnnotationsMap: Record<number, any[]> = {}
+	const pageAnnotationsMap: Record<number, ThyroidAnnotation[]> = {}
 	for (let i = 0; i < actualPages; i++) {
 		pageAnnotationsMap[i] = []
 	}
@@ -183,12 +184,20 @@ export function buildSegmentAnnotationsByPage(
 	segments.forEach((segment, segmentIndex) => {
 		if (!segment.data) return
 
-		const nodeColor = NODE_COLORS[segmentIndex % NODE_COLORS.length]
-		const displayIndex = segmentIndex + 1
-		const tirads2 = formatProbability(getProbabilityValue(segment, ['nodule_2', 'tirads_2']))
-		const tirads3 = formatProbability(getProbabilityValue(segment, ['nodule_3', 'tirads_3']))
-		const tirads4 = formatProbability(segment.details?.nodule_4)
-		const tirads5 = formatProbability(segment.details?.nodule_5)
+		const properties: ThyroidAnnotationProps = {
+			kind: 'node',
+			color: NODE_COLORS[segmentIndex % NODE_COLORS.length],
+			group: segment.id.toString(),
+			displayIndex: segmentIndex + 1,
+			tirads: segment.details?.nodule_type ?? undefined,
+			isAi: Boolean(segment.is_ai),
+			probabilities: {
+				'TI-RADS 2': formatProbability(getProbabilityValue(segment, ['nodule_2', 'tirads_2'])),
+				'TI-RADS 3': formatProbability(getProbabilityValue(segment, ['nodule_3', 'tirads_3'])),
+				'TI-RADS 4': formatProbability(segment.details?.nodule_4),
+				'TI-RADS 5': formatProbability(segment.details?.nodule_5),
+			},
+		}
 
 		segment.data.forEach((contour, contourIndex) => {
 			if (!contour.points) return
@@ -207,65 +216,11 @@ export function buildSegmentAnnotationsByPage(
 			Object.entries(pointsByPage).forEach(([pageIndexStr, points]) => {
 				if (points.length < 3) return
 
-				try {
-					const coord = points.map(point => [point.x, point.y])
-					const svgPoints = fromGeoJSON(coord).toString()
-					const svgSelector = `<svg><polygon points="${svgPoints}"></polygon></svg>`
+				const id = contour.id
+					? contour.id.toString()
+					: `node_${segment.id}_contour_${contourIndex}_page_${pageIndexStr}`
 
-					const annotation = {
-						type: 'Annotation',
-						body: [
-							{
-								type: 'TextualBody',
-								value: `Узел ${displayIndex}\nTI-RADS 2: ${tirads2}\nTI-RADS 3: ${tirads3}\nTI-RADS 4: ${tirads4}\nTI-RADS 5: ${tirads5}`,
-								purpose: 'commenting',
-							},
-							{
-								type: 'TextualBody',
-								value: segment.is_ai ? 'AI only' : 'Updated',
-								purpose: 'commenting',
-							},
-							{
-								type: 'TextualBody',
-								value: 'TI-RADS ' + (segment.details?.nodule_type ?? 'Unknown'),
-								purpose: 'tagging',
-							},
-							{
-								type: 'TextualBody',
-								value: segment.id.toString(),
-								purpose: 'group',
-							},
-							{
-								type: 'TextualBody',
-								value: segment.is_ai ? 'AI' : 'Doctor result',
-								purpose: 'tagging',
-							},
-							{
-								type: 'TextualBody',
-								value: nodeColor,
-								purpose: 'color',
-							},
-							{
-								type: 'TextualBody',
-								value: segment.id.toString(),
-								purpose: 'node-id',
-							},
-						],
-						target: {
-							source: images[parseInt(pageIndexStr)]?.url || '',
-							selector: {
-								type: 'SvgSelector',
-								value: svgSelector,
-							},
-						},
-						'@context': 'http://www.w3.org/ns/anno.jsonld',
-						id: contour.id ? contour.id.toString() : `node_${segment.id}_contour_${contourIndex}_page_${pageIndexStr}`,
-					}
-
-					pageAnnotationsMap[parseInt(pageIndexStr)].push(annotation)
-				} catch (error) {
-					console.error('Error creating annotation:', error)
-				}
+				pageAnnotationsMap[parseInt(pageIndexStr)].push(buildPolygonAnnotation(id, points, properties))
 			})
 		})
 	})

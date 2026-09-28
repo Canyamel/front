@@ -1,18 +1,17 @@
 import React from 'react'
 import ViewerActionButton from '../uzi-viewer/components/ViewerActionButton'
 
-export interface SegmentsVisibilityToggleProps {
+export interface ViewerAnnotationsToggleProps {
 	visible: boolean
 	onToggle: () => void
+	/** Что переключаем — если переключателей в тулбаре несколько. */
 	label?: string
 }
 
 /**
- * Кнопка показать/скрыть сегменты в кастомном слоте тулбара. Чисто
- * презентационный компонент — использует `ViewerActionButton` из
- * `@medml/viewers` вместо копирования стилей кнопки.
+ * Кнопка «показать/скрыть разметку» в плавающем тулбаре.
  */
-const SegmentsVisibilityToggle: React.FC<SegmentsVisibilityToggleProps> = ({ visible, onToggle, label }) => (
+const ViewerAnnotationsToggle: React.FC<ViewerAnnotationsToggleProps> = ({ visible, onToggle, label }) => (
 	<div
 		style={{
 			display: 'flex',
@@ -29,4 +28,4 @@ const SegmentsVisibilityToggle: React.FC<SegmentsVisibilityToggleProps> = ({ vis
 	</div>
 )
 
-export default SegmentsVisibilityToggle
+export default ViewerAnnotationsToggle

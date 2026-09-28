@@ -5,25 +5,19 @@ export interface RulerMeasurement {
 	id: string
 	line: MeasuredLine
 	lengthPx: number
-	/** Кадр, на котором проведено измерение. */
 	page: number
 }
 
 export interface UseRulerMeasurementsResult {
 	measurements: RulerMeasurement[]
-	/** Добавить измерение по отрезку в координатах снимка. */
 	add: (line: MeasuredLine, page: number) => void
 	remove: (id: string) => void
 	clear: () => void
-	/** Подпись с расстоянием; `null`, пока масштаб не задан. */
 	labelFor: (measurement: RulerMeasurement, pxPerMm: number | null) => string | null
 }
 
 /**
  * Произвольные измерения линейкой.
- *
- * Живут только в состоянии вьюера: это вспомогательная разметка врача,
- * а не контуры сегментов — на бэкенд они не отправляются.
  */
 export function useRulerMeasurements(): UseRulerMeasurementsResult {
 	const [measurements, setMeasurements] = useState<RulerMeasurement[]>([])
