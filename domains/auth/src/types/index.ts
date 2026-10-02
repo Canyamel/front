@@ -45,26 +45,3 @@ export interface RefreshTokenResponse {
 	access_token: string
 	refresh_token: string
 }
-
-export interface NextAuthToken {
-	name: string
-	email: string
-	sub: string
-	accessToken: string
-	accessTokenExpiry: string
-	refreshToken: string
-	iat: number
-	exp: number
-	jti: string
-}
-
-export interface NextAuthUser {
-	name: string
-	email: string
-	image: undefined
-	data: {
-		accessToken: string
-		accessTokenExpiry: string
-		refreshToken: string
-	}
-}

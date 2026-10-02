@@ -28,6 +28,13 @@ export interface ThyroidAnnotationProps {
 	displayIndex?: number
 	tirads?: string | number
 	isAi?: boolean
+	/**
+	 * id контура на бэкенде. Один контур трекинга лежит на нескольких кадрах
+	 * (точки с разным `z`), а аннотация — его срез на одном кадре.
+	 */
+	contourId?: string
+	/** Кадр, к которому относится аннотация. */
+	page?: number
 	probabilities?: Record<string, string>
 	label?: string
 	confidence?: number
@@ -216,16 +223,51 @@ export function buildSegmentAnnotationsByPage(
 			Object.entries(pointsByPage).forEach(([pageIndexStr, points]) => {
 				if (points.length < 3) return
 
-				const id = contour.id
-					? contour.id.toString()
-					: `node_${segment.id}_contour_${contourIndex}_page_${pageIndexStr}`
+				const page = parseInt(pageIndexStr)
+				const contourId = contour.id != null ? contour.id.toString() : undefined
+				// id аннотации уникален на каждом кадре: у контура трекинга один id
+				// на все кадры, а Annotorious 3 ломается на повторных id (старая
+				// графика остаётся на холсте «призраком» поверх других кадров).
+				const id = contourId
+					? `${contourId}${CONTOUR_PAGE_SEPARATOR}${page}`
+					: `node_${segment.id}_contour_${contourIndex}_page_${page}`
 
-				pageAnnotationsMap[parseInt(pageIndexStr)].push(buildPolygonAnnotation(id, points, properties))
+				pageAnnotationsMap[page].push(buildPolygonAnnotation(id, points, { ...properties, contourId, page }))
 			})
 		})
 	})
 
 	return pageAnnotationsMap
+}
+
+/** Разделитель id контура и кадра в id аннотации: `<contourId>@<кадр>`. */
+export const CONTOUR_PAGE_SEPARATOR = '@'
+
+/**
+ * Точки сохранённых контуров по id — рабочая копия для правок: правка или
+ * удаление на одном кадре меняет только точки этого кадра, а не весь контур.
+ */
+export function buildContourPoints(segments: Segment[] | undefined): Map<string, SegmentPoint[]> {
+	const result = new Map<string, SegmentPoint[]>()
+	for (const segment of segments ?? []) {
+		for (const contour of segment.data ?? []) {
+			if (contour.id != null && contour.points) {
+				result.set(contour.id.toString(), contour.points.map(point => ({ ...point, z: point.z || 0 })))
+			}
+		}
+	}
+	return result
+}
+
+/** Есть ли у контура хотя бы один кадр с полноценным полигоном (≥ 3 точек). */
+export function hasDrawableFrame(points: SegmentPoint[]): boolean {
+	const counts = new Map<number, number>()
+	return points.some(point => {
+		const page = point.z || 0
+		const count = (counts.get(page) ?? 0) + 1
+		counts.set(page, count)
+		return count >= 3
+	})
 }
 
 export interface UniqueNode {

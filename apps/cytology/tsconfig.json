@@ -22,7 +22,7 @@
       "@medml/cytology_upload": ["../../domains/cytology_upload/src"]
     }
   },
-  "include": ["src", "vite.config.ts", "lib", "types"],
+  "include": ["src", "vite.config.ts", "lib"],
   "exclude": ["node_modules"]
 }
 

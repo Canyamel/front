@@ -1,18 +1,14 @@
 @use '@medml/ui/styles/tokens' as *;
 
-// Экран регистрации по макету «02 — Screens · SignUp».
-// Заголовок/знак используют общие классы .login-* из ../login/page.scss.
 .register-form {
 	width: 100%;
 
-	// Подписи полей: 13/Medium slate-700.
 	.ant-form-item-label > label {
 		font-family: $font-family-ui;
 		font-size: 13px;
 		font-weight: $font-weight-medium;
 		color: $slate-700;
 
-		// Убираем обязательную звёздочку antd: в макете её нет.
 		&::before {
 			content: '';
 		}
@@ -24,9 +20,6 @@
 	height: 48px;
 }
 
-// Индикатор надёжности пароля.
-// Раньше каждое правило шло с !important и своими hex (#FFC108, #64C444),
-// не совпадавшими с палитрой. Теперь — токены статусов и обычные селекторы.
 .password-rules {
 	margin-bottom: $spacing-xl;
 
@@ -38,7 +31,6 @@
 		color: $color-text-secondary;
 	}
 
-	// По умолчанию — пустой кружок с обводкой.
 	.ant-badge-status-dot.ant-badge-status-default {
 		width: 8px;
 		height: 8px;

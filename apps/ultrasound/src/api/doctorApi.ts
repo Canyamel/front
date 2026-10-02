@@ -7,8 +7,6 @@ import { baseApi } from '@medml/store'
  * - `GET /med_worker/update/{id}` — `MedWorkerChangeView`. Несмотря на «update»
  *   в пути, view подмешивает `RetrieveModelMixin` и явно определяет `get()`,
  *   поэтому отдаёт профиль по id (`MedWorkerCommonSerializer`).
- *
- * Счётчик уведомлений убран вместе с сервисом `inner_mail` на бэкенде.
  */
 
 /** Ответ `MedWorkerCommonSerializer`. */
@@ -17,11 +15,8 @@ export type MedWorkerDto = {
 	last_name: string
 	first_name: string
 	fathers_name: string
-	/** Медицинская организация. */
 	med_organization: string
-	/** Должность — в макете показывается как специальность. */
 	job: string | null
-	/** Удалённый эксперт — в макете чип «Удалённая работа». */
 	is_remote_worker: boolean
 	expert_details: string
 }
@@ -34,12 +29,9 @@ export type DoctorProfile = {
 	lastName: string
 	firstName: string
 	fathersName: string
-	/** Специальность (должность). */
 	speciality: string | null
-	/** Клиника. */
 	organization: string | null
 	isRemoteWorker: boolean
-	/** Опыт и сертификаты (свободный текст). */
 	expertDetails: string
 }
 
@@ -62,9 +54,7 @@ function buildInitials(lastName: string, firstName: string): string {
 }
 
 function toDoctorProfile(dto: MedWorkerDto): DoctorProfile {
-	const fullName = [dto.last_name, dto.first_name, dto.fathers_name]
-		.filter(part => part && part.trim())
-		.join(' ')
+	const fullName = [dto.last_name, dto.first_name, dto.fathers_name].filter(part => part && part.trim()).join(' ')
 
 	return {
 		id: dto.id,
@@ -101,14 +91,9 @@ export const doctorApi = baseApi.injectEndpoints({
 				method: 'PATCH',
 				body,
 			}),
-			invalidatesTags: (_r, _e, { doctorId }) => [
-				{ type: 'MedWorker', id: doctorId },
-			],
+			invalidatesTags: (_r, _e, { doctorId }) => [{ type: 'MedWorker', id: doctorId }],
 		}),
 	}),
 })
 
-export const {
-	useGetDoctorProfileQuery,
-	useUpdateDoctorProfileMutation,
-} = doctorApi
+export const { useGetDoctorProfileQuery, useUpdateDoctorProfileMutation } = doctorApi

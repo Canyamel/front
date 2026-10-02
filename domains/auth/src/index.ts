@@ -3,12 +3,10 @@ export { default as RegisterPage } from "./pages/register/page";
 export {
   DEFAULT_POST_AUTH_PATH,
   DEFAULT_LOGIN_ROUTE,
-  DEFAULT_PROTECTED_ROUTE_MATCHER,
 } from "./constants/routes";
 export { AuthSwitchLink } from "./components";
 export { sanitizeInternalPath } from "./utils/sanitizeCallbackUrl";
 export { AuthLayoutSpa } from "./components";
-export { default as AuthLayout } from "./components/AuthLayout/AuthLayout";
 export { AuthErrorProvider } from "./contexts/AuthErrorContext";
 export { AuthApiProvider, useAuthApi } from "./contexts/AuthApiContext";
 export type {
@@ -19,6 +17,4 @@ export type {
   IAuthApi,
   RefreshTokenPayload,
   RefreshTokenResponse,
-  NextAuthToken,
-  NextAuthUser,
 } from "./types";

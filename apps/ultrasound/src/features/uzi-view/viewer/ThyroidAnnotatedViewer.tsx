@@ -78,6 +78,20 @@ const ThyroidAnnotatedViewer = ({
 		onDraftChangesChange,
 	})
 
+	// Кадры многокадрового снимка — отдельные PNG, OpenSeadragon грузит их по
+	// одному в момент перелистывания, и снимок на мгновение «перерисовывается».
+	// Соседние кадры подгружаем заранее: при смене кадра он уже в кеше браузера.
+	useEffect(() => {
+		if (images.length < 2) return
+		for (const index of [currentPage + 1, currentPage + 2, currentPage - 1]) {
+			const url = images[index]?.url
+			if (url) {
+				const preload = new Image()
+				preload.src = url
+			}
+		}
+	}, [images, currentPage])
+
 	// Императивный API отдаём наружу: галерея дожидается несохранённого
 	// выделения перед отправкой сегментов на бэкенд.
 	useEffect(() => {

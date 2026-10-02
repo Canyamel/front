@@ -1,7 +1,5 @@
 @use '@medml/ui/styles/tokens' as *;
 
-// Экран входа по макету «02 — Screens · SignIn»:
-// знак, заголовок и подпись по центру, поля 400px, кнопка на всю ширину.
 .login-hero {
 	display: flex;
 	flex-direction: column;
@@ -41,8 +39,6 @@
 .login-form {
 	width: 100%;
 
-	// Подписи полей: 13/Medium slate-700. Раньше задавались через !important
-	// с захардкоженным цветом — теперь через токены и точечный селектор.
 	.ant-form-item-label > label {
 		font-family: $font-family-ui;
 		font-size: 13px;

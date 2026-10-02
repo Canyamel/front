@@ -226,13 +226,36 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 	 * выбранный до открытия снимка, слой применяет сам — он запоминает
 	 * последний `setTool` и повторяет его при подключении.
 	 */
+	/**
+	 * Инстанс движка, к которому сейчас подключён слой разметки.
+	 *
+	 * В постраничном режиме OpenSeadragon шлёт `open` не один раз, а на каждую
+	 * смену кадра, и `onInstanceReady` приходит столько же раз. Подключать слой
+	 * на каждое событие нельзя: каждый `attach` создаёт новый экземпляр
+	 * библиотеки разметки, старые не уничтожаются, и контуры прошлых кадров
+	 * ложатся поверх текущего (контуры «скачут» и накладываются). Поэтому слой
+	 * подключается к инстансу ровно один раз; кадры переключаются через
+	 * `onIndexChange`.
+	 */
+	const attachedViewerRef = useRef<ViewerInstance | null>(null)
+
 	const handleInstanceReady = useCallback((viewer: ViewerInstance, container: HTMLDivElement) => {
 		setOsdViewer(viewer)
+		if (attachedViewerRef.current === viewer) return
+
+		// Новый инстанс движка: сначала отключаем слой от прежнего.
+		if (attachedViewerRef.current) {
+			layerRef.current?.detach()
+		}
+		attachedViewerRef.current = viewer
 		layerRef.current?.attach(viewer, container)
 	}, [])
 
 	const handleInstanceWillDestroy = useCallback(() => {
-		layerRef.current?.detach()
+		if (attachedViewerRef.current) {
+			layerRef.current?.detach()
+			attachedViewerRef.current = null
+		}
 		setOsdViewer(null)
 	}, [])
 

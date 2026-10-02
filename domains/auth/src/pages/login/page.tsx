@@ -139,8 +139,6 @@ const LoginPage = ({
 						},
 					]}
 				>
-					{/* name + autoComplete — чтобы браузер предложил сохранить пароль
-					    и подставлял его при следующем входе. */}
 					<Input
 						prefix={<EmailIcon />}
 						type='email'

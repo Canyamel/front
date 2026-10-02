@@ -13,8 +13,7 @@
   },
   "peerDependencies": {
     "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "next-auth": "^4.24.11"
+    "react-dom": "^18.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

@@ -14,12 +14,14 @@ import type { Segment, SegmentDraftChange, SegmentPoint } from '../model/types'
 import type { ThyroidStructureJson } from '../structures'
 import { NODE_COLORS } from './constants'
 import {
+	buildContourPoints,
 	buildPolygonAnnotation,
 	buildSegmentAnnotationsByPage,
 	buildStructureAnnotationsForPage,
 	buildStructureLegendItems,
 	buildUniqueNodes,
 	getAnnotationProps,
+	hasDrawableFrame,
 	getAnnotationPoints,
 	isStructureAnnotationId,
 	type StructureLegendItem,
@@ -122,10 +124,16 @@ export function useThyroidAnnotator({
 	const structuresVisibleRef = useRef(structuresVisible)
 	const toolRef = useRef<{ tool: ViewerToolId; drawing: boolean }>({ tool: 'pan', drawing: false })
 	const onDraftChangesChangeRef = useRef(onDraftChangesChange)
+	const thyroidStructuresRef = useRef(thyroidStructures)
 
 	/** Контуры узлов по кадрам: источник истины для перерисовки кадра. */
 	const pageAnnotationsRef = useRef<Record<number, ThyroidAnnotation[]>>({})
-	const pageStructureAnnotationsRef = useRef<Record<number, ThyroidAnnotation[]>>({})
+	/**
+	 * Рабочая копия точек сохранённых контуров (все кадры). Правка на кадре
+	 * заменяет точки только этого кадра — иначе сохранение затёрло бы контур
+	 * трекинга на остальных кадрах.
+	 */
+	const contourPointsRef = useRef<Map<string, SegmentPoint[]>>(new Map())
 	/**
 	 * На каком кадре живёт контур. Событие `updateAnnotation` может прийти
 	 * уже после переключения кадра, поэтому кадр берём отсюда, а не из
@@ -144,7 +152,8 @@ export function useThyroidAnnotator({
 		annotationsVisibleRef.current = annotationsVisible
 		structuresVisibleRef.current = structuresVisible
 		onDraftChangesChangeRef.current = onDraftChangesChange
-	}, [currentGroup, currentPage, readOnly, annotationsVisible, structuresVisible, onDraftChangesChange])
+		thyroidStructuresRef.current = thyroidStructures
+	}, [currentGroup, currentPage, readOnly, annotationsVisible, structuresVisible, onDraftChangesChange, thyroidStructures])
 
 	useEffect(() => {
 		groupColorRef.current = new Map(
@@ -152,18 +161,33 @@ export function useThyroidAnnotator({
 		)
 	}, [seg])
 
+	/**
+	 * Показать разметку кадра.
+	 *
+	 * Два шага, а не `setAnnotations(list, true)` одним вызовом: при замене
+	 * Annotorious 3 сначала рисует новые аннотации, потом удаляет старые —
+	 * и если id совпадают, удаляет только что нарисованную графику, а старую
+	 * оставляет на холсте навсегда. Отсюда были «призраки» контуров с других
+	 * кадров и контуры без обводки. Оба шага — «удалённые» изменения, событий
+	 * create/delete они не шлют.
+	 */
 	const updateAnnotationsForPage = useCallback((pageIndex: number) => {
 		const anno = annoRef.current
 		if (!anno) return
 
 		const annotations = [
-			...(structuresVisibleRef.current ? pageStructureAnnotationsRef.current[pageIndex] || [] : []),
+			...(structuresVisibleRef.current
+				? buildStructureAnnotationsForPage(thyroidStructuresRef.current, pageIndex)
+				: []),
 			...(annotationsVisibleRef.current ? pageAnnotationsRef.current[pageIndex] || [] : []),
 		]
 
 		try {
-			// replace = true: «удалённая» загрузка без create/delete событий.
-			anno.setAnnotations(annotations, true)
+			// Несохранённая правка выделенного контура досохраняется в черновик
+			// (`updateAnnotation` при снятии выделения) до того, как его уберём.
+			if (anno.getSelected().length > 0) anno.cancelSelected()
+			anno.setAnnotations([], true)
+			if (annotations.length > 0) anno.setAnnotations(annotations, false)
 		} catch (error) {
 			console.error('Не удалось показать разметку кадра:', error)
 		}
@@ -226,30 +250,23 @@ export function useThyroidAnnotator({
 		[],
 	)
 
-	// Контуры структур ЩЖ для текущей страницы.
-	useEffect(() => {
-		pageStructureAnnotationsRef.current = {
-			...pageStructureAnnotationsRef.current,
-			[currentPage]: buildStructureAnnotationsForPage(thyroidStructures, currentPage),
-		}
-		updateAnnotationsForPage(currentPage)
-	}, [currentPage, thyroidStructures, updateAnnotationsForPage])
-
 	// Контуры узлов: после сохранения RTK Query перечитывает снимок, и
-	// разметка пересобирается с серверными id.
+	// разметка пересобирается с серверными id. Здесь только данные —
+	// рисует один эффект ниже.
 	useEffect(() => {
 		const byPage = buildSegmentAnnotationsByPage(seg, images)
 		pageAnnotationsRef.current = byPage
 		const pages = new Map<string, number>()
 		Object.entries(byPage).forEach(([page, list]) => list.forEach(item => pages.set(item.id, Number(page))))
 		annotationPageRef.current = pages
-		updateAnnotationsForPage(currentPage)
-	}, [seg, images, currentPage, updateAnnotationsForPage])
+		contourPointsRef.current = buildContourPoints(seg)
+	}, [seg, images])
 
-	// Перерисовка при переключении видимости разметки.
+	// Единственное место, где кадр перерисовывается: смена кадра, данных,
+	// видимости узлов/структур или подключение аннотатора.
 	useEffect(() => {
 		updateAnnotationsForPage(currentPage)
-	}, [annotationsVisible, structuresVisible, currentPage, updateAnnotationsForPage])
+	}, [annotator, currentPage, seg, images, thyroidStructures, annotationsVisible, structuresVisible, updateAnnotationsForPage])
 
 	/**
 	 * Стиль контура. Невыделенные контуры Annotorious 3 рисует через WebGL,
@@ -283,6 +300,22 @@ export function useThyroidAnnotator({
 	 */
 	const attach = useCallback(
 		(viewer: ViewerInstance) => {
+			// Один вьюер — один аннотатор. Повторный `attach` к тому же вьюеру
+			// ничего не делает, а перед подключением к новому прежний
+			// аннотатор уничтожается — иначе его слой остаётся поверх снимка.
+			const previous = annoRef.current
+			if (previous) {
+				if (previous.viewer === viewer) return
+				unsubscribeSelectionRef.current?.()
+				unsubscribeSelectionRef.current = null
+				try {
+					previous.destroy()
+				} catch (err) {
+					console.warn('Error destroying previous annotator:', err)
+				}
+				annoRef.current = null
+			}
+
 			const isReadOnly = readOnlyRef.current
 
 			const instance = createOSDAnnotator<ImageAnnotation, ImageAnnotation>(viewer, {
@@ -331,14 +364,21 @@ export function useThyroidAnnotator({
 			instance.on('updateAnnotation', (annotation: ImageAnnotation) => {
 				try {
 					if (isStructureAnnotationId(annotation.id)) return
-					const page = annotationPageRef.current.get(annotation.id) ?? currentPageRef.current
+					const props = getAnnotationProps(annotation)
+					const page = props?.page ?? annotationPageRef.current.get(annotation.id) ?? currentPageRef.current
+					const group = props?.group ?? currentGroupRef.current
+					const pagePoints = getAnnotationPoints(annotation, page)
 					upsertPageAnnotation(annotation as ThyroidAnnotation, page)
-					syncDraftChanges(
-						annotation.id,
-						'update',
-						getAnnotationPoints(annotation, page),
-						getAnnotationProps(annotation)?.group ?? currentGroupRef.current,
-					)
+
+					if (props?.contourId) {
+						// Сохранённый контур: меняем точки только этого кадра.
+						const points = replacePagePoints(contourPointsRef.current.get(props.contourId), page, pagePoints)
+						contourPointsRef.current.set(props.contourId, points)
+						syncDraftChanges(props.contourId, 'update', points, group)
+						return
+					}
+
+					syncDraftChanges(annotation.id, 'update', pagePoints, group)
 				} catch (error) {
 					console.error('Error updating draft annotation:', error)
 				}
@@ -347,13 +387,24 @@ export function useThyroidAnnotator({
 			instance.on('deleteAnnotation', (annotation: ImageAnnotation) => {
 				try {
 					if (isStructureAnnotationId(annotation.id)) return
+					const props = getAnnotationProps(annotation)
+					const group = props?.group ?? currentGroupRef.current
 					removePageAnnotation(annotation.id)
-					syncDraftChanges(
-						annotation.id,
-						'delete',
-						[],
-						getAnnotationProps(annotation)?.group ?? currentGroupRef.current,
-					)
+
+					if (props?.contourId && props.page != null) {
+						// Удаление на одном кадре убирает срез контура только с него.
+						// Не осталось кадров — удаляем контур целиком.
+						const points = replacePagePoints(contourPointsRef.current.get(props.contourId), props.page, [])
+						contourPointsRef.current.set(props.contourId, points)
+						if (hasDrawableFrame(points)) {
+							syncDraftChanges(props.contourId, 'update', points, group)
+						} else {
+							syncDraftChanges(props.contourId, 'delete', [], group)
+						}
+						return
+					}
+
+					syncDraftChanges(annotation.id, 'delete', [], group)
 				} catch (error) {
 					console.error('Error deleting draft annotation:', error)
 				}
@@ -468,6 +519,15 @@ export function useThyroidAnnotator({
 		hasStructures,
 		flushPendingSelection,
 	}
+}
+
+/** Точки контура со всех кадров, где точки кадра `page` заменены на `pagePoints`. */
+function replacePagePoints(
+	points: SegmentPoint[] | undefined,
+	page: number,
+	pagePoints: SegmentPoint[],
+): SegmentPoint[] {
+	return [...(points ?? []).filter(point => (point.z || 0) !== page), ...pagePoints]
 }
 
 /** Узел ещё не сохранённого контура — из черновика. */

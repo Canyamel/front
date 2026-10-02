@@ -5,8 +5,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./middleware": "./src/middleware/createAuthMiddleware.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "dev": "tsc --watch",
@@ -15,7 +14,6 @@
   "dependencies": {
     "@medml/shared": "*",
     "@medml/store": "*",
-    "next-auth": "^4.24.11",
     "lodash-es": "^4.17.21",
     "dayjs": "^1.11.13"
   },
@@ -23,7 +21,6 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "antd": "^5.12.0",
-    "next": "^14.0.0",
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
