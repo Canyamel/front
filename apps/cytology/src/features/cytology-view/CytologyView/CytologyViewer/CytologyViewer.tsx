@@ -55,10 +55,10 @@ const CytologyViewer: React.FC<CytologyViewerProps> = ({
     }, [segmentStack]);
 
     const handleAddSegment = useCallback(
-        (contour: IPoint[]) => {
+        (id: string, contour: IPoint[]) => {
             if (currentSegmentRef.current) {
                 dispatch(
-                    addNewSegmentToStack({ seg_type: currentSegmentRef.current, points: contour })
+                    addNewSegmentToStack({ id, seg_type: currentSegmentRef.current, points: contour })
                 );
             }
         },

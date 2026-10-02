@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnnotatedStudyViewer, ViewerAnnotationsToggle, contourGroupSizePx, formatMm, pxToMm } from '@medml/viewers'
 import type { ViewerImage, ViewerLegendItem } from '@medml/viewers'
 
-import { useThyroidAnnotator } from './useThyroidAnnotator'
+import { useThyroidContours } from './useThyroidContours'
 import ThyroidAnnotationPopup from './ThyroidAnnotationPopup'
+import type { ThyroidAnnotationProps } from './thyroidAnnotations'
 import { UZI_VIEWER_TOOLS } from './constants'
 import type { ThyroidAnnotatedViewerProps } from './types'
 
@@ -14,8 +15,9 @@ import type { ThyroidAnnotatedViewerProps } from './types'
  *
  * Всё поведение рабочего места — инструменты, линейка с калибровкой, кисть,
  * легенда, состояния загрузки — живёт в общем вьюере. Здесь остаётся только
- * доменное: кадры снимка УЗИ, слой разметки на Annotorious 3
- * (`useThyroidAnnotator`) и подписи легенды с габаритами узлов в миллиметрах.
+ * доменное: кадры снимка УЗИ, контуры узлов и структур ЩЖ по кадрам
+ * (`useThyroidContours`), карточка контура и подписи легенды с габаритами
+ * узлов в миллиметрах. Annotorious целиком внутри общего вьюера.
  */
 const ThyroidAnnotatedViewer = ({
 	image,
@@ -26,7 +28,7 @@ const ThyroidAnnotatedViewer = ({
 	status,
 	currentGroup,
 	onDraftChangesChange,
-	onViewerApiReady,
+	annotationApiRef,
 	onPxPerMmChange,
 	thyroidStructures,
 }: ThyroidAnnotatedViewerProps) => {
@@ -57,19 +59,9 @@ const ThyroidAnnotatedViewer = ({
 		}))
 	}, [image, imageid])
 
-	const {
-		layer,
-		annotator,
-		selected,
-		removeAnnotation,
-		uniqueNodes,
-		structureItems,
-		hasStructures,
-		flushPendingSelection,
-	} = useThyroidAnnotator({
+	const { annotations, onChange, style, createData, uniqueNodes, structureItems, hasStructures } = useThyroidContours({
 		images,
 		seg,
-		readOnly,
 		currentPage,
 		annotationsVisible,
 		structuresVisible,
@@ -91,12 +83,6 @@ const ThyroidAnnotatedViewer = ({
 			}
 		}
 	}, [images, currentPage])
-
-	// Императивный API отдаём наружу: галерея дожидается несохранённого
-	// выделения перед отправкой сегментов на бэкенд.
-	useEffect(() => {
-		onViewerApiReady?.({ flushPendingSelection })
-	}, [flushPendingSelection, onViewerApiReady])
 
 	const legendItems = useMemo<ViewerLegendItem[]>(
 		() => [
@@ -133,9 +119,14 @@ const ThyroidAnnotatedViewer = ({
 	)
 
 	return (
-		<AnnotatedStudyViewer
+		<AnnotatedStudyViewer<ThyroidAnnotationProps>
 			images={images}
-			annotationLayer={layer}
+			annotations={annotations}
+			annotationStyle={style}
+			onAnnotationChange={onChange}
+			newAnnotationData={createData}
+			annotationApiRef={annotationApiRef}
+			renderAnnotationPopup={context => <ThyroidAnnotationPopup {...context} nodes={uniqueNodes} />}
 			tools={UZI_VIEWER_TOOLS}
 			readOnly={readOnly}
 			height={height}
@@ -147,15 +138,6 @@ const ThyroidAnnotatedViewer = ({
 			annotationsVisible={annotationsVisible}
 			onAnnotationsVisibleChange={setAnnotationsVisible}
 			annotationsToggleLabel={hasStructures ? 'Узлы' : undefined}
-			overlaySlot={
-				<ThyroidAnnotationPopup
-					viewer={annotator?.viewer ?? null}
-					annotation={selected}
-					nodes={uniqueNodes}
-					readOnly={readOnly}
-					onRemove={removeAnnotation}
-				/>
-			}
 			customToolbarSlot={
 				hasStructures ? (
 					<ViewerAnnotationsToggle

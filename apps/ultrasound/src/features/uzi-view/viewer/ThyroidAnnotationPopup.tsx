@@ -1,21 +1,15 @@
 import React from 'react'
 import { Button, Typography } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
-import { ViewerAnnotationPopup } from '@medml/viewers'
-import type { ViewerInstance } from '@medml/viewers'
+import type { ViewerAnnotationPopupContext } from '@medml/viewers'
 
-import { getAnnotationProps, type ThyroidAnnotation, type UniqueNode } from './thyroidAnnotations'
+import type { ThyroidAnnotationProps, UniqueNode } from './thyroidAnnotations'
 
 const { Text } = Typography
 
-export interface ThyroidAnnotationPopupProps {
-	viewer: ViewerInstance | null
-	annotation: ThyroidAnnotation | null
+export interface ThyroidAnnotationPopupProps extends ViewerAnnotationPopupContext<ThyroidAnnotationProps> {
 	/** Узлы снимка — чтобы подписать новый контур номером его узла. */
 	nodes: UniqueNode[]
-	/** В режиме просмотра карточка только информирует, удалить нельзя. */
-	readOnly: boolean
-	onRemove: (id: string) => void
 }
 
 const cardStyle: React.CSSProperties = {
@@ -38,35 +32,26 @@ const swatch = (color: string, dashed = false): React.CSSProperties => ({
 		: { backgroundColor: color, border: '1px solid rgba(0,0,0,0.2)' }),
 })
 
-const ThyroidAnnotationPopup: React.FC<ThyroidAnnotationPopupProps> = ({
-	viewer,
-	annotation,
-	nodes,
-	readOnly,
-	onRemove,
-}) => {
-	const bounds = annotation?.target?.selector?.geometry?.bounds
-	const props = getAnnotationProps(annotation)
-	if (!annotation || !bounds) return null
-
-	// Правый верхний угол контура: карточка уходит в сторону и не накрывает его.
-	const anchor = { x: bounds.maxX, y: bounds.minY }
+/**
+ * Карточка выделенного контура: узел или структура ЩЖ. К контуру её
+ * привязывает вьюер, здесь только содержимое.
+ */
+const ThyroidAnnotationPopup: React.FC<ThyroidAnnotationPopupProps> = ({ annotation, nodes, readOnly, remove }) => {
+	const props = annotation.data
 
 	if (props?.kind === 'structure') {
 		return (
-			<ViewerAnnotationPopup viewer={viewer} anchor={anchor}>
-				<div style={cardStyle}>
-					<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-						<div style={swatch(props.color, true)} />
-						<Text strong>{props.label}</Text>
-					</div>
-					<Text type='secondary' style={{ fontSize: 12 }}>
-						{props.confidence != null
-							? `Достоверность ${(props.confidence * 100).toFixed(1)}%`
-							: 'Достоверность неизвестна'}
-					</Text>
+			<div style={cardStyle}>
+				<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+					<div style={swatch(props.color, true)} />
+					<Text strong>{props.label}</Text>
 				</div>
-			</ViewerAnnotationPopup>
+				<Text type='secondary' style={{ fontSize: 12 }}>
+					{props.confidence != null
+						? `Достоверность ${(props.confidence * 100).toFixed(1)}%`
+						: 'Достоверность неизвестна'}
+				</Text>
+			</div>
 		)
 	}
 
@@ -80,58 +65,56 @@ const ThyroidAnnotationPopup: React.FC<ThyroidAnnotationPopupProps> = ({
 	const isDraft = props?.displayIndex == null
 
 	return (
-		<ViewerAnnotationPopup viewer={viewer} anchor={anchor}>
-			<div style={cardStyle}>
-				<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-					<div style={swatch(color)} />
-					<Text strong style={{ flex: 1 }}>
-						{displayIndex != null ? `Узел ${displayIndex}` : 'Новый контур'}
-					</Text>
-					{tirads != null && tirads !== '-' && (
-						<span
-							style={{
-								fontSize: 11,
-								backgroundColor: '#f0f0f0',
-								padding: '2px 6px',
-								borderRadius: 10,
-								fontWeight: 'bold',
-							}}
-						>
-							TI-RADS {tirads}
-						</span>
-					)}
-				</div>
-
-				<Text type='secondary' style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
-					{isDraft ? 'Не сохранён' : props?.isAi ? 'Найден ассистентом' : 'Отмечен врачом'}
+		<div style={cardStyle}>
+			<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+				<div style={swatch(color)} />
+				<Text strong style={{ flex: 1 }}>
+					{displayIndex != null ? `Узел ${displayIndex}` : 'Новый контур'}
 				</Text>
-
-				{probabilities.length > 0 && (
-					<div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: 'auto auto', gap: '2px 12px' }}>
-						{probabilities.map(([label, value]) => (
-							<React.Fragment key={label}>
-								<Text type='secondary' style={{ fontSize: 12 }}>
-									{label}
-								</Text>
-								<Text style={{ fontSize: 12, textAlign: 'right' }}>{value}</Text>
-							</React.Fragment>
-						))}
-					</div>
-				)}
-
-				{!readOnly && (
-					<Button
-						danger
-						size='small'
-						icon={<DeleteOutlined />}
-						style={{ marginTop: 8, width: '100%' }}
-						onClick={() => onRemove(annotation.id)}
+				{tirads != null && tirads !== '-' && (
+					<span
+						style={{
+							fontSize: 11,
+							backgroundColor: '#f0f0f0',
+							padding: '2px 6px',
+							borderRadius: 10,
+							fontWeight: 'bold',
+						}}
 					>
-						Удалить контур
-					</Button>
+						TI-RADS {tirads}
+					</span>
 				)}
 			</div>
-		</ViewerAnnotationPopup>
+
+			<Text type='secondary' style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+				{isDraft ? 'Не сохранён' : props?.isAi ? 'Найден ассистентом' : 'Отмечен врачом'}
+			</Text>
+
+			{probabilities.length > 0 && (
+				<div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: 'auto auto', gap: '2px 12px' }}>
+					{probabilities.map(([label, value]) => (
+						<React.Fragment key={label}>
+							<Text type='secondary' style={{ fontSize: 12 }}>
+								{label}
+							</Text>
+							<Text style={{ fontSize: 12, textAlign: 'right' }}>{value}</Text>
+						</React.Fragment>
+					))}
+				</div>
+			)}
+
+			{!readOnly && (
+				<Button
+					danger
+					size='small'
+					icon={<DeleteOutlined />}
+					style={{ marginTop: 8, width: '100%' }}
+					onClick={remove}
+				>
+					Удалить контур
+				</Button>
+			)}
+		</div>
 	)
 }
 

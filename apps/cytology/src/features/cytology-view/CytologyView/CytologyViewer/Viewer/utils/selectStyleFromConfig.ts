@@ -1,15 +1,10 @@
-import type { Annotation, AnnotationBody, AnnotationState, DrawingStyle } from '@annotorious/openseadragon'
+import type { ViewerAnnotationStyle, ViewerAnnotationStyleFn } from '@medml/viewers'
 
 import { IAnnotationStyleConfig } from '../interfaces/IAnnotationStylesConfig'
 import { annotationTypesStyles } from '../config'
+import type { SegmentAnnotationData } from './generateAnnotation'
 
-type AnnotationTag = {
-	ai?: boolean
-	seg_type?: string
-	toDelete?: boolean
-	toUpdate?: boolean
-	toAdd?: boolean
-}
+type AnnotationTag = SegmentAnnotationData
 
 export type AnnotationStyleOptions = {
 	activeSegmentType?: string | null
@@ -92,7 +87,7 @@ function resolveStyleFromTag(
 	response: AnnotationTag,
 	colorsByType: Record<string, string>,
 	options?: AnnotationStyleOptions,
-): DrawingStyle | undefined {
+): IAnnotationStyleConfig | undefined {
 	const segmentColor = response.seg_type ? colorsByType[response.seg_type] : undefined
 	const readOnly = isReadOnlyInEditMode(response, options)
 
@@ -137,22 +132,21 @@ function resolveStyleFromTag(
 }
 
 export const createSelectStyleFromConfig =
-	(colorsByType: Record<string, string> = {}, options?: AnnotationStyleOptions) =>
-	(annotation: Annotation, state: AnnotationState | undefined): DrawingStyle | undefined => {
-		const tagging = annotation.bodies.find((b: AnnotationBody) => b?.purpose === 'tagging')?.value
-		const response: AnnotationTag | undefined = tagging ? JSON.parse(tagging) : undefined
-
-		if (!response) {
+	(
+		colorsByType: Record<string, string> = {},
+		options?: AnnotationStyleOptions,
+	): ViewerAnnotationStyleFn<SegmentAnnotationData> =>
+	(annotation, state): ViewerAnnotationStyle | undefined => {
+		const tag = annotation.data
+		if (!tag) {
 			return undefined
 		}
 
-		const style = resolveStyleFromTag(response, colorsByType, options)
+		const style = resolveStyleFromTag(tag, colorsByType, options)
 
-		if (state?.hovered && style && 'hover' in style && style.hover) {
+		if (state.hovered && style?.hover) {
 			return style.hover
 		}
 
 		return style
 	}
-
-export const selectStyleFromConfig = createSelectStyleFromConfig()

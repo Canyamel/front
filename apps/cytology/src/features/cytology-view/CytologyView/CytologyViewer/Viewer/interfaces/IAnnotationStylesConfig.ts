@@ -1,8 +1,8 @@
-import type { DrawingStyle } from '@annotorious/openseadragon'
+import type { ViewerAnnotationStyle } from '@medml/viewers'
 
-export interface IAnnotationStyleConfig extends DrawingStyle {
-	hover?: DrawingStyle
-	select?: DrawingStyle
+export interface IAnnotationStyleConfig extends ViewerAnnotationStyle {
+	hover?: ViewerAnnotationStyle
+	select?: ViewerAnnotationStyle
 }
 
 export interface IAnnotationStylesConfig {

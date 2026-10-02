@@ -28,13 +28,16 @@ const segmentSlice = createSlice({
         },
         addNewSegmentToStack: (
             state,
-            action: PayloadAction<{ seg_type: SegmentType; points: IPoint[] }>
+            action: PayloadAction<{ id?: string; seg_type: SegmentType; points: IPoint[] }>
         ) => {
+            // id контура со снимка: тогда на снимке тот же контур, а не новый
+            // на его месте (выделение и правка не сбрасываются).
             const segment: ISegmentStack = {
-                ...action.payload,
+                seg_type: action.payload.seg_type,
+                points: action.payload.points,
                 is_ai: false,
                 isNew: true,
-                id: uuid(),
+                id: action.payload.id ?? uuid(),
             };
             const existedSegType = state.segmentStack.find(
                 (item) => item.seg_type === action.payload.seg_type

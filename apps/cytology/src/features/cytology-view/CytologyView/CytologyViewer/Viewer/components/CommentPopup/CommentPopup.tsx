@@ -1,13 +1,12 @@
 import React from 'react'
-import type { ImageAnnotation } from '@annotorious/openseadragon'
 import { Card, Flex, Typography } from 'antd'
 import { formatMm, pxToMm } from '@medml/viewers'
 
-import { ISegmentDetails } from '@cytology/core/types/segments'
 import { useAppDispatch, useAppSelector } from '@cytology/core/hooks'
 import { markAsDeleted, markAsUnDeleted } from '@cytology/core/store'
 
 import { CommentPopupHeader } from './CommentPopupHeader/CommentPopupHeader'
+import type { SegmentAnnotation } from '../../utils/generateAnnotation'
 
 import './CommentPopup.css'
 
@@ -27,7 +26,7 @@ function hasSegmentDetailValue(value: unknown): boolean {
 }
 
 interface CommentPopupProps {
-	annotation: ImageAnnotation
+	annotation: SegmentAnnotation
 	needInput?: boolean
 	isEditingMode?: boolean
 	/** Масштаб; пока не задан, размер сегмента не показываем. */
@@ -44,17 +43,8 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
 	const dispatch = useAppDispatch()
 	const currentSegment = useAppSelector(state => state.segment.currentSegment)
 
-	const tagging = annotation.bodies.find(body => body.purpose === 'tagging')
-	const response:
-		| {
-				ai: boolean
-				toDelete: boolean
-				toUpdate: boolean
-				toAdd: boolean
-				details?: ISegmentDetails
-		  }
-		| undefined = tagging?.value ? JSON.parse(tagging.value) : undefined
-	const segmentId: string | undefined = tagging?.annotation || undefined
+	const response = annotation.data
+	const segmentId = annotation.id
 
 	// Раньше текущий тип сегмента читался через ref, который синхронизировался
 	// отдельным эффектом, а в зависимостях был указан только сам ref. Ref
@@ -111,13 +101,14 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
 		? SEGMENT_DETAIL_FIELDS.filter(field => hasSegmentDetailValue(response.details?.[field.key]))
 		: []
 
-	// Размер по геометрии выделения, а не по details с бэкенда: масштаб
+	// Размер по геометрии контура, а не по details с бэкенда: масштаб
 	// (px/мм) задаётся врачом на этом снимке и здесь же, ни в чём другом.
-	const bounds = annotation.target?.selector?.geometry?.bounds
+	const xs = annotation.points.map(point => point.x)
+	const ys = annotation.points.map(point => point.y)
 	const sizeLabel =
-		pxPerMm != null && bounds
-			? `${formatMm(pxToMm(bounds.maxX - bounds.minX, pxPerMm))} × ${formatMm(
-					pxToMm(bounds.maxY - bounds.minY, pxPerMm),
+		pxPerMm != null && xs.length > 0
+			? `${formatMm(pxToMm(Math.max(...xs) - Math.min(...xs), pxPerMm))} × ${formatMm(
+					pxToMm(Math.max(...ys) - Math.min(...ys), pxPerMm),
 				)}`
 			: null
 
@@ -140,7 +131,7 @@ const CommentPopup: React.FC<CommentPopupProps> = ({
 				>
 					{!needInput && (
 						<CommentPopupHeader
-							ai={response.ai}
+							ai={Boolean(response.ai)}
 							probs={response.details?.probs}
 							handleDeleteSegment={onDelete}
 							handleUndoDeleteSegment={onUndoDelete}

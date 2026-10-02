@@ -32,7 +32,6 @@ export {
 export type { ViewerToolId, DrawingToolId, BrushMode, ViewerToolMeta } from './tools'
 
 export type {
-	ViewerAnnotationLayer,
 	ViewerLegendItem,
 	ViewerStatus,
 	AnnotatedStudyViewerProps,

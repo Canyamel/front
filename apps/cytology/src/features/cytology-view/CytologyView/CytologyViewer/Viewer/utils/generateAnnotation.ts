@@ -1,41 +1,28 @@
-import { ShapeType } from "@annotorious/openseadragon";
+import type { ViewerAnnotation } from '@medml/viewers'
 
-import { ISegmentStack } from "@cytology/core/types/segments";
+import { ISegmentDetails, ISegmentStack, SegmentType } from '@cytology/core/types/segments'
 
-import { minMaxPoint } from "./minMaxPoint";
+/** Доменные данные контура сегмента: по ним строятся стиль и карточка. */
+export interface SegmentAnnotationData {
+	ai?: boolean
+	seg_type?: SegmentType
+	toDelete?: boolean
+	toUpdate?: boolean
+	toAdd?: boolean
+	details?: ISegmentDetails
+}
 
-export const generateAnnotation = (segment: ISegmentStack) => {
-    return {
-        id: `${segment.id}`,
-        bodies: [
-            {
-                id: "",
-                annotation: `${segment.id}`,
-                purpose: "tagging",
-                value: JSON.stringify({
-                    ai: segment.is_ai,
-                    seg_type: segment.seg_type,
-                    toDelete: segment.isDeleted,
-                    toUpdate: segment.isEdited,
-                    toAdd: segment.isNew,
-                    details: segment.details,
-                }),
-            },
-        ],
-        target: {
-            annotation: `${segment.id}`,
-            selector: {
-                type: ShapeType.POLYGON,
-                geometry: {
-                    bounds: minMaxPoint(
-                        segment.points.map((segmentPoint) => ({
-                            x: segmentPoint.x,
-                            y: segmentPoint.y,
-                        }))
-                    ),
-                    points: segment.points.map((segmentPoint) => [segmentPoint.x, segmentPoint.y]),
-                },
-            },
-        },
-    };
-};
+export type SegmentAnnotation = ViewerAnnotation<SegmentAnnotationData>
+
+export const generateAnnotation = (segment: ISegmentStack): SegmentAnnotation => ({
+	id: String(segment.id),
+	points: segment.points.map(point => ({ x: point.x, y: point.y })),
+	data: {
+		ai: segment.is_ai,
+		seg_type: segment.seg_type,
+		toDelete: segment.isDeleted,
+		toUpdate: segment.isEdited,
+		toAdd: segment.isNew,
+		details: segment.details,
+	},
+})

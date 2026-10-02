@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { InputNumber, Modal, Typography, message } from 'antd'
 
 import UziViewer from '../uzi-viewer/UziViewer'
@@ -9,6 +9,8 @@ import ViewerToolPanel from './ViewerToolPanel'
 import ViewerStatusState from './ViewerStatusState'
 import ViewerLegendOverlay from './ViewerLegendOverlay'
 import ViewerAnnotationsToggle from './ViewerAnnotationsToggle'
+import ViewerAnnotationPopup from './ViewerAnnotationPopup'
+import { annotationAnchor, useAnnotoriousLayer } from '../annotations'
 import {
 	BRUSH_TOOL,
 	CALIBRATE_TOOL,
@@ -31,12 +33,20 @@ import type { AnnotatedStudyViewerProps } from './types'
  * - панель инструментов с общим набором id (`ViewerToolPanel`);
  * - линейку и задание масштаба по эталонному отрезку (`RulerOverlay`);
  * - кисть-заполнение с превращением наброска в контур (`BrushCanvasOverlay`);
+ * - разметку на Annotorious 3 (`useAnnotoriousLayer`): приложение отдаёт
+ *   контуры и получает обратно правки врача;
  * - легенду разметки и переключатель её видимости;
  * - состояния «загрузка / ошибка / нет снимка».
  */
-const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
+function AnnotatedStudyViewer<D = unknown>({
 	images,
-	annotationLayer,
+	annotations,
+	annotationStyle,
+	onAnnotationChange,
+	newAnnotationData,
+	canDraw = true,
+	renderAnnotationPopup,
+	annotationApiRef,
 	tools = DEFAULT_VIEWER_TOOLS,
 	activeTool: controlledTool,
 	onToolChange,
@@ -57,7 +67,7 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 	overlaySlot,
 	customToolbarSlot,
 	toolPanelExtra,
-}) => {
+}: AnnotatedStudyViewerProps<D>) {
 	const [osdViewer, setOsdViewer] = useState<ViewerInstance | null>(null)
 	const [currentPage, setCurrentPage] = useState(0)
 
@@ -83,14 +93,19 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 
 	const ruler = useRulerMeasurements()
 
-	// Колбэки слоя разметки держим в ref: инстанс движка пересоздаётся только
-	// при смене набора кадров, и новый инлайн-объект `annotationLayer` не должен
-	// тянуть за собой переподключение — вместе с ним со снимка ушла бы разметка.
-	const layerRef = useRef(annotationLayer)
+	const hasAnnotations = annotations !== undefined
+	const annotationLayer = useAnnotoriousLayer<D>({
+		enabled: hasAnnotations,
+		annotations: annotations ?? EMPTY_ANNOTATIONS,
+		readOnly,
+		canDraw,
+		style: annotationStyle,
+		createData: newAnnotationData,
+		onChange: onAnnotationChange,
+	})
+	const { layer, setTool: setLayerTool, addPolygon, remove: removeAnnotation, commitSelection } = annotationLayer
 
-	useEffect(() => {
-		layerRef.current = annotationLayer
-	}, [annotationLayer])
+	useImperativeHandle(annotationApiRef, () => ({ commitSelection }), [commitSelection])
 
 	const handleToolChange = useCallback(
 		(tool: ViewerToolId) => {
@@ -137,8 +152,8 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 	}, [brushActive, images, currentPage])
 
 	useEffect(() => {
-		layerRef.current?.setTool(activeTool, drawingEnabled)
-	}, [activeTool, drawingEnabled])
+		setLayerTool(activeTool, drawingEnabled)
+	}, [activeTool, drawingEnabled, setLayerTool])
 
 	// Маска мутируется на месте, поэтому ссылка не меняется и React сам
 	// пересчитать не может — версию наброска двигают штрихи и очистка.
@@ -158,9 +173,8 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 	const handleConfirmSketch = useCallback(() => {
 		if (!mask) return
 
-		const addPolygon = layerRef.current?.addPolygon
-		if (!addPolygon) {
-			message.warning('Слой разметки не поддерживает добавление контура кистью')
+		if (!hasAnnotations) {
+			message.warning('У этого снимка нет разметки — контур некуда добавить')
 			return
 		}
 
@@ -177,7 +191,7 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 		}
 
 		message.warning('Контур не сохранён: разметку сейчас некуда добавить')
-	}, [mask, handleClearSketch])
+	}, [mask, hasAnnotations, addPolygon, handleClearSketch])
 
 	const calibrating = activeTool === CALIBRATE_TOOL
 
@@ -221,43 +235,32 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 	)
 
 	/**
-	 * Колбэк обязан быть стабильным: вьюер пересоздаёт инстанс OSD при смене
-	 * набора кадров, и лишнее пересоздание стёрло бы разметку. Инструмент,
-	 * выбранный до открытия снимка, слой применяет сам — он запоминает
-	 * последний `setTool` и повторяет его при подключении.
+	 * В постраничном режиме OpenSeadragon шлёт `open` на каждую смену кадра, и
+	 * `onInstanceReady` приходит столько же раз. Слой разметки подключается к
+	 * инстансу ровно один раз (повторный `attach` к тому же инстансу ничего не
+	 * делает), кадры дальше переключаются сменой `annotations`.
 	 */
-	/**
-	 * Инстанс движка, к которому сейчас подключён слой разметки.
-	 *
-	 * В постраничном режиме OpenSeadragon шлёт `open` не один раз, а на каждую
-	 * смену кадра, и `onInstanceReady` приходит столько же раз. Подключать слой
-	 * на каждое событие нельзя: каждый `attach` создаёт новый экземпляр
-	 * библиотеки разметки, старые не уничтожаются, и контуры прошлых кадров
-	 * ложатся поверх текущего (контуры «скачут» и накладываются). Поэтому слой
-	 * подключается к инстансу ровно один раз; кадры переключаются через
-	 * `onIndexChange`.
-	 */
-	const attachedViewerRef = useRef<ViewerInstance | null>(null)
+	const hasAnnotationsRef = useRef(hasAnnotations)
+	useEffect(() => {
+		hasAnnotationsRef.current = hasAnnotations
+		if (hasAnnotations && osdViewer) layer.attach(osdViewer)
+	}, [hasAnnotations, osdViewer, layer])
 
-	const handleInstanceReady = useCallback((viewer: ViewerInstance, container: HTMLDivElement) => {
-		setOsdViewer(viewer)
-		if (attachedViewerRef.current === viewer) return
-
-		// Новый инстанс движка: сначала отключаем слой от прежнего.
-		if (attachedViewerRef.current) {
-			layerRef.current?.detach()
-		}
-		attachedViewerRef.current = viewer
-		layerRef.current?.attach(viewer, container)
-	}, [])
+	const handleInstanceReady = useCallback(
+		(viewer: ViewerInstance) => {
+			setOsdViewer(viewer)
+			if (hasAnnotationsRef.current) layer.attach(viewer)
+		},
+		[layer],
+	)
 
 	const handleInstanceWillDestroy = useCallback(() => {
-		if (attachedViewerRef.current) {
-			layerRef.current?.detach()
-			attachedViewerRef.current = null
-		}
+		layer.detach()
 		setOsdViewer(null)
-	}, [])
+	}, [layer])
+
+	const selectedAnnotation = annotationLayer.selected
+	const popupAnchor = selectedAnnotation ? annotationAnchor(selectedAnnotation.points) : null
 
 	const showRuler = isRulerLikeTool(activeTool) && availableTools.includes(activeTool)
 	const showLegend = legendItems.length > 0 && annotationsVisible !== false
@@ -338,6 +341,17 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 							/>
 						)}
 
+						{renderAnnotationPopup && selectedAnnotation && popupAnchor && (
+							<ViewerAnnotationPopup viewer={osdViewer} anchor={popupAnchor}>
+								{renderAnnotationPopup({
+									annotation: selectedAnnotation,
+									readOnly,
+									remove: () => removeAnnotation(selectedAnnotation.id),
+									pxPerMm,
+								})}
+							</ViewerAnnotationPopup>
+						)}
+
 						{typeof overlaySlot === 'function' ? overlaySlot(context) : overlaySlot}
 					</>
 				)}
@@ -385,5 +399,7 @@ const AnnotatedStudyViewer: React.FC<AnnotatedStudyViewerProps> = ({
 		</div>
 	)
 }
+
+const EMPTY_ANNOTATIONS: never[] = []
 
 export default AnnotatedStudyViewer

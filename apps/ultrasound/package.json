@@ -9,7 +9,6 @@
     "preview": "vite preview --port 3002"
   },
   "dependencies": {
-    "@annotorious/openseadragon": "3.0.20",
     "@ant-design/icons": "^6.1.0",
     "@medml/auth": "*",
     "@medml/doctor_profile": "*",

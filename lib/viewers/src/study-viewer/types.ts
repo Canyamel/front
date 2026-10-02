@@ -1,38 +1,13 @@
 import type React from 'react'
-import type { PlanePoint } from '../geometry'
-import type { ViewerImage, ViewerInstance, ViewerSlotRenderer, ViewerZoomLimits } from '../uzi-viewer/types'
+import type { ViewerImage, ViewerSlotRenderer, ViewerZoomLimits } from '../uzi-viewer/types'
+import type {
+	ViewerAnnotation,
+	ViewerAnnotationApi,
+	ViewerAnnotationChange,
+	ViewerAnnotationPopupRenderer,
+	ViewerAnnotationStyleFn,
+} from '../annotations/types'
 import type { ViewerToolId } from './tools'
-
-export interface ViewerAnnotationLayer {
-	/**
-	 * Подключить слой к живому инстансу движка. Вызывается из
-	 * `onInstanceReady` вьюера, то есть после того как OSD открыл снимок.
-	 */
-	attach: (viewer: ViewerInstance, container: HTMLDivElement) => void
-	/** Отключить слой перед уничтожением инстанса движка. */
-	detach: () => void
-	/**
-	 * Включить инструмент рисования.
-	 *
-	 * `enabled` — разрешение со стороны вьюера: в режиме просмотра, на
-	 * навигации и на инструментах вьюера (кисть/линейка) слой разметки должен
-	 * отдать управление, иначе он забирает перетаскивание себе.
-	 *
-	 * Это разрешение, а не команда: доменные условия знает только слой, и он
-	 * вправе рисование не включать. Например, в цитологии контур некуда
-	 * сохранять, пока врач не выбрал группу сегментов.
-	 */
-	setTool: (tool: ViewerToolId, enabled: boolean) => void
-	/**
-	 * Добавить готовый контур, полученный не от библиотеки разметки
-	 * (кисть-заполнение). Точки — в координатах снимка.
-	 *
-	 * Возвращает `false`, если контур вырожденный, слой недоступен или его
-	 * доменные условия не позволяют сохранить контур. По `false` вьюер оставит
-	 * набросок на месте и скажет врачу, что контур не сохранён.
-	 */
-	addPolygon?: (points: PlanePoint[]) => boolean
-}
 
 /** Строка легенды поверх снимка: цвет разметки и её подпись. */
 export interface ViewerLegendItem {
@@ -56,9 +31,29 @@ export interface ViewerStatus {
 	description?: React.ReactNode
 }
 
-export interface AnnotatedStudyViewerProps {
+export interface AnnotatedStudyViewerProps<D = unknown> {
 	images: ViewerImage[]
-	annotationLayer?: ViewerAnnotationLayer
+
+	/**
+	 * Контуры, которые сейчас на снимке (обычно — текущего кадра). Не задан —
+	 * разметки у снимка нет, Annotorious не подключается.
+	 */
+	annotations?: ViewerAnnotation<D>[]
+	/** Оформление контура по его данным и состоянию (выделен / под курсором). */
+	annotationStyle?: ViewerAnnotationStyleFn<D>
+	/** Что врач нарисовал, поправил или удалил. */
+	onAnnotationChange?: (change: ViewerAnnotationChange<D>) => void
+	/** Данные для только что нарисованного контура (узел, тип сегмента). */
+	newAnnotationData?: () => D | undefined
+	/**
+	 * Доменное разрешение рисовать, сверх режима правки. Например, в цитологии
+	 * без выбранного типа сегмента контур некуда сохранить.
+	 */
+	canDraw?: boolean
+	/** Карточка выделенного контура; вьюер привязывает её к контуру сам. */
+	renderAnnotationPopup?: ViewerAnnotationPopupRenderer<D>
+	/** Действия над разметкой снаружи — например, досохранить правку перед отправкой. */
+	annotationApiRef?: React.Ref<ViewerAnnotationApi>
 
 	tools?: ViewerToolId[]
 	activeTool?: ViewerToolId

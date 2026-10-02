@@ -1,6 +1,4 @@
-import { ShapeType } from '@annotorious/openseadragon'
-import type { ImageAnnotation, PolygonGeometry, RectangleGeometry } from '@annotorious/openseadragon'
-import type { PlanePoint, ViewerImage } from '@medml/viewers'
+import type { PlanePoint, ViewerAnnotation, ViewerImage } from '@medml/viewers'
 import type { Segment, SegmentPoint } from '../model/types'
 import { getStructureFrame, type ThyroidStructureJson } from '../structures'
 import { STRUCTURE_KEY_SEPARATOR } from '../model/segmentation'
@@ -40,67 +38,25 @@ export interface ThyroidAnnotationProps {
 	confidence?: number
 }
 
-export type ThyroidAnnotation = ImageAnnotation & { properties?: ThyroidAnnotationProps }
+/** Контур на снимке УЗИ: узел или структура ЩЖ. */
+export type ThyroidAnnotation = ViewerAnnotation<ThyroidAnnotationProps>
 
-export function getAnnotationProps(annotation: unknown): ThyroidAnnotationProps | undefined {
-	return (annotation as ThyroidAnnotation | undefined)?.properties
+/** Точки контура в формате бэкенда: `z` — номер кадра. */
+export function getAnnotationPoints(annotation: ThyroidAnnotation, pageIndex: number): SegmentPoint[] {
+	return annotation.points.map(point => ({ x: Math.round(point.x), y: Math.round(point.y), z: pageIndex }))
 }
 
-export function getAnnotationGroup(annotation: unknown, fallback?: string | number): string | number | undefined {
-	return getAnnotationProps(annotation)?.group ?? fallback
-}
-
-type AnyGeometry = Partial<PolygonGeometry> & Partial<RectangleGeometry>
-
-/** Точки контура в координатах снимка; прямоугольник разворачивается в 4 угла. */
-export function getAnnotationPoints(annotation: unknown, pageIndex: number): SegmentPoint[] {
-	const geometry = (annotation as ThyroidAnnotation | undefined)?.target?.selector?.geometry as AnyGeometry | undefined
-	if (!geometry) return []
-
-	if (Array.isArray(geometry.points)) {
-		return geometry.points.map(([x, y]) => ({ x: Math.round(x), y: Math.round(y), z: pageIndex }))
-	}
-
-	const { x, y, w, h } = geometry
-	if (x == null || y == null || w == null || h == null) return []
-
-	return [
-		{ x: Math.round(x), y: Math.round(y), z: pageIndex },
-		{ x: Math.round(x + w), y: Math.round(y), z: pageIndex },
-		{ x: Math.round(x + w), y: Math.round(y + h), z: pageIndex },
-		{ x: Math.round(x), y: Math.round(y + h), z: pageIndex },
-	]
-}
-
-/** Полигон в формате Annotorious 3. `bounds` обязателен — по нему идёт hit-test. */
+/** Контур для вьюера. Структуры ЩЖ только для просмотра — их не правят. */
 export function buildPolygonAnnotation(
 	id: string,
 	points: PlanePoint[] | number[][],
 	properties: ThyroidAnnotationProps,
 ): ThyroidAnnotation {
-	const coords = points.map(point => (Array.isArray(point) ? [point[0], point[1]] : [point.x, point.y]))
-	const xs = coords.map(([x]) => x)
-	const ys = coords.map(([, y]) => y)
-
 	return {
 		id,
-		bodies: [],
-		properties,
-		target: {
-			annotation: id,
-			selector: {
-				type: ShapeType.POLYGON,
-				geometry: {
-					points: coords,
-					bounds: {
-						minX: Math.min(...xs),
-						minY: Math.min(...ys),
-						maxX: Math.max(...xs),
-						maxY: Math.max(...ys),
-					},
-				} as PolygonGeometry,
-			},
-		},
+		points: points.map(point => (Array.isArray(point) ? { x: point[0], y: point[1] } : { x: point.x, y: point.y })),
+		data: properties,
+		editable: properties.kind !== 'structure',
 	}
 }
 
@@ -197,17 +153,21 @@ export function buildSegmentAnnotationsByPage(
 			group: segment.id.toString(),
 			displayIndex: segmentIndex + 1,
 			tirads: segment.details?.nodule_type ?? undefined,
-			isAi: Boolean(segment.is_ai),
-			probabilities: {
-				'TI-RADS 2': formatProbability(getProbabilityValue(segment, ['nodule_2', 'tirads_2'])),
-				'TI-RADS 3': formatProbability(getProbabilityValue(segment, ['nodule_3', 'tirads_3'])),
-				'TI-RADS 4': formatProbability(segment.details?.nodule_4),
-				'TI-RADS 5': formatProbability(segment.details?.nodule_5),
-			},
+		}
+		const probabilities = {
+			'TI-RADS 2': formatProbability(getProbabilityValue(segment, ['nodule_2', 'tirads_2'])),
+			'TI-RADS 3': formatProbability(getProbabilityValue(segment, ['nodule_3', 'tirads_3'])),
+			'TI-RADS 4': formatProbability(segment.details?.nodule_4),
+			'TI-RADS 5': formatProbability(segment.details?.nodule_5),
 		}
 
 		segment.data.forEach((contour, contourIndex) => {
 			if (!contour.points) return
+
+			// Признак ИИ у узла общий, а контуры в узле бывают и от врача: их
+			// бэкенд сохраняет без `details` (`segment/add` их не принимает),
+			// а контуры нейросети — с ними.
+			const contourIsAi = Boolean(segment.is_ai) && contour.details != null
 
 			const pointsByPage: Record<number, SegmentPoint[]> = {}
 			contour.points.forEach(point => {
@@ -232,7 +192,16 @@ export function buildSegmentAnnotationsByPage(
 					? `${contourId}${CONTOUR_PAGE_SEPARATOR}${page}`
 					: `node_${segment.id}_contour_${contourIndex}_page_${page}`
 
-				pageAnnotationsMap[page].push(buildPolygonAnnotation(id, points, { ...properties, contourId, page }))
+				pageAnnotationsMap[page].push(
+					buildPolygonAnnotation(id, points, {
+						...properties,
+						contourId,
+						page,
+						isAi: contourIsAi,
+						// Вероятности TI-RADS посчитала нейросеть — у контура врача их нет.
+						probabilities: contourIsAi ? probabilities : undefined,
+					}),
+				)
 			})
 		})
 	})

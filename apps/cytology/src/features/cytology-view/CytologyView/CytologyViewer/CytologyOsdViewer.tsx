@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { Typography } from 'antd'
 import {
 	AnnotatedStudyViewer,
@@ -8,6 +8,7 @@ import {
 	RULER_TOOL,
 } from '@medml/viewers'
 import type {
+	ViewerAnnotationChange,
 	ViewerImage,
 	ViewerLegendItem,
 	ViewerStatus,
@@ -20,8 +21,8 @@ import { useDziTileSource } from '@/lib/useDziTileSource'
 import { useAppSelector } from '@cytology/core/hooks'
 import { ISegmentStack } from '@cytology/core/types/segments'
 
-import { useCytologyAnnotator } from './useCytologyAnnotator'
-import SegmentPopup from './SegmentPopup'
+import CommentPopup from './Viewer/components/CommentPopup/CommentPopup'
+import { generateAnnotation, type SegmentAnnotationData } from './Viewer/utils/generateAnnotation'
 import { createSelectStyleFromConfig } from './Viewer/utils/selectStyleFromConfig'
 import { IPoint } from './Viewer/interfaces/queries'
 
@@ -31,8 +32,9 @@ import './Viewer/viewer.scss'
  * Просмотр снимка цитологии на общем движке `@medml/viewers`.
  *
  * Рабочее место целиком собирает `<AnnotatedStudyViewer />` — то же самое,
- * что и в УЗИ. Отсюда приходит доменное: DZI-тайлы снимка, слой разметки на
- * Annotorious 3 и карточка выбранного сегмента.
+ * что и в УЗИ, включая разметку на Annotorious 3. Отсюда приходит доменное:
+ * DZI-тайлы снимка, сегменты как контуры, их оформление по типу и карточка
+ * выбранного сегмента.
  */
 
 interface CytologyOsdViewerProps {
@@ -46,7 +48,8 @@ interface CytologyOsdViewerProps {
 	segments?: ISegmentStack[]
 	segmentTypeColors?: Record<string, string>
 	legendItems?: ViewerLegendItem[]
-	addSegment: (contour: IPoint[]) => void
+	/** `id` — тот же, что у контура на снимке: сегмент не перерисовывается. */
+	addSegment: (id: string, contour: IPoint[]) => void
 	changeSegment: (segmentId: string, contour: IPoint[]) => void
 }
 
@@ -89,9 +92,6 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 	const currentSegment = useAppSelector(state => state.segment.currentSegment)
 
 	const [annotationsVisible, setAnnotationsVisible] = useState(true)
-	// Масштаб задаёт вьюер (калибровка по эталонному отрезку); нужен карточке
-	// сегмента, чтобы показать его размер в миллиметрах.
-	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
 
 	// Ссылка на массив должна быть стабильной: общий вьюер пересоздаёт инстанс
 	// OSD при смене `images`, а вместе с инстансом уходит и слой разметки.
@@ -123,15 +123,26 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 		[segmentTypeColors, drawingEnabled, currentSegment],
 	)
 
-	const { annotator, layer } = useCytologyAnnotator({
-		// Скрытая разметка — это пустой набор аннотаций: у Annotorious 3 нет
-		// отдельного переключателя видимости слоя.
-		segments: annotationsVisible ? segments : [],
-		style,
-		drawingEnabled: drawingEnabled && selected,
-		onAddSegment: addSegment,
-		onChangeSegment: changeSegment,
-	})
+	const annotations = useMemo(
+		() => (annotationsVisible ? segments.map(generateAnnotation) : []),
+		[annotationsVisible, segments],
+	)
+
+	const handleAnnotationChange = useCallback(
+		({ type, annotation }: ViewerAnnotationChange<SegmentAnnotationData>) => {
+			// Удаление в цитологии — пометка в ревизии (карточка сегмента),
+			// а не удаление контура со снимка.
+			if (type === 'create') addSegment(annotation.id, annotation.points)
+			if (type === 'update') changeSegment(annotation.id, annotation.points)
+		},
+		[addSegment, changeSegment],
+	)
+
+	// Только что нарисованный контур сразу красится в цвет выбранного типа.
+	const newAnnotationData = useCallback(
+		(): SegmentAnnotationData => ({ ai: false, toAdd: true, seg_type: currentSegment ?? undefined }),
+		[currentSegment],
+	)
 
 	const status = useMemo<ViewerStatus | null>(() => {
 		if (!imageUrl) return { kind: 'empty', title: 'Изображение отсутствует' }
@@ -142,19 +153,23 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 		return null
 	}, [imageUrl, error, isLoading, tileSource])
 
-	const overlaySlot = useMemo(
-		() =>
-			needPopup ? (
-				<SegmentPopup annotator={annotator} isEditingMode={drawingEnabled} pxPerMm={pxPerMm} />
-			) : null,
-		[needPopup, annotator, drawingEnabled, pxPerMm],
-	)
-
 	return (
 		<div className={`viewer-wrapper ${className ?? ''}`}>
-			<AnnotatedStudyViewer
+			<AnnotatedStudyViewer<SegmentAnnotationData>
 				images={images}
-				annotationLayer={layer}
+				annotations={annotations}
+				annotationStyle={style}
+				onAnnotationChange={handleAnnotationChange}
+				newAnnotationData={newAnnotationData}
+				// Без выбранного типа сегмента нарисованный контур некуда сохранить.
+				canDraw={selected}
+				renderAnnotationPopup={
+					needPopup
+						? ({ annotation, pxPerMm }) => (
+								<CommentPopup annotation={annotation} isEditingMode={drawingEnabled} pxPerMm={pxPerMm} />
+							)
+						: undefined
+				}
 				tools={CYTOLOGY_VIEWER_TOOLS}
 				readOnly={!drawingEnabled}
 				height={height}
@@ -162,12 +177,10 @@ const CytologyOsdViewer: React.FC<CytologyOsdViewerProps> = ({
 				navigationEnabled={false}
 				zoomLimits={CYTOLOGY_ZOOM_LIMITS}
 				zoomUnit='native'
-				onPxPerMmChange={setPxPerMm}
 				legendItems={legendItems}
 				legendTitle='Сегменты:'
 				annotationsVisible={annotationsVisible}
 				onAnnotationsVisibleChange={setAnnotationsVisible}
-				overlaySlot={overlaySlot}
 				// В режиме просмотра рисовать нечем, и подсказка про выбор группы
 				// была бы не к месту: панель там показывает только линейку и масштаб.
 				toolPanelExtra={

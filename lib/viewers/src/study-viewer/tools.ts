@@ -15,10 +15,9 @@ export const RULER_TOOL = 'ruler' as const
 export const CALIBRATE_TOOL = 'calibrate' as const
 
 /**
- * Инструменты рисования — их обрабатывает слой разметки приложения
- * (`ViewerAnnotationLayer`), а не сам вьюер.
+ * Инструменты рисования — их обрабатывает Annotorious, а не сам вьюер.
  */
-export const DRAWING_TOOLS = ['rectangle', 'polygon', 'freehand'] as const
+export const DRAWING_TOOLS = ['rectangle', 'polygon'] as const
 
 export type DrawingToolId = (typeof DRAWING_TOOLS)[number]
 
@@ -81,11 +80,6 @@ export const VIEWER_TOOL_META: Record<ViewerToolId, ViewerToolMeta> = {
 		label: 'Контур',
 		hint: 'Обвести объект по точкам',
 	},
-	freehand: {
-		id: 'freehand',
-		label: 'Обводка',
-		hint: 'Векторная обводка от руки',
-	},
 	[BRUSH_TOOL]: {
 		id: BRUSH_TOOL,
 		label: 'Кисть',
@@ -110,7 +104,6 @@ export const DEFAULT_VIEWER_TOOLS: ViewerToolId[] = [
 	PAN_TOOL,
 	'polygon',
 	'rectangle',
-	'freehand',
 	BRUSH_TOOL,
 	RULER_TOOL,
 	CALIBRATE_TOOL,

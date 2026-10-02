@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { ViewerStatus } from '@medml/viewers'
+import { useMemo, useRef, useState } from 'react'
+import type { ViewerAnnotationApi, ViewerStatus } from '@medml/viewers'
 import ThyroidAnnotatedViewer from '../viewer/ThyroidAnnotatedViewer'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
@@ -29,7 +29,9 @@ const Gallery = ({
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
 	const selectedGroup = currentGroup ?? pickedGroup ?? seg[0]?.id
 
-	const [flushPendingSelection, setFlushPendingSelection] = useState<(() => Promise<void>) | null>(null)
+	// Annotorious сообщает о правке контура, только когда с него снимают
+	// выделение, — перед сохранением её нужно досохранить в черновик.
+	const annotationApiRef = useRef<ViewerAnnotationApi>(null)
 
 	const { isLoading, imageSource, slidesUnavailable } = useGalleryImageSource({
 		link1,
@@ -39,13 +41,9 @@ const Gallery = ({
 	})
 
 	const handleSaveClick = async () => {
-		await flushPendingSelection?.()
+		await annotationApiRef.current?.commitSelection()
 		await onSaveEdit?.()
 	}
-
-	const handleViewerApiReady = useCallback((api: { flushPendingSelection: () => Promise<void> }) => {
-		setFlushPendingSelection(() => api.flushPendingSelection)
-	}, [])
 
 	const segmentOptions = useMemo(
 		() =>
@@ -97,7 +95,7 @@ const Gallery = ({
 				readOnly={!isEditMode}
 				currentGroup={selectedGroup}
 				onDraftChangesChange={onDraftChangesChange}
-				onViewerApiReady={handleViewerApiReady}
+				annotationApiRef={annotationApiRef}
 				onPxPerMmChange={onPxPerMmChange}
 				thyroidStructures={thyroidStructures}
 			/>
