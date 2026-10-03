@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
-import type { ViewerAnnotationApi, ViewerStatus } from '@medml/viewers'
-import ThyroidAnnotatedViewer from '../viewer/ThyroidAnnotatedViewer'
+import { useMemo, useState } from 'react'
+import type { ViewerStatus } from '@medml/viewers'
+import UziStudyViewer from '../viewer/UziStudyViewer'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
 import { useGalleryImageSource } from './useGalleryImageSource'
@@ -8,30 +8,20 @@ import type { GalleryProps } from './types'
 
 const Gallery = ({
 	link1,
-	seg,
+	segments,
 	imageid,
 	image_count,
 	slide_template,
 	slide_urls,
-	isEditMode = false,
+	contourEditor,
 	currentGroup,
-	onStartEdit,
-	onSaveEdit,
-	onCancelEdit,
-	isSaving = false,
-	hasUnsavedChanges = false,
-	onDraftChangesChange,
-	viewerResetKey = 0,
 	viewerHeight = 600,
 	onPxPerMmChange,
 	thyroidStructures,
 }: GalleryProps) => {
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
-	const selectedGroup = currentGroup ?? pickedGroup ?? seg[0]?.id
+	const selectedGroup = currentGroup ?? pickedGroup ?? segments[0]?.id
 
-	// Annotorious сообщает о правке контура, только когда с него снимают
-	// выделение, — перед сохранением её нужно досохранить в черновик.
-	const annotationApiRef = useRef<ViewerAnnotationApi>(null)
 
 	const { isLoading, imageSource, slidesUnavailable } = useGalleryImageSource({
 		link1,
@@ -40,18 +30,13 @@ const Gallery = ({
 		slide_urls,
 	})
 
-	const handleSaveClick = async () => {
-		await annotationApiRef.current?.commitSelection()
-		await onSaveEdit?.()
-	}
-
 	const segmentOptions = useMemo(
 		() =>
-			seg.map((segment, index) => ({
+			segments.map((segment, index) => ({
 				value: segment.id,
 				label: `Узел ${index + 1} · TI-RADS ${segment.details?.nodule_type ?? '-'}`,
 			})),
-		[seg],
+		[segments],
 	)
 
 	const status = useMemo<ViewerStatus | null>(() => {
@@ -74,28 +59,27 @@ const Gallery = ({
 	return (
 		<div>
 			<GalleryToolbar
-				isEditMode={isEditMode}
+				isEditMode={contourEditor.isEditing}
 				currentGroup={selectedGroup}
 				segmentOptions={segmentOptions}
 				onSelectGroup={setPickedGroup}
-				onStartEdit={onStartEdit}
-				onSave={handleSaveClick}
-				onCancel={onCancelEdit}
-				isSaving={isSaving}
-				hasUnsavedChanges={hasUnsavedChanges}
+				onStartEdit={contourEditor.start}
+				onSave={contourEditor.save}
+				onCancel={contourEditor.cancel}
+				isSaving={contourEditor.isSaving}
+				hasUnsavedChanges={contourEditor.drafts.hasChanges}
 			/>
 
-			<ThyroidAnnotatedViewer
-				key={`viewer-${viewerResetKey}-${isEditMode ? 'edit' : 'view'}`}
+			<UziStudyViewer
 				image={imageSource}
-				seg={seg}
+				segments={segments}
 				imageid={imageid}
+				drafts={contourEditor.drafts}
 				height={viewerHeight}
 				status={status}
-				readOnly={!isEditMode}
+				readOnly={!contourEditor.isEditing}
 				currentGroup={selectedGroup}
-				onDraftChangesChange={onDraftChangesChange}
-				annotationApiRef={annotationApiRef}
+				annotationApiRef={contourEditor.annotationApiRef}
 				onPxPerMmChange={onPxPerMmChange}
 				thyroidStructures={thyroidStructures}
 			/>

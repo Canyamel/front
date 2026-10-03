@@ -11,3 +11,5 @@ export type {
 	ViewerAnnotationStyleFn,
 	ViewerAnnotationStyleState,
 } from './types'
+export { applyContourDraft, useContourDrafts } from './useContourDrafts'
+export type { ContourDraft, ContourDraftMap, ContourDrafts } from './useContourDrafts'

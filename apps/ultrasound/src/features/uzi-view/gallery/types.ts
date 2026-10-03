@@ -1,4 +1,5 @@
-import type { Segment, SegmentDraftChange } from '../model/types'
+import type { Segment } from '../model/types'
+import type { UziContourEditor } from '../model/useUziContourEditor'
 import type { ThyroidStructureJson } from '../structures'
 
 /**
@@ -19,20 +20,13 @@ export interface TiffSlidesOptions {
 
 export interface GalleryProps {
 	link1: string | null
-	seg: Segment[]
+	segments: Segment[]
 	imageid: string | number
 	image_count: number
 	slide_template?: string[]
 	slide_urls?: string[]
-	isEditMode?: boolean
+	contourEditor: UziContourEditor
 	currentGroup?: string | number
-	onStartEdit?: () => void
-	onSaveEdit?: () => void | Promise<void>
-	onCancelEdit?: () => void
-	isSaving?: boolean
-	hasUnsavedChanges?: boolean
-	onDraftChangesChange?: (changes: SegmentDraftChange[]) => void
-	viewerResetKey?: number
 	viewerHeight?: number
 	onPxPerMmChange?: (pxPerMm: number | null) => void
 	thyroidStructures?: ThyroidStructureJson

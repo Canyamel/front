@@ -68,7 +68,7 @@ export interface ICytologyInfoClusterCharacteristics {
     disordered_cells_shapeless_cluster_num: number;
 }
 
-export interface ICytolgyInfoPatch {
+export interface ICytologyInfoPatch {
     patient_card: {
         patient: number;
         diagnosis: string;

@@ -1,5 +1,10 @@
-import type { IPoint } from '../../CytologyView/CytologyViewer/Viewer/interfaces/queries'
 import { IPaginated } from './basic'
+
+/** Точка контура на снимке, в пикселях исходного изображения. */
+export interface IPoint {
+	x: number
+	y: number
+}
 
 export type GroupType = 'CE' | 'CL' | 'ME'
 export type SegmentType =
@@ -77,9 +82,6 @@ export interface ISegmentStack {
 	points: IPoint[]
 	seg_type: SegmentType
 	is_ai?: boolean
-	isNew?: boolean
-	isEdited?: boolean
-	isDeleted?: boolean
 }
 
 export interface ISegmentData {
@@ -103,11 +105,6 @@ export interface ISegmentDetails {
 	aspect_ratio?: number
 	circularity?: number
 	nuclear_cytoplasmic_ratio?: number
-}
-
-export interface IGroupedSegments {
-	seg_type: SegmentType
-	segments: ISegmentStack[]
 }
 
 export interface ISegmentCreate {

@@ -1,6 +1,6 @@
-import { ICytolgyInfoPatch, ICytologyInfo } from "@cytology/core/types/cytology";
+import { ICytologyInfoPatch, ICytologyInfo } from "@cytology/core/types/cytology";
 
-export const prepareCytologyInfo = (cytologyInfo: ICytologyInfo): ICytolgyInfoPatch => ({
+export const prepareCytologyInfo = (cytologyInfo: ICytologyInfo): ICytologyInfoPatch => ({
     patient_card: {
         patient: cytologyInfo.patient.id,
         diagnosis: cytologyInfo.diagnosis,

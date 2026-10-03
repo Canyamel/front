@@ -1,55 +1,43 @@
-import { skipToken } from "@reduxjs/toolkit/query";
+import { useMemo } from 'react'
+import { skipToken } from '@reduxjs/toolkit/query'
 
 import {
-  useAddReviseCopyMutation,
-  useAddSegmentMutation,
-  useGetCytologyHistoryQuery as useGetCytologyHistoryQueryBase,
-  useGetCytologyInfoQuery as useGetCytologyInfoQueryBase,
-  useGetCytologyTypesQuery as useGetCytologyTypesQueryBase,
-  useLazyGetCytologySegmentsByTypeQuery as useLazyGetCytologySegmentsByTypeQueryBase,
-  usePatchCytologyInfoMutation as usePatchCytologyInfoMutationBase,
-  usePatchSegmentMutation as usePatchSegmentMutationBase,
-} from "@/lib/cytologyApi";
+	useGetCytologyHistoryQuery as useGetCytologyHistoryQueryBase,
+	useGetCytologyInfoQuery as useGetCytologyInfoQueryBase,
+	useGetCytologySegmentsQuery as useGetCytologySegmentsQueryBase,
+	useGetCytologyTypesQuery as useGetCytologyTypesQueryBase,
+} from '@/lib/cytologyApi'
 
-import { mapToICytology } from "../adapters/mapToICytology";
-import type { ICytology, ICytologyHistory } from "../types/cytology";
-import type { ISegmentType, SegmentType } from "../types/segments";
-import type { IPoint } from "../../CytologyView/CytologyViewer/Viewer/interfaces/queries";
+import { mapToICytology } from '../adapters/mapToICytology'
+import { mapToSegmentStack } from '../adapters/mapToSegmentStack'
+import type { ICytology, ICytologyHistory } from '../types/cytology'
+import type { ISegmentStack, ISegmentType } from '../types/segments'
 
 export function useGetCytologyInfoQuery(id: string | typeof skipToken) {
-  const arg = id;
-  const result = useGetCytologyInfoQueryBase(arg, { skip: arg === skipToken });
-  const data: ICytology | undefined = result.data ? mapToICytology(result.data) : undefined;
-  return { ...result, data };
+	const result = useGetCytologyInfoQueryBase(id, { skip: id === skipToken })
+	const raw = result.data
+	const data = useMemo<ICytology | undefined>(() => (raw ? mapToICytology(raw) : undefined), [raw])
+	return { ...result, data }
 }
 
 export function useGetCytologyTypesQuery(id: string | typeof skipToken) {
-  const arg = id;
-  return useGetCytologyTypesQueryBase(arg, { skip: arg === skipToken }) as ReturnType<
-    typeof useGetCytologyTypesQueryBase
-  > & { data?: ISegmentType[] };
+	return useGetCytologyTypesQueryBase(id, { skip: id === skipToken }) as ReturnType<
+		typeof useGetCytologyTypesQueryBase
+	> & { data?: ISegmentType[] }
 }
 
-export const useLazyGetCytologySegmentsByTypeQuery = useLazyGetCytologySegmentsByTypeQueryBase;
-
-export { useAddSegmentMutation } from "@/lib/cytologyApi";
-
-export function usePatchSegmentMutation() {
-  const [patch, state] = usePatchSegmentMutationBase();
-  const patchWithPoints = (args: { segmentId: string | number; points: IPoint[] }) =>
-    patch({ segmentId: args.segmentId, body: { points: args.points } });
-  return [patchWithPoints, state] as const;
+/** Сегменты всех типов исследования. */
+export function useGetCytologySegmentsQuery(args: { id: string; types: string[] } | typeof skipToken) {
+	const result = useGetCytologySegmentsQueryBase(args, { skip: args === skipToken })
+	const raw = result.data
+	const data = useMemo<ISegmentStack[] | undefined>(() => (raw ? mapToSegmentStack(raw) : undefined), [raw])
+	return { ...result, data }
 }
 
-export { useDeleteSegmentMutation } from "@/lib/cytologyApi";
-
-export const useAddNewReviseMutation = useAddReviseCopyMutation;
-
-export const usePatchCytologyInfoMutation = usePatchCytologyInfoMutationBase;
+export { useSaveCytologyRevisionMutation } from '@/lib/cytologyApi'
 
 export function useGetCytologyHistoryQuery(id: string | typeof skipToken) {
-  const arg = id;
-  return useGetCytologyHistoryQueryBase(arg, { skip: arg === skipToken }) as ReturnType<
-    typeof useGetCytologyHistoryQueryBase
-  > & { data?: ICytologyHistory };
+	return useGetCytologyHistoryQueryBase(id, { skip: id === skipToken }) as ReturnType<
+		typeof useGetCytologyHistoryQueryBase
+	> & { data?: ICytologyHistory }
 }

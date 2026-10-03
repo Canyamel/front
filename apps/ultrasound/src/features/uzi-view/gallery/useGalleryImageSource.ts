@@ -9,10 +9,7 @@ import type { ImageTile } from './types'
  */
 function deriveTiffSlideTemplate(link1: string): [string, string, string] | null {
 	try {
-		const imageUrl = new URL(
-			link1,
-			typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
-		)
+		const imageUrl = new URL(link1, typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
 		const pngBase = imageUrl.pathname.replace(/\/[^/]+$/, '') + '/pngs'
 		return [`${imageUrl.origin}${pngBase}`, 'slide_', '.png']
 	} catch {
@@ -36,20 +33,15 @@ export interface UseGalleryImageSourceOptions {
 
 export interface UseGalleryImageSourceResult {
 	isLoading: boolean
-	/** Готовый источник для вьюера: массив кадров (TIFF/DICOM) либо один снимок. */
 	imageSource: ImageTile | ImageTile[]
-	/**
-	 * Снимок требует PNG-нарезки (TIFF/DICOM), но кадров нет.
-	 * Показывать сам TIFF нельзя — браузеры его не декодируют.
-	 */
 	slidesUnavailable: boolean
 }
 
 /**
  * Приводит разнородные варианты снимка (одиночный PNG, постраничная нарезка
- * TIFF/DICOM) к единому источнику для `<ThyroidAnnotatedViewer />`.
+ * TIFF/DICOM) к единому источнику для `<UziStudyViewer />`.
  *
- * Важно: у кадров нарезки проставляются реальные width/height. OpenSeadragon
+ WOpenSeadragon
  * с `type: 'image'` умеет узнать размеры сам, но делает это асинхронно уже
  * после построения раскладки — в постраничном режиме (`sequenceMode`) это
  * приводило к вырожденному первому кадру («тонкая полоса»). Кадры нарезки
@@ -141,14 +133,11 @@ export function useGalleryImageSource({
 		return {
 			type: 'image',
 			url: link1 ?? '',
-			...(dimensions
-				? { width: dimensions.width, height: dimensions.height }
-				: {}),
+			...(dimensions ? { width: dimensions.width, height: dimensions.height } : {}),
 		}
 	}, [isReady, link1, prepared, usesGeneratedSlides])
 
-	const slidesUnavailable =
-		usesGeneratedSlides && isReady && (prepared?.tiles.length ?? 0) === 0
+	const slidesUnavailable = usesGeneratedSlides && isReady && (prepared?.tiles.length ?? 0) === 0
 
 	return { isLoading: !isReady, imageSource, slidesUnavailable }
 }

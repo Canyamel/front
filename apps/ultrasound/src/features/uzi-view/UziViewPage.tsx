@@ -12,7 +12,7 @@ import { toSameOriginMediaUrl, toSameOriginMediaUrls } from '@/lib/mediaUrl'
 
 import { Gallery } from './gallery'
 import { ActionButtons, NoduleTypesSection, PatientInfoSection, StudyDataSection } from './sidebar'
-import { anatomyToStructureJson, splitSegmentation, useThyroidSegmentEditor, useThyroidStudyForm } from './model'
+import { anatomyToStructureJson, splitSegmentation, useUziContourEditor, useUziStudyForm } from './model'
 import type { Segment } from './model/types'
 
 /**
@@ -41,20 +41,13 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 		[anatomy],
 	)
 
-	// Заключение строится по `data.segmentation` — отдаём туда только узлы.
 	const reportData = useMemo(() => (data ? { ...data, segmentation: nodules } : data), [data, nodules])
 
-	const editor = useThyroidSegmentEditor({
-		uziId,
-		serverSegmentation: nodules,
-	})
-
-	const studyForm = useThyroidStudyForm({ uziId, data, devices })
+	const contourEditor = useUziContourEditor({ uziId })
+	const studyForm = useUziStudyForm({ uziId, data, devices })
 
 	const focus = useStudyFocusMode()
 
-	// Масштаб задаётся во вьюере, а нужен ещё и
-	// заключению: по нему считаются размеры узлов в миллиметрах.
 	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
 
 	// --- заключение -------------------------------------------------------
@@ -113,16 +106,9 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						image_count={data.info.image_count ?? 1}
 						slide_template={toSameOriginMediaUrls(data.image.slide_template)}
 						slide_urls={toSameOriginMediaUrls(data.image.slide_urls)}
-						seg={editor.displaySegmentation}
+						segments={nodules}
 						imageid={data.image.id}
-						isEditMode={editor.isEditMode}
-						onStartEdit={editor.startEdit}
-						onSaveEdit={editor.saveSegments}
-						onCancelEdit={editor.cancelEdit}
-						isSaving={editor.isSaving}
-						hasUnsavedChanges={editor.hasUnsavedChanges}
-						onDraftChangesChange={editor.setPendingChanges}
-						viewerResetKey={editor.viewerResetKey}
+						contourEditor={contourEditor}
 						viewerHeight={focus.viewerHeight}
 						onPxPerMmChange={setPxPerMm}
 						thyroidStructures={thyroidStructures}

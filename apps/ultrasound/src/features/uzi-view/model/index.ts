@@ -1,5 +1,6 @@
-export { useThyroidSegmentEditor } from './useThyroidSegmentEditor'
-export { useThyroidStudyForm } from './useThyroidStudyForm'
+export { useUziContourEditor } from './useUziContourEditor'
+export type { UziContourEditor } from './useUziContourEditor'
+export { useUziStudyForm } from './useUziStudyForm'
 export {
 	anatomyToStructureJson,
 	isAnatomySegment,

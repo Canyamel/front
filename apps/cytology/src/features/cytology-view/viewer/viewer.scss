@@ -1,0 +1,23 @@
+.cytology-study-viewer {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	position: relative;
+
+	.medml-study-viewer,
+	.medml-uzi-viewer,
+	.openseadragon-container {
+		width: 100% !important;
+	}
+}
+
+:root {
+	--stroke-color: #00000073;
+	--filter: '';
+}
+
+.a9s-handle {
+	rx: 50% !important;
+	stroke: var(--stroke-color, #00000073) !important;
+	filter: var(--filter, '') !important;
+}

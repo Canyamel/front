@@ -51,6 +51,28 @@ Annotorious 3). Приложение с библиотекой разметки 
 Вьюер приводит Annotorious к списку `annotations` разницей (добавить / обновить
 / убрать), а не полной заменой: у Annotorious 3 полная замена при совпадающих
 id оставляет на холсте «призраков», а `clearAnnotations()` шлёт события
-удаления. Доменное остаётся в приложениях: `useThyroidContours` (контуры узлов
-по кадрам и черновики УЗИ) и `generateAnnotation` / `createSelectStyleFromConfig`
-(сегменты цитологии).
+удаления.
+
+Несохранённые правки обоих приложений — одна модель `useContourDrafts`
+(`lib/viewers/src/annotations`): по ключу контура хранится итог — создан,
+изменён или удалён. На экране всегда «сервер + черновик», своей копии разметки
+у приложений нет: отмена — очистка черновика, сохранение — одна мутация, после
+которой снимок перечитывается.
+
+Доменное остаётся в приложениях, и файлы в УЗИ и цитологии названы парами:
+
+| Роль | УЗИ (`features/uzi-view`) | Цитология (`features/cytology-view`) |
+|------|---------------------------|--------------------------------------|
+| Страница | `UziViewPage` | `CytologyViewPage` |
+| Вьюер исследования | `viewer/UziStudyViewer` | `viewer/CytologyStudyViewer` |
+| Контуры для вьюера (сервер + черновик) | `viewer/useUziContours` | `viewer/useCytologyContours` |
+| Построение контуров и стиль | `viewer/uziAnnotations` | `viewer/cytologyAnnotations` |
+| Карточка выделенного контура | `viewer/UziContourCard` | `viewer/CytologyContourCard` |
+| Правка: режим, черновик, сохранение | `model/useUziContourEditor` | `model/useCytologyContourEditor` |
+| Мутация сохранения | `saveUziContourDrafts` | `saveCytologyRevision` |
+
+Цитология сохраняет правки новой ревизией (копия исследования, затем правки
+сегментов копии) и переходит на неё. Своего Redux-стора у страницы цитологии
+нет: состояние для панели справа — `model/CytologyViewContext`. Модалки
+(`ModalContext.open`) рисуются в корне приложения, вне этого контекста, —
+данные и колбэки им передаются пропсами.

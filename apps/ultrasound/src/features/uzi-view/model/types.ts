@@ -1,3 +1,5 @@
+import type { ContourDraft, ContourDrafts } from '@medml/viewers'
+
 export interface UziDeviceInfo {
 	id: number
 	name: string
@@ -96,13 +98,6 @@ export interface Segment {
 	data?: SegmentContour[]
 }
 
-export interface SegmentDraftChange {
-	annotationId: string
-	type: 'create' | 'update' | 'delete'
-	points?: SegmentPoint[]
-	segment_group?: string | number
-}
-
 /**
  * `details` исследования. Размеры ЩЖ приходят в двух форматах — читать их
  * только через `readThyroidDimensions`, напрямую
@@ -182,8 +177,13 @@ export interface ThyroidUziApiResponse {
 	}
 }
 
-/** Черновое изменение контура до сохранения на бэкенд. */
-export interface SegmentContourPayload {
-	points: SegmentPoint[]
-	segment_group?: string | number
+/**
+ * Несохранённые правки контуров узлов.
+ */
+export interface UziContourDraftData {
+	/** Узел (группа сегментации), к которому относится контур. */
+	group?: string | number
 }
+
+export type UziContourDraft = ContourDraft<SegmentPoint[], UziContourDraftData>
+export type UziContourDrafts = ContourDrafts<SegmentPoint[], UziContourDraftData>

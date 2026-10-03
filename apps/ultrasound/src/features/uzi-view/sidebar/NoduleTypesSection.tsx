@@ -2,7 +2,7 @@ import React from 'react'
 import { Card, Row, Col, Typography, theme } from 'antd'
 import type { Segment } from '../model/types'
 import { getSurfaceCardStyle } from '@/styles/uiPatterns'
-import { formatProbability, getProbabilityValue } from '../viewer/thyroidAnnotations'
+import { formatProbability, getProbabilityValue } from '../viewer/uziAnnotations'
 
 export interface NoduleTypesSectionProps {
 	aiTypes: Segment[]

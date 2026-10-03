@@ -1,10 +1,8 @@
 import { baseApi } from '@medml/store'
+import type { FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
-import type {
-	SegmentPoint,
-	ThyroidUziApiResponse,
-} from '@/features/uzi-view/model/types'
+import type { ThyroidUziApiResponse, UziContourDraft } from '@/features/uzi-view/model/types'
 
 function normalizeListResults<T>(response: unknown): T[] {
 	if (Array.isArray(response)) return response as T[]
@@ -37,71 +35,15 @@ export const uziApi = baseApi.injectEndpoints({
 			providesTags: (_result, _error, uziId) => [{ type: 'Uzi', id: uziId }],
 		}),
 
-		updateThyroidUziData: builder.mutation<
-			void,
-			{ uziId: string; data: unknown }
-		>({
+		updateThyroidUziData: builder.mutation<void, { uziId: string; data: unknown }>({
 			query: ({ uziId, data }) => ({
 				url: `/uzi/${encodeURIComponent(uziId)}/update/`,
 				method: 'PUT',
 				body: data,
 			}),
-			invalidatesTags: (_result, _error, { uziId }) => [
-				{ type: 'Uzi', id: uziId },
-			],
+			invalidatesTags: (_result, _error, { uziId }) => [{ type: 'Uzi', id: uziId }],
 		}),
 
-		/**
-		 * Контуры сегментов. Раньше эти три запроса шли мимо RTK Query через
-		 * axios с ручным заголовком Authorization — теперь токен подставляет
-		 * baseQuery, а `invalidatesTags` сам перечитывает снимок после записи,
-		 * поэтому локальное применение черновиков больше не нужно.
-		 *
-		 * `uziId` в аргументах не участвует в URL — он нужен только для
-		 * инвалидации кэша конкретного снимка.
-		 */
-		addUziSegmentContour: builder.mutation<
-			{ id: number },
-			{ uziId: string; points: SegmentPoint[]; segmentGroup: string | number }
-		>({
-			query: ({ points, segmentGroup }) => ({
-				url: '/uzi/segment/add/',
-				method: 'POST',
-				body: { points, segment_group: segmentGroup },
-			}),
-			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
-		}),
-
-		updateUziSegmentContour: builder.mutation<
-			void,
-			{
-				uziId: string
-				contourId: string
-				points: SegmentPoint[]
-				segmentGroup?: string | number
-			}
-		>({
-			query: ({ contourId, points, segmentGroup }) => ({
-				url: `/uzi/segment/update/${encodeURIComponent(contourId)}/`,
-				method: 'PUT',
-				body: {
-					points,
-					...(segmentGroup ? { segment_group: segmentGroup } : {}),
-				},
-			}),
-			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
-		}),
-
-		deleteUziSegmentContour: builder.mutation<
-			void,
-			{ uziId: string; contourId: string }
-		>({
-			query: ({ contourId }) => ({
-				url: `/uzi/segment/update/${encodeURIComponent(contourId)}/`,
-				method: 'DELETE',
-			}),
-			invalidatesTags: (_r, _e, { uziId }) => [{ type: 'Uzi', id: uziId }],
-		}),
 		uploadUziDiagnostic: builder.mutation<
 			unknown,
 			{
@@ -152,7 +94,82 @@ export const {
 	useUploadUziDiagnosticMutation,
 	useGetThyroidUziDataQuery,
 	useUpdateThyroidUziDataMutation,
-	useAddUziSegmentContourMutation,
-	useUpdateUziSegmentContourMutation,
-	useDeleteUziSegmentContourMutation,
 } = uziApi
+
+/** Правка контура в запросе сохранения: ключ черновика и сама правка. */
+export interface UziContourDraftEntry {
+	key: string
+	draft: UziContourDraft
+}
+
+export interface SaveUziContourDraftsResult {
+	saved: string[]
+	failed: Array<{ key: string; message: string }>
+}
+
+/**
+ * Сохранение контуров узлов отдельным `injectEndpoints`: после записи
+ * мутация кладёт свежий снимок в кэш `getThyroidUziData`, а сослаться на
+ * `uziApi.util` можно только после того, как `uziApi` объявлен.
+ */
+export const uziContourApi = uziApi.injectEndpoints({
+	endpoints: builder => ({
+		saveUziContourDrafts: builder.mutation<
+			SaveUziContourDraftsResult,
+			{ uziId: string; drafts: UziContourDraftEntry[] }
+		>({
+			async queryFn({ uziId, drafts }, api, _extraOptions, baseQuery) {
+				const saved: string[] = []
+				const failed: SaveUziContourDraftsResult['failed'] = []
+
+				const send = async ({ key, draft }: UziContourDraftEntry) => {
+					const request = contourDraftRequest(key, draft)
+					if (typeof request === 'string') {
+						failed.push({ key, message: request })
+						return
+					}
+					const result = await baseQuery(request)
+					if (result.error) failed.push({ key, message: formatSaveError(result.error) })
+					else saved.push(key)
+				}
+
+				await Promise.all(drafts.filter(entry => entry.draft.kind !== 'delete').map(send))
+				await Promise.all(drafts.filter(entry => entry.draft.kind === 'delete').map(send))
+
+				if (saved.length > 0) {
+					const fresh = await baseQuery(`/uzi/${encodeURIComponent(uziId)}/?format=json`)
+					if (fresh.data) {
+						await api.dispatch(
+							uziApi.util.upsertQueryData('getThyroidUziData', uziId, fresh.data as ThyroidUziApiResponse),
+						)
+					} else {
+						api.dispatch(uziApi.util.invalidateTags([{ type: 'Uzi', id: uziId }]))
+					}
+				}
+
+				return { data: { saved, failed } }
+			},
+		}),
+	}),
+})
+
+export const { useSaveUziContourDraftsMutation } = uziContourApi
+
+function contourDraftRequest(key: string, draft: UziContourDraft): FetchArgs | string {
+	const group = draft.data?.group
+
+	if (draft.kind === 'create') {
+		if (group == null || group === '') return 'Не выбран узел для нового контура'
+		return { url: '/uzi/segment/add/', method: 'POST', body: { points: draft.points, segment_group: group } }
+	}
+
+	const url = `/uzi/segment/update/${encodeURIComponent(key)}/`
+	if (draft.kind === 'delete') return { url, method: 'DELETE' }
+	return { url, method: 'PUT', body: { points: draft.points, ...(group != null ? { segment_group: group } : {}) } }
+}
+
+function formatSaveError(error: FetchBaseQueryError): string {
+	const data = error.data as { detail?: unknown } | undefined
+	if (typeof data?.detail === 'string') return data.detail
+	return typeof error.status === 'number' ? `Ошибка ${error.status}` : 'Сервер недоступен'
+}
