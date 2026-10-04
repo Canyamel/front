@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import type { Plugin } from 'vite'
 
+import { normalizeBasePath } from '../../lib/shared/src/utils/normalizeBasePath'
+
 /**
  * `next-auth/react` обращается к Node-глобалу `process` в браузере — в Vite его нет.
  * Инжектим минимальный `process` до загрузки модулей.
@@ -28,6 +30,12 @@ function processPolyfillPlugin(mode: string): Plugin {
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '')
+
+	// Префикс, под которым приложение опубликовано: `/uzi/` в сборке
+	// (.env.production), корень в разработке. От него зависят адреса ассетов,
+	// basename роутера и адреса API (`withBasePath`).
+	const basePath = normalizeBasePath(env.VITE_BASE_PATH)
+
 	const proxyTarget =
 		env.VITE_BACKEND_PROXY_TARGET ??
 		env.VITE_ULTRASOUND_PROXY_TARGET ??
@@ -41,6 +49,7 @@ export default defineConfig(({ mode }) => {
 	const mediaTarget = env.VITE_MEDIA_PROXY_TARGET ?? 'https://localhost'
 
 	return {
+		base: basePath,
 		plugins: [processPolyfillPlugin(mode), react()],
 		resolve: {
 			dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom', 'openseadragon'],

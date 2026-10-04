@@ -1,5 +1,4 @@
-import { ApiFormRequestError, apiFormRequest, baseApi } from '@medml/store'
-import type { AuthState } from '@medml/store'
+import { ApiFormRequestError, apiFormRequest, authorizedFetch, baseApi } from '@medml/store'
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import type { CytologyStagedCreateFields } from '@medml/cytology-upload'
 import { CYTOLOGY_STAGED_CREATE_URL, formatCytologyUploadApiError } from '@medml/cytology-upload'
@@ -333,7 +332,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 					const data = await apiFormRequest<CreateCytologyResponse>(
 						cytologyRoutes.create(),
 						buildCreateCytologyFormData(body),
-						api.getState,
+						api,
 					)
 					return { data }
 				} catch (error) {
@@ -358,20 +357,17 @@ export const cytologyApi = baseApi.injectEndpoints({
 		createCytologyFromStaged: builder.mutation<CreateCytologyResponse, CytologyStagedCreateFields>({
 			async queryFn(body, api) {
 				try {
-					const state = api.getState() as { auth: AuthState }
-					const token = state.auth?.accessToken
-					const headers: Record<string, string> = {
-						'Content-Type': 'application/json',
-					}
-					if (token) {
-						headers.Authorization = `Bearer ${token}`
-					}
-
-					const response = await fetch(CYTOLOGY_STAGED_CREATE_URL, {
-						method: 'POST',
-						headers,
-						body: JSON.stringify(body),
-					})
+					// Загрузка большого .svs идёт минутами — за это время access-токен
+					// успевает истечь. authorizedFetch обновит его перед отправкой.
+					const response = await authorizedFetch(
+						CYTOLOGY_STAGED_CREATE_URL,
+						{
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(body),
+						},
+						api,
+					)
 
 					const text = await response.text()
 					let data: unknown = null

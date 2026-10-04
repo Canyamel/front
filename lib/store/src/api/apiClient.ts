@@ -1,3 +1,5 @@
+import { withBasePath } from '@medml/shared'
+
 const getViteApiBaseUrl = (): string | undefined => {
 	try {
 		const env = (import.meta as { env?: Record<string, string | undefined> })
@@ -11,7 +13,7 @@ const getViteApiBaseUrl = (): string | undefined => {
 
 const getBaseUrl = (): string => {
 	const viteUrl = getViteApiBaseUrl()
-	if (viteUrl) return viteUrl
+	if (viteUrl) return withBasePath(viteUrl)
 
 	if (typeof process !== 'undefined' && process.env) {
 		if (typeof window === 'undefined') {

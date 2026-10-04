@@ -10,9 +10,74 @@
 			rel="stylesheet"
 			href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Inter:wght@500;600;700&display=swap"
 		/>
+		<style>
+			#boot-error {
+				max-width: 720px;
+				margin: 15vh auto 0;
+				padding: 0 16px;
+				font-family: system-ui, sans-serif;
+				color: #1f2937;
+			}
+			#boot-error pre {
+				padding: 12px;
+				overflow: auto;
+				font-size: 12px;
+				white-space: pre-wrap;
+				background: #f3f4f6;
+				border-radius: 8px;
+			}
+		</style>
+		<script>
+			// Запасной экран на случай, когда React так и не запустился: бандл не
+			// скачался, вместо JS пришёл HTML или модуль упал при загрузке.
+			// ErrorBoundary такие случаи не видит — он появляется только вместе с React.
+			;(function () {
+				var problems = []
+
+				function show() {
+					var root = document.getElementById('root')
+					var box = document.getElementById('boot-error')
+					if (!box || (root && root.childElementCount > 0)) return
+					document.getElementById('boot-error-details').textContent = problems
+						.concat(['Адрес: ' + location.href, 'Браузер: ' + navigator.userAgent])
+						.join('\n')
+					box.hidden = false
+				}
+
+				window.addEventListener(
+					'error',
+					function (event) {
+						var target = event.target
+						if (target && target.tagName === 'SCRIPT') {
+							problems.push('Не загрузился скрипт: ' + target.src)
+						} else if (event.message) {
+							problems.push(
+								'Ошибка: ' + event.message + (event.filename ? ' (' + event.filename + ':' + event.lineno + ')' : ''),
+							)
+						} else {
+							return
+						}
+						setTimeout(show, 1000)
+					},
+					true,
+				)
+
+				window.addEventListener('load', function () {
+					setTimeout(function () {
+						problems.push('Приложение не запустилось за 5 секунд после загрузки страницы')
+						show()
+					}, 5000)
+				})
+			})()
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>
+		<div id="boot-error" hidden>
+			<h1>Не удалось загрузить приложение</h1>
+			<p>Обновите страницу (Ctrl+F5). Если не помогло — сообщите нам и приложите текст ниже.</p>
+			<pre id="boot-error-details"></pre>
+		</div>
 		<script type="module" src="/src/main.tsx"></script>
 	</body>
 </html>

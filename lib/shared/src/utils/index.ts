@@ -4,6 +4,8 @@ export * from "./jwt";
 export * from "./cacheBuster";
 export * from "./serverErrorText";
 export * from "./notFoundError";
+export * from "./basePath";
+export * from "./normalizeBasePath";
 
 export const formatDate = (date: Date | string): string => {
   return new Date(date).toLocaleDateString();

@@ -5,6 +5,7 @@ import './page.scss'
 import { useCallback, useState } from 'react'
 import { Button, Checkbox, Form, Input } from 'antd'
 import { EmailIcon, LogoMark, PasswordIcon } from '@medml/ui'
+import { withBasePath } from '@medml/shared'
 import { validateEmail } from '../../utils/validateEmail'
 import AuthFormWrapper from '../../components/AuthFormWrapper'
 import AuthSwitchLink from '../../components/AuthSwitchLink/AuthSwitchLink'
@@ -36,7 +37,7 @@ const LoginPage = ({
 	onError,
 	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
 	callbackUrl,
-	registerHref = DEFAULT_REGISTER_ROUTE,
+	registerHref = withBasePath(DEFAULT_REGISTER_ROUTE),
 	onRegisterClick,
 }: LoginPageProps) => {
 	const authApi = useAuthApi()

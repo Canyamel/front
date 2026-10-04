@@ -1,3 +1,5 @@
+import { withBasePath } from '@medml/shared'
+
 import { isGoBackend } from '@/lib/apiBackend'
 
 /**
@@ -21,13 +23,13 @@ export interface DziTileSource extends DziMeta {
 
 function getApiBaseUrl(): string {
 	const value = import.meta.env.VITE_API_BASE_URL
-	return typeof value === 'string' && value.length > 0 ? value.replace(/\/+$/, '') : '/api/v3'
+	return withBasePath(typeof value === 'string' && value.length > 0 ? value.replace(/\/+$/, '') : '/api/v3')
 }
 
 /** База отдельного DZI-сервиса (только для python-бэкенда). */
 export function getDziApiBaseUrl(): string {
 	const value = import.meta.env.VITE_DZI_API_BASE_URL
-	return typeof value === 'string' && value.length > 0 ? value.replace(/\/+$/, '') : '/api/bid/v1/dzi'
+	return withBasePath(typeof value === 'string' && value.length > 0 ? value.replace(/\/+$/, '') : '/api/bid/v1/dzi')
 }
 
 export function normalizeFilePath(imageUrl: string): string {

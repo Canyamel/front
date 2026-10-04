@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react'
 import { Badge, Button, Checkbox, Col, Form, Input, Row, Space } from 'antd'
 
 import { EmailIcon, PasswordIcon, UserIcon } from '@medml/ui'
+import { withBasePath } from '@medml/shared'
 
 import { useAuthApi } from '../../contexts/AuthApiContext'
 import { validateEmail } from '../../utils/validateEmail'
@@ -40,7 +41,7 @@ const RegisterPage = ({
 	onSuccess,
 	onError,
 	authedRedirectTo = DEFAULT_POST_AUTH_PATH,
-	loginHref = DEFAULT_LOGIN_ROUTE,
+	loginHref = withBasePath(DEFAULT_LOGIN_ROUTE),
 	onLoginClick,
 }: RegisterPageProps) => {
 	const authApi = useAuthApi()

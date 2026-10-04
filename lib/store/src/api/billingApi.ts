@@ -1,5 +1,7 @@
 import type { FetchBaseQueryError } from '@reduxjs/toolkit/query'
 
+import { withBasePath } from '@medml/shared'
+
 import { baseApi } from './baseApi'
 
 const billingBase = (): string => {
@@ -11,7 +13,7 @@ const billingBase = (): string => {
 		/* ignore */
 	}
 
-	const path = base.replace(/\/$/, '')
+	const path = withBasePath(base.replace(/\/$/, ''))
 	if (typeof window === 'undefined') return path
 	return `${window.location.origin}${path}`
 }

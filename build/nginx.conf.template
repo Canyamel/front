@@ -1,16 +1,29 @@
-# Один nginx на оба фронта: цитология и УЗИ.
+# Один nginx на оба фронта: цитология и УЗИ на одном порту, под префиксами.
 #
-# Разведены по портам. Порты обходятся без правок в коде.
+#   /cytology/  — цитология (apps/cytology, VITE_BASE_PATH=/cytology/)
+#   /uzi/       — УЗИ       (apps/ultrasound, VITE_BASE_PATH=/uzi/)
 #
-#   80 — цитология
-#   81 — УЗИ
+# У каждого приложения своё API под своим префиксом: /cytology/api/...,
+# /uzi/api/... Перед отправкой на бэкенд префикс срезается — бэкенды видят
+# прежние пути /api/....
 #
 # Про переменные в `proxy_pass`: адрес подставляется через `set`, а не
 # литералом. С литеральным именем nginx резолвит апстрим при старте и падает с
 # `host not found in upstream`, если контейнер бэкенда ещё не поднят — фронт
 # тогда не запускается вовсе, хотя статику мог бы отдавать. С переменной резолв
 # откладывается до запроса. Платить приходится тем, что исходный путь nginx
-# больше не подставляет сам, поэтому он дописан явно через `$request_uri`.
+# больше не подставляет сам, поэтому он дописан явно.
+#
+# Про срезание префикса: `rewrite` не годится — после него nginx отдаёт
+# бэкенду декодированный URI, и `%2F` в пути DZI (`/tiler/dzi/{file_path}`)
+# превратился бы в `/`, развалив маршрут шлюза. Поэтому префикс отрезается от
+# исходного `$request_uri` через `map`, и путь уходит в том виде, в каком его
+# прислал браузер.
+
+map $request_uri $upstream_uri {
+    ~^/(?:cytology|uzi)(/.*)$  $1;
+    default                    $request_uri;
+}
 
 server {
     listen 80;
@@ -23,92 +36,93 @@ server {
     # Встроенный DNS Docker — нужен из-за переменных в proxy_pass.
     resolver 127.0.0.11 valid=10s ipv6=off;
 
-    # Чанковая загрузка .svs.
-    #
-    # Обслуживается отдельным Node-сервисом (services/cytology-upload): у шлюза
-    # таких ручек нет, а в разработке их поднимает плагин dev-сервера Vite.
-    # Блок обязан идти раньше общего `/api`, иначе запросы уйдут на бэкенд.
-    location /api/upload {
-        set $upload_backend ${UPLOAD_BACKEND_URL};
-        proxy_pass $upload_backend$request_uri;
+    # Редиректы (`/` → `/cytology/`, `/uzi` → `/uzi/`) — относительные.
+    # Абсолютный адрес nginx собирает со своим портом 80, и за пробросом
+    # 3001:80 браузер ушёл бы на `http://host/cytology/` мимо фронта.
+    absolute_redirect off;
 
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    # Общие параметры проксирования. Наследуются всеми location, пока ни один
+    # из них не задаёт свои proxy_set_header.
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    root /usr/share/nginx/html;
+
+    location = / {
+        return 302 /cytology/;
+    }
+
+    # ─── Цитология ────────────────────────────────────────────
+
+    location = /cytology {
+        return 301 /cytology/;
+    }
+
+    # Чанковая загрузка .svs. Обслуживается отдельным Node-сервисом
+    # (services/cytology-upload): у шлюза таких ручек нет, а в разработке их
+    # поднимает плагин dev-сервера Vite. Из префиксных location выигрывает
+    # самый длинный, поэтому общий `/cytology/api/` этот блок не перекрывает.
+    location ^~ /cytology/api/upload {
+        set $upload_backend ${UPLOAD_BACKEND_URL};
+        proxy_pass $upload_backend$upstream_uri;
 
         # Файл целиком не буферизуем: он может быть на несколько гигабайт.
         proxy_request_buffering off;
     }
 
-    location /api/bid {
+    # Отдельный DZI-тайлер — только для python-бэкенда.
+    location ^~ /cytology/api/bid {
         set $dzi_backend ${DZI_BACKEND_URL};
-        proxy_pass $dzi_backend$request_uri;
-
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass $dzi_backend$upstream_uri;
     }
 
-    location /api {
+    location ^~ /cytology/api/ {
         set $api_backend ${API_BACKEND_URL};
-        proxy_pass $api_backend$request_uri;
-
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass $api_backend$upstream_uri;
     }
 
-    location / {
-        root /usr/share/nginx/html/cytology;
-        index index.html;
-        try_files $uri $uri/ /index.html;
+    # Ассеты с хэшем в имени. Отсутствующий файл — 404, а не index.html:
+    # иначе браузер со старым index.html после передеплоя получит HTML вместо
+    # скрипта, и страница останется белой.
+    location ^~ /cytology/assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
-}
 
-server {
-    listen 81;
-    server_name _;
+    location /cytology/ {
+        try_files $uri $uri/ /cytology/index.html;
+        # index.html не кэшируем: после деплоя браузер должен увидеть новые хэши.
+        add_header Cache-Control "no-cache";
+    }
 
-    client_max_body_size 0;
-    proxy_read_timeout 600s;
-    proxy_send_timeout 600s;
+    # ─── УЗИ ──────────────────────────────────────────────────
 
-    resolver 127.0.0.11 valid=10s ipv6=off;
+    location = /uzi {
+        return 301 /uzi/;
+    }
 
     # Биллинг живёт только в Go-шлюзе и адресуется по /api/v1 независимо от
-    # того, на какой бэкенд смотрит остальное приложение. Поэтому отдельный
-    # блок, и он должен идти раньше общего `/api`.
-    location /api/v1 {
+    # того, на какой бэкенд смотрит остальное приложение.
+    location ^~ /uzi/api/v1 {
         set $uzi_billing_backend ${UZI_BILLING_BACKEND_URL};
-        proxy_pass $uzi_billing_backend$request_uri;
-
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass $uzi_billing_backend$upstream_uri;
     }
 
-    location /api {
+    location ^~ /uzi/api/ {
         set $uzi_api_backend ${UZI_API_BACKEND_URL};
-        proxy_pass $uzi_api_backend$request_uri;
-
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass $uzi_api_backend$upstream_uri;
     }
 
-    location / {
-        root /usr/share/nginx/html/ultrasound;
-        index index.html;
-        try_files $uri $uri/ /index.html;
+    location ^~ /uzi/assets/ {
+        try_files $uri =404;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location /uzi/ {
+        try_files $uri $uri/ /uzi/index.html;
+        add_header Cache-Control "no-cache";
     }
 }
