@@ -4,11 +4,7 @@ import ViewerToolbar from './ViewerToolbar'
 import ViewerNavigation from './ViewerNavigation'
 import ViewerPanel from './ViewerPanel'
 import { useNarrowViewport } from '../hooks/useNarrowViewport'
-import type {
-	ToolbarConfig,
-	ViewerOverlayContext,
-	ViewerSlotRenderer,
-} from '../types'
+import type { ToolbarConfig, ViewerOverlayContext, ViewerSlotRenderer } from '../types'
 
 export interface ViewerContainerProps {
 	height?: number | string
@@ -39,10 +35,7 @@ export interface ViewerContainerProps {
 	onNext: () => void
 }
 
-function resolveSlot(
-	slot: ViewerSlotRenderer | undefined,
-	context: ViewerOverlayContext,
-): React.ReactNode {
+function resolveSlot(slot: ViewerSlotRenderer | undefined, context: ViewerOverlayContext): React.ReactNode {
 	if (typeof slot === 'function') {
 		return slot(context)
 	}
@@ -88,19 +81,15 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 	return (
 		<div
 			className={['medml-uzi-viewer', className].filter(Boolean).join(' ')}
-			style={{ position: 'relative', width: '100%', height }}
+			style={{ position: 'relative', isolation: 'isolate', width: '100%', height }}
 		>
-			<ViewerCanvas
-				containerRef={containerRef}
-				isEmpty={isEmpty}
-				emptyState={emptyState}
-			/>
+			<ViewerCanvas containerRef={containerRef} isEmpty={isEmpty} emptyState={emptyState} />
 
 			{resolveSlot(overlaySlot, overlayContext)}
 
 			{showToolbarPanel && (
 				<ViewerPanel
-					className="medml-uzi-viewer-toolbar-panel"
+					className='medml-uzi-viewer-toolbar-panel'
 					position={isNarrow ? 'bottom-bar' : 'toolbar'}
 					minWidth={isNarrow ? 0 : 120}
 				>
@@ -129,12 +118,7 @@ const ViewerContainer: React.FC<ViewerContainerProps> = ({
 										: { height: 1, backgroundColor: '#ddd', margin: '4px 0' }
 								}
 							/>
-							<ViewerNavigation
-								currentIndex={currentIndex}
-								total={total}
-								onPrev={onPrev}
-								onNext={onNext}
-							/>
+							<ViewerNavigation currentIndex={currentIndex} total={total} onPrev={onPrev} onNext={onNext} />
 						</>
 					)}
 				</ViewerPanel>

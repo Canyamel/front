@@ -1,5 +1,5 @@
 import React, { useContext, useMemo } from 'react'
-import { Button, Flex, Typography } from 'antd'
+import { Button, Typography } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 
 import { ModalContext } from '@medml/ui'
@@ -24,10 +24,7 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({ onClickCa
 	const { open } = useContext(ModalContext)
 	const { info, segmentTypes, segments, currentType, setCurrentType, editor } = useCytologyView()
 
-	const segmentColorByCode = useMemo(
-		() => new Map(segmentTypes.map(type => [type.code, type.color])),
-		[segmentTypes],
-	)
+	const segmentColorByCode = useMemo(() => new Map(segmentTypes.map(type => [type.code, type.color])), [segmentTypes])
 
 	// Типы, сегментов которых на снимке ещё нет, — ни с сервера, ни новых.
 	const availableTypes = useMemo(() => {
@@ -74,17 +71,9 @@ const CytologyDiagnosisEdit: React.FC<CytologyDiagnosisEditProps> = ({ onClickCa
 						<Text className='text-inherit'>Добавить тип сегмента</Text>
 					</Button>
 				)}
-				<Flex vertical gap={10}>
-					<Button className='cytology-diagnosis-button' onClick={handleEditConclusion}>
-						Редактировать заключение
-					</Button>
-					<Button type='primary' onClick={editor.save} loading={editor.isSaving}>
-						Сохранить ревизию
-					</Button>
-					<Button type='primary' onClick={editor.cancel} disabled={editor.isSaving}>
-						Вернуться в режим просмотра без сохранения
-					</Button>
-				</Flex>
+				<Button className='cytology-diagnosis-button' onClick={handleEditConclusion}>
+					Редактировать заключение
+				</Button>
 			</div>
 		</div>
 	)

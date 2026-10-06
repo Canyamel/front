@@ -1,17 +1,16 @@
-import React, { useContext } from 'react'
+import React, { useContext, useState } from 'react'
 import { Flex, Typography, Button } from 'antd'
-import { DisconnectOutlined } from '@ant-design/icons'
+import { DisconnectOutlined, FileTextOutlined } from '@ant-design/icons'
 
 import { ModalContext } from '@medml/ui'
 
-import { prepareCytologyInfo } from '@cytology/core/functions/prepareCytologyInfo'
 import { getHighestProbIndex } from '@cytology/core/functions/highestProb'
 
 import { useCytologyView } from '@cytology/model'
+import { CytologyReportModal, useCytologyReportExtras } from '@/features/cytology-report'
+import { useCurrentDoctor } from '@/lib/useCurrentDoctor'
 
-import ConclusionModal from '../../ConclusionModal/ConclusionModal'
 import ViewProbs from './ViewProbs/ViewProbs'
-import CharacteristicsTable from './CharacteristicsTable/CharacteristicsTable'
 
 import './CytologyInfo.css'
 
@@ -19,7 +18,10 @@ const { Text, Title } = Typography
 
 const CytologyInfo = () => {
 	const { open } = useContext(ModalContext)
-	const { info: cytologyInfo } = useCytologyView()
+	const { info: cytologyInfo, segments, cytologyId } = useCytologyView()
+	const { profile: doctor } = useCurrentDoctor()
+	const { extras, setExtras } = useCytologyReportExtras(cytologyId)
+	const [reportOpen, setReportOpen] = useState(false)
 
 	const patientData = cytologyInfo?.patient
 	const probs = cytologyInfo?.details?.probs
@@ -28,29 +30,6 @@ const CytologyInfo = () => {
 		if (probs) {
 			open({
 				content: <ViewProbs probs={probs} />,
-			})
-		}
-	}
-
-	const handleResulCharacteristics = () => {
-		if (cytologyInfo?.details?.cell_characteristics && cytologyInfo?.details?.cluster_characteristics) {
-			open({
-				content: (
-					<CharacteristicsTable
-						characteristics={{
-							...cytologyInfo?.details?.cell_characteristics,
-							...cytologyInfo?.details?.cluster_characteristics,
-						}}
-					/>
-				),
-			})
-		}
-	}
-
-	const handleViewConclusion = () => {
-		if (cytologyInfo) {
-			open({
-				content: <ConclusionModal initData={prepareCytologyInfo(cytologyInfo)} />,
 			})
 		}
 	}
@@ -79,26 +58,19 @@ const CytologyInfo = () => {
 							</Title>
 						)}
 					</Flex>
-					<Flex vertical>
-						<Text type='secondary' strong>
-							Результаты исследования
-						</Text>
-						<Button type='link' onClick={handleResulCharacteristics} className='info-link-button'>
-							<Title level={5} className='mt-0'>
-								Просмотреть
-							</Title>
-						</Button>
-					</Flex>
-					<Flex vertical>
-						<Text type='secondary' strong>
-							Заключение
-						</Text>
-						<Button type='link' onClick={handleViewConclusion} className='info-link-button'>
-							<Title level={5} className='mt-0'>
-								Просмотреть
-							</Title>
-						</Button>
-					</Flex>
+					<Button type='primary' icon={<FileTextOutlined />} onClick={() => setReportOpen(true)} block>
+						Отчёт по исследованию
+					</Button>
+
+					<CytologyReportModal
+						open={reportOpen}
+						onClose={() => setReportOpen(false)}
+						info={cytologyInfo}
+						segments={segments}
+						doctor={doctor}
+						extras={extras}
+						onExtrasChange={setExtras}
+					/>
 				</>
 			)}
 			{(!patientData || !cytologyInfo) && (

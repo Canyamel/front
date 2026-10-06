@@ -83,10 +83,7 @@ const ConclusionModal: React.FC<ConclusionModalProps> = ({ initData, onSubmit })
 			},
 			cancelText: 'Отменить',
 		})
-		// `ModalWrapper` пересоздаёт `changeModalProps` и `close` на каждом
-		// рендере, а `changeModalProps` сам его вызывает: с ними в зависимостях
-		// эффект зациклится.
-	}, [editable, form])
+	}, [changeModalProps, close, editable, form])
 
 	return (
 		<Form layout='vertical' form={form} disabled={!editable} onFinish={handleFinish}>

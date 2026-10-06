@@ -10,7 +10,7 @@ import { MISSING_SCALE_WARNING } from '@/features/uzi-view/model/thyroidDimensio
 import { buildReportModel, needsScaleCalibration } from '../model/buildReportModel'
 import type { ReportExtras } from '../model/types'
 import { renderReportHtml } from './reportHtml'
-import { useDebouncedValue } from './useDebouncedValue'
+import { useDebouncedValue } from '@medml/shared'
 
 const { Text, Title } = Typography
 

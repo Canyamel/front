@@ -12,7 +12,7 @@ import { useGetCytologyInfoQuery, useGetCytologySegmentsQuery, useGetCytologyTyp
 import type { ISegmentStack, SegmentType } from './core/types/segments'
 import { CytologyViewProvider, useCytologyContourEditor, type CytologyViewContextValue } from './model'
 import CytologyDiagnosisPanel from './sidebar/CytologyDiagnosisPanel'
-import { CytologyStudyViewer } from './viewer'
+import { CytologyStudyViewer, CytologyViewerToolbar } from './viewer'
 
 import './CytologyViewPage.css'
 
@@ -101,16 +101,19 @@ export default function CytologyViewPage() {
 				}
 				viewerTitle='Редактор/просмотр снимка'
 				viewer={
-					<CytologyStudyViewer
-						imageUrl={cytologyData?.original_image.image}
-						segments={segments}
-						segmentTypeColors={segmentTypeColors}
-						currentType={currentType}
-						drafts={editor.drafts}
-						annotationApiRef={editor.annotationApiRef}
-						readOnly={!editor.isEditing}
-						height={focus.viewerHeight}
-					/>
+					<>
+						<CytologyViewerToolbar />
+						<CytologyStudyViewer
+							imageUrl={cytologyData?.original_image.image}
+							segments={segments}
+							segmentTypeColors={segmentTypeColors}
+							currentType={currentType}
+							drafts={editor.drafts}
+							annotationApiRef={editor.annotationApiRef}
+							readOnly={!editor.isEditing}
+							height={focus.viewerHeight}
+						/>
+					</>
 				}
 				sidebar={<CytologyDiagnosisPanel />}
 			/>

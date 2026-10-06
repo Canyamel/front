@@ -10,7 +10,7 @@ import CytologyDiagnosis from './CytologyDiagnosis/CytologyDiagnosis'
 
 /** Панель справа: заключение и группы сегментов, в правке — редактор ревизии. */
 const CytologyDiagnosisPanel: React.FC = () => {
-	const { segmentTypes, currentType, setCurrentType, editor } = useCytologyView()
+	const { currentType, setCurrentType, editor } = useCytologyView()
 
 	const handleClickCard = (segmentType: SegmentType) => {
 		// В правке тип выбран всегда: в него рисует врач.
@@ -18,17 +18,13 @@ const CytologyDiagnosisPanel: React.FC = () => {
 		else setCurrentType(segmentType === currentType ? null : segmentType)
 	}
 
-	const handleOpenEdit = () => {
-		if (!currentType && segmentTypes.length > 0) setCurrentType(segmentTypes[0].code as SegmentType)
-		editor.start()
-	}
 
 	return (
 		<div>
 			{editor.isEditing && CYTOLOGY_EDITING_ENABLED ? (
 				<CytologyDiagnosisEdit onClickCard={handleClickCard} />
 			) : (
-				<CytologyDiagnosis openEdit={handleOpenEdit} onClickCard={handleClickCard} />
+				<CytologyDiagnosis onClickCard={handleClickCard} />
 			)}
 		</div>
 	)

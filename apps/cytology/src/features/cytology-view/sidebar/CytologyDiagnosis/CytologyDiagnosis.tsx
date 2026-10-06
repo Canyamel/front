@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useRef } from 'react'
-import { Typography, Button, Tooltip, Flex } from 'antd'
-import { EditOutlined, HistoryOutlined } from '@ant-design/icons'
+import { Typography, Button, Flex } from 'antd'
+import { HistoryOutlined } from '@ant-design/icons'
 
 import { ISegmentType, SegmentType } from '@cytology/core/types/segments'
 import { useGetCytologyHistoryQuery } from '@cytology/core/service/cytology'
@@ -11,7 +11,6 @@ import { skipToken } from '@reduxjs/toolkit/query'
 
 import DiagnosisCard from '../DiagnosisCard/DiagnosisCard'
 
-import { CYTOLOGY_EDITING_ENABLED } from '@/lib/cytologyFeatures'
 
 import CytologyInfo from './CytologyInfo/CytologyInfo'
 
@@ -21,13 +20,12 @@ import CytologyHistory from './CytologyHistory/CytologyHistory'
 const { Text } = Typography
 
 interface ICytologyDiagnosisProps {
-	openEdit: () => void
 	onClickCard: (newValue: SegmentType) => void
 }
 
-const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({ openEdit, onClickCard }) => {
+const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({ onClickCard }) => {
 	const { open } = useContext(ModalContext)
-	const { cytologyId, info: cytologyInfo, segmentTypes, currentType } = useCytologyView()
+	const { cytologyId, segmentTypes, currentType } = useCytologyView()
 
 	const accessToken = useAppSelector(state => state.auth.accessToken)
 	const { data: historyData } = useGetCytologyHistoryQuery(accessToken ? cytologyId : skipToken)
@@ -45,7 +43,6 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({ openEdit, onClic
 		}
 	}, [historyDataRef, open])
 
-	const isLastRevision = cytologyInfo?.is_last ?? true
 
 	return (
 		<Flex vertical className='cytology-diagnosis-wrapper'>
@@ -67,16 +64,6 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({ openEdit, onClic
 					<HistoryOutlined />
 				</Flex>
 			</Button>
-			{CYTOLOGY_EDITING_ENABLED && (
-				<Tooltip title={!isLastRevision ? 'Для редактирования необходимо перейти на последнюю ревизию' : undefined}>
-					<Button className='cytology-diagnosis-edit' type='primary' onClick={openEdit} disabled={!isLastRevision}>
-						<Flex gap={10} align='center'>
-							<Text className='text-inherit'>Редактировать</Text>
-							<EditOutlined />
-						</Flex>
-					</Button>
-				</Tooltip>
-			)}
 		</Flex>
 	)
 }
