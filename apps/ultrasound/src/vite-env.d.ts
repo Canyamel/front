@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+	/** Префикс публикации: `/uzi/` в сборке, пусто в разработке. */
+	readonly VITE_BASE_PATH?: string
 	readonly VITE_BACKEND_BASE_URL?: string
 	readonly VITE_API_BASE_URL?: string
 	readonly VITE_BACKEND_PROXY_TARGET?: string

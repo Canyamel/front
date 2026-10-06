@@ -1,12 +1,12 @@
-# Фронты в контейнерах: один nginx на цитологию и УЗИ плюс сервис чанковой
-# загрузки снимков.
+# Фронты в контейнерах: один nginx на цитологию (/cytology/) и УЗИ (/uzi/)
+# плюс сервис чанковой загрузки снимков.
 #
 # Перед сборкой нужно собрать статику — образ её не собирает:
 #
 #   npm run build:cytology
 #   npm run build:ultrasound
 #   xcopy /E /I /Y apps\cytology\dist   build\dist\cytology
-#   xcopy /E /I /Y apps\ultrasound\dist build\dist\ultrasound
+#   xcopy /E /I /Y apps\ultrasound\dist build\dist\uzi
 #   docker compose up -d --build
 
 name: medml-front
@@ -18,8 +18,7 @@ services:
       context: ./build
       dockerfile: Dockerfile
     ports:
-      - '3001:80' # цитология
-      - '3002:81' # УЗИ
+      - '3001:80' # /cytology/ и /uzi/
     environment:
       API_BACKEND_URL: http://composition_api:50055
       DZI_BACKEND_URL: http://tiler_service:50055

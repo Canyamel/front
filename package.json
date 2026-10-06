@@ -19,6 +19,7 @@
     "build:mri": "turbo build --filter=mri-app",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "test": "vitest run",
     "check:boundaries": "node tools/scripts/check-boundaries.mjs",
     "workspaces:list": "node tools/scripts/list-workspaces.mjs"
   },
@@ -55,6 +56,7 @@
     "globals": "^17.0.0",
     "sass": "^1.83.0",
     "turbo": "^1.13.4",
-    "typescript-eslint": "^8.53.0"
+    "typescript-eslint": "^8.53.0",
+    "vitest": "^3.2.7"
   }
 }

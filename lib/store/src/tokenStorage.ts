@@ -6,6 +6,9 @@ const REFRESH_KEY = 'medml_refresh_token'
 /** «Запомнить меня»: "1" — токены в localStorage, "0" — в sessionStorage. */
 const REMEMBER_KEY = 'medml_remember_session'
 
+/** Ключи токенов — для синхронизации вкладок по событию `storage`. */
+export const AUTH_STORAGE_KEYS = { access: ACCESS_KEY, refresh: REFRESH_KEY } as const
+
 function safe<T>(fn: () => T, fallback: T): T {
 	try {
 		return fn()

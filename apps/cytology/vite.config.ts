@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 
 import { cytologyUploadApiPlugin } from '../../lib/cytology-upload/src/vitePlugin'
+import { normalizeBasePath } from '../../lib/shared/src/utils/normalizeBasePath'
 
 function processPolyfillPlugin(mode: string) {
 	const nodeEnv = mode === 'production' ? 'production' : 'development'
@@ -25,6 +26,12 @@ function processPolyfillPlugin(mode: string) {
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '')
+
+	// Префикс, под которым приложение опубликовано: `/cytology/` в сборке
+	// (.env.production), корень в разработке. От него зависят адреса ассетов,
+	// basename роутера и адреса API (`withBasePath`).
+	const basePath = normalizeBasePath(env.VITE_BASE_PATH)
+
 	const backend = env.VITE_CYTOLOGY_BACKEND === 'go' ? 'go' : 'python'
 	const isGo = backend === 'go'
 
@@ -45,6 +52,7 @@ export default defineConfig(({ mode }) => {
 			}
 
 	return {
+		base: basePath,
 		plugins: [
 			processPolyfillPlugin(mode),
 			react(),

@@ -1,6 +1,6 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 
-import { Footer, HeaderSpa } from "@medml/layout";
+import { ErrorBoundary, Footer, HeaderSpa } from "@medml/layout";
 
 import { useCurrentDoctor } from "@/lib/useCurrentDoctor";
 import { clearAuthTokens } from "@/lib/tokenStorage";
@@ -10,6 +10,7 @@ import "./AppShell.scss";
 
 export default function AppShell() {
   const doctor = useCurrentDoctor();
+  const location = useLocation();
 
   return (
     <div className="root-layout">
@@ -20,7 +21,10 @@ export default function AppShell() {
         userFullName={doctor.profile?.fullName}
       />
       <main className="root-content">
-        <Outlet />
+        {/* Смена адреса снимает ошибку: по шапке можно уйти со сломанной страницы. */}
+        <ErrorBoundary resetKey={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>

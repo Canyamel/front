@@ -1,5 +1,4 @@
-import { ApiFormRequestError, apiFormRequest, baseApi } from '@medml/store'
-import type { AuthState } from '@medml/store'
+import { ApiFormRequestError, apiFormRequest, authorizedFetch, baseApi } from '@medml/store'
 import type { FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 import type { ContourDraft } from '@medml/viewers'
 import type { CytologyStagedCreateFields } from '@medml/cytology-upload'
@@ -8,7 +7,6 @@ import { CYTOLOGY_STAGED_CREATE_URL, formatCytologyUploadApiError } from '@medml
 import { buildCopyBody, cytologyRoutes, goMissingEndpoints } from './cytologyRoutes'
 import { CYTOLOGY_SEGMENT_TYPES } from './cytologySegmentTypes'
 
-/** Строка для multipart — как `.toString()` в OLD CYTO, без Number(). */
 export function cytologyFormFieldToString(value: unknown): string {
 	if (value == null || value === '') return ''
 	if (typeof value === 'number') {
@@ -27,7 +25,6 @@ export function resolveUploadFile(file: File | (Blob & { name?: string })): File
 export function buildCreateCytologyFormData(body: CreateCytologyBody): FormData {
 	const formData = new FormData()
 	const image = resolveUploadFile(body.image)
-	// Как в OLD-PROJECTS/CYTO: append без явного filename
 	formData.append('image', image)
 	formData.append('diagnostic_marking', body.diagnostic_marking)
 	formData.append('diagnostic_number', body.diagnostic_number)
@@ -180,16 +177,6 @@ type CytologyInfoGroupDto = {
 	original_image?: number | null
 }
 
-// type CytologyInfoRawResponse = {
-//   original_image?: CytologyInfoResponse["original_image"];
-//   info?: {
-//     patient?: CytologyPatientDto;
-//     patient_card?: string | number | CytologyPatientCardDto;
-//     patient_card_id?: string | number;
-//     image_group?: CytologyInfoGroupDto;
-//   } & CytologyInfoGroupDto;
-// };
-
 export type CytologyPoint = {
 	id?: number
 	uid?: number
@@ -334,7 +321,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 					const data = await apiFormRequest<CreateCytologyResponse>(
 						cytologyRoutes.create(),
 						buildCreateCytologyFormData(body),
-						api.getState,
+						api,
 					)
 					return { data }
 				} catch (error) {
@@ -359,20 +346,17 @@ export const cytologyApi = baseApi.injectEndpoints({
 		createCytologyFromStaged: builder.mutation<CreateCytologyResponse, CytologyStagedCreateFields>({
 			async queryFn(body, api) {
 				try {
-					const state = api.getState() as { auth: AuthState }
-					const token = state.auth?.accessToken
-					const headers: Record<string, string> = {
-						'Content-Type': 'application/json',
-					}
-					if (token) {
-						headers.Authorization = `Bearer ${token}`
-					}
-
-					const response = await fetch(CYTOLOGY_STAGED_CREATE_URL, {
-						method: 'POST',
-						headers,
-						body: JSON.stringify(body),
-					})
+					// Загрузка большого .svs идёт минутами — за это время access-токен
+					// успевает истечь. authorizedFetch обновит его перед отправкой.
+					const response = await authorizedFetch(
+						CYTOLOGY_STAGED_CREATE_URL,
+						{
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(body),
+						},
+						api,
+					)
 
 					const text = await response.text()
 					let data: unknown = null
@@ -474,11 +458,11 @@ export const cytologyApi = baseApi.injectEndpoints({
 					),
 				}
 			},
-			providesTags: (_result, _error, { id, types }) => types.map(type => ({ type: 'Segments' as const, id: `${id}:${type}` })),
+			providesTags: (_result, _error, { id, types }) =>
+				types.map(type => ({ type: 'Segments' as const, id: `${id}:${type}` })),
 		}),
 		/**
-		 * Сохранение правок как новой ревизии исследования — одним вызовом,
-		 * как `saveUziContourDrafts` в УЗИ.
+		 * Сохранение правок как новой ревизии исследования — одним вызовом
 		 *
 		 * Бэкенд правит не исходное исследование, а его копию (`/cytology/copy`):
 		 * 1. копируем исследование;
@@ -647,10 +631,7 @@ export const CYTOLOGY_INFO_DRAFT_KEY = 'info'
  * Сопоставить сегменты копии с исходными: id в копии новые, а тип, признак
  * ИИ и точки те же. Возвращает id исходного сегмента → id в копии.
  */
-function matchCopiedSegments(
-	source: CytologySegmentShape[],
-	copied: CytologySegmentShape[],
-): Map<string, string> {
+function matchCopiedSegments(source: CytologySegmentShape[], copied: CytologySegmentShape[]): Map<string, string> {
 	const signature = (segment: CytologySegmentShape) =>
 		`${segment.seg_type}:${Boolean(segment.is_ai)}:${[...segment.points]
 			.sort((a, b) => a.x - b.x || a.y - b.y)

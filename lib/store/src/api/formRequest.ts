@@ -1,4 +1,6 @@
-import type { AuthState } from '../slices/authSlice';
+import { withBasePath } from '@medml/shared';
+
+import { authorizedFetch, type TokenApi } from './tokenRefresh';
 
 const getViteApiBaseUrl = (): string | undefined => {
   try {
@@ -12,7 +14,7 @@ const getViteApiBaseUrl = (): string | undefined => {
 
 export const getApiBaseUrl = (): string => {
   const viteUrl = getViteApiBaseUrl();
-  if (viteUrl) return viteUrl;
+  if (viteUrl) return withBasePath(viteUrl);
 
   if (typeof process !== 'undefined' && process.env) {
     if (typeof window === 'undefined') {
@@ -44,24 +46,20 @@ export class ApiFormRequestError extends Error {
 
 /**
  * POST multipart/form-data одним fetch (без двойного Request в RTK Query).
+ *
+ * Токен проверяется до отправки и при необходимости обновляется, а на 401
+ * запрос повторяется один раз — как в baseQueryWithReauth.
  */
 export async function apiFormRequest<T>(
   path: string,
   formData: FormData,
-  getState: () => unknown
+  api: TokenApi
 ): Promise<T> {
-  const state = getState() as { auth: AuthState };
-  const token = state?.auth?.accessToken;
-  const headers = new Headers();
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(joinBase(getApiBaseUrl(), path), {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
+  const response = await authorizedFetch(
+    joinBase(getApiBaseUrl(), path),
+    { method: 'POST', body: formData },
+    api
+  );
 
   const text = await response.text();
   let data: unknown = null;
