@@ -57,6 +57,11 @@ function toTileSources(
 		| OpenSeaDragon.TileSourceOptions[]
 }
 
+/** Приводит угол к диапазону [0, 360). */
+function normalizeDegrees(degrees: number): number {
+	return ((degrees % 360) + 360) % 360
+}
+
 /** Зум вьюпорта → экранных пикселей на пиксель текущего изображения. */
 function toNativeZoom(osd: OpenSeaDragon.Viewer, viewportZoom: number | undefined): number | null {
 	if (viewportZoom == null) return null
@@ -174,7 +179,7 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 			})
 
 			osd.addHandler('rotate', (event: any) => {
-				setRotation(event.degrees)
+				setRotation(normalizeDegrees(event.degrees))
 			})
 
 			return () => {
@@ -230,6 +235,23 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 		osd.viewport.applyConstraints()
 	}, [])
 
+	/**
+	 * Поворот всегда в пределах одного оборота (0–359°).
+	 *
+	 * Иначе угол копится: 360°, 450°, −270°… Слой разметки Annotorious
+	 * переводит угол в радианы и поправляет его ровно один раз
+	 * (`a < 0 → +2π`, `a > 2π → −2π`), поэтому за пределами одного оборота
+	 * он остаётся вне диапазона, и контуры уезжают за видимую область —
+	 * выглядит как «сегменты пропали после нескольких поворотов».
+	 */
+	const rotateBy = useCallback((delta: number) => {
+		const osd = viewerRef.current
+		if (!osd?.viewport) return
+		const next = normalizeDegrees(osd.viewport.getRotation() + delta)
+		osd.viewport.setRotation(next)
+		setRotation(next)
+	}, [])
+
 	const fitToScreen = useCallback(() => {
 		const osd = viewerRef.current
 		if (!osd?.viewport) return
@@ -237,20 +259,12 @@ export function useOpenSeadragon(options: UseOpenSeadragonOptions): UseOpenSeadr
 	}, [])
 
 	const rotateLeft = useCallback(() => {
-		const osd = viewerRef.current
-		if (!osd?.viewport) return
-		const next = osd.viewport.getRotation() - 90
-		osd.viewport.setRotation(next)
-		setRotation(next)
-	}, [])
+		rotateBy(-90)
+	}, [rotateBy])
 
 	const rotateRight = useCallback(() => {
-		const osd = viewerRef.current
-		if (!osd?.viewport) return
-		const next = osd.viewport.getRotation() + 90
-		osd.viewport.setRotation(next)
-		setRotation(next)
-	}, [])
+		rotateBy(90)
+	}, [rotateBy])
 
 	return {
 		containerRef,
