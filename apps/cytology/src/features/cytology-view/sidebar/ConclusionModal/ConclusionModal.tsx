@@ -9,6 +9,18 @@ import { localizationOptions } from './localizationOptions'
 
 const { TextArea } = Input
 
+/**
+ * Целое число из поля формы.
+ *
+ * `Input type='number'` отдаёт строку, а в спеке шлюза `calcitonin`,
+ * `calcitonin_in_flush` и `thyroglobulin` — целые: и строку, и дробное
+ * значение ogen отбивает как 400. Пустое поле считаем нулём.
+ */
+function toNumber(value: unknown): number {
+	const parsed = typeof value === 'number' ? value : Number(String(value ?? '').replace(',', '.'))
+	return Number.isFinite(parsed) ? Math.round(parsed) : 0
+}
+
 interface ConclusionModalProps {
 	initData: ICytologyInfoPatch
 	onSubmit?: (info: ICytologyInfoPatch) => void
@@ -29,34 +41,41 @@ const ConclusionModal: React.FC<ConclusionModalProps> = ({ initData, onSubmit })
 	const [form] = Form.useForm<ConclusionForm>()
 
 	const handleFinish = (values: ConclusionForm) => {
+		const calcitonin = toNumber(values.calcitonin)
+		const calcitoninFlush = toNumber(values.calcitoninFlush)
+		const thyroglobulin = toNumber(values.thyroglobulin)
+		const diagnosis = values.diagnosis ?? ''
+
 		const changed =
-			values.diagnosis !== initData.patient_card.diagnosis ||
+			diagnosis !== initData.patient_card.diagnosis ||
 			values.materialType !== initData.material_type ||
-			values.calcitonin !== initData.calcitonin ||
-			values.calcitoninFlush !== initData.calcitonin_in_flush ||
-			values.thyroglobulin !== initData.thyroglobulin ||
+			calcitonin !== initData.calcitonin ||
+			calcitoninFlush !== initData.calcitonin_in_flush ||
+			thyroglobulin !== initData.thyroglobulin ||
 			(initData.details &&
 				(values.materialType !== initData.details.material_type ||
-					values.calcitonin !== initData.details.calcitonin ||
-					values.calcitoninFlush !== initData.details.calcitonin_in_flush ||
-					values.thyroglobulin !== initData.details.thyroglobulin))
+					calcitonin !== initData.details.calcitonin ||
+					calcitoninFlush !== initData.details.calcitonin_in_flush ||
+					thyroglobulin !== initData.details.thyroglobulin))
 		if (!changed) return
 
 		onSubmit?.({
 			patient_card: {
 				patient: initData.patient_card.patient,
-				diagnosis: values.diagnosis,
+				diagnosis,
 			},
+			// Номер исследования форма не правит, но шлюз требует его в запросе.
+			diagnostic_number: initData.diagnostic_number,
 			details: {
 				material_type: values.materialType,
-				calcitonin: values.calcitonin,
-				calcitonin_in_flush: values.calcitoninFlush,
-				thyroglobulin: values.thyroglobulin,
+				calcitonin,
+				calcitonin_in_flush: calcitoninFlush,
+				thyroglobulin,
 			},
 			material_type: values.materialType,
-			calcitonin: values.calcitonin,
-			calcitonin_in_flush: values.calcitoninFlush,
-			thyroglobulin: values.thyroglobulin,
+			calcitonin,
+			calcitonin_in_flush: calcitoninFlush,
+			thyroglobulin,
 		})
 	}
 

@@ -63,14 +63,28 @@ function resolveImagePath(flat: CytologyInfoResponse): string {
 	return flat.image ?? flat.file_path ?? ''
 }
 
+/**
+ * Id исследования как он пришёл.
+ *
+ * У Django это число, у Go-шлюза — uuid, а прежнее `Number(...)` превращало
+ * uuid в `NaN` и ломало всё, что строилось на этом id.
+ */
+function keepId(value: unknown): number | string {
+	if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+	const text = String(value ?? '').trim()
+	if (!text) return 0
+	const asNumber = Number(text)
+	return Number.isFinite(asNumber) ? asNumber : text
+}
+
 export function mapToICytology(flat: CytologyInfoResponse): ICytology {
 	const rawCardId = Number(flat.info?.patient_card)
 	const patientCardId = Number.isFinite(rawCardId) ? rawCardId : 0
-	const details = (flat.details ?? {}) as ICytologyInfoDetails
+	const details = (flat.details ?? {}) as unknown as ICytologyInfoDetails
 	const imagePath = resolveImagePath(flat)
 
 	const info: ICytologyInfo = {
-		id: Number(flat.info?.id ?? flat.id ?? 0),
+		id: keepId(flat.info?.id ?? flat.id),
 		patient: mapPatient(flat.info?.patient),
 		acceptance_datetime: flat.diagnos_date ?? '',
 		diagnosis: flat.info?.diagnosis ?? '',

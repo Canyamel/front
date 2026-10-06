@@ -1,13 +1,10 @@
-import React, { useCallback, useContext, useEffect, useRef } from 'react'
+import React, { useCallback, useContext } from 'react'
 import { Typography, Button, Flex } from 'antd'
 import { HistoryOutlined } from '@ant-design/icons'
 
 import { ISegmentType, SegmentType } from '@cytology/core/types/segments'
-import { useGetCytologyHistoryQuery } from '@cytology/core/service/cytology'
 import { useCytologyView } from '@cytology/model'
 import { ModalContext } from '@medml/ui'
-import { useAppSelector } from '@medml/store'
-import { skipToken } from '@reduxjs/toolkit/query'
 
 import DiagnosisCard from '../DiagnosisCard/DiagnosisCard'
 
@@ -27,21 +24,11 @@ const CytologyDiagnosis: React.FC<ICytologyDiagnosisProps> = ({ onClickCard }) =
 	const { open } = useContext(ModalContext)
 	const { cytologyId, segmentTypes, currentType } = useCytologyView()
 
-	const accessToken = useAppSelector(state => state.auth.accessToken)
-	const { data: historyData } = useGetCytologyHistoryQuery(accessToken ? cytologyId : skipToken)
-	const historyDataRef = useRef(historyData)
-
-	useEffect(() => {
-		historyDataRef.current = historyData
-	}, [historyData])
-
+	// Историю грузит сама модалка — запрос уходит по нажатию, а не вместе со
+	// страницей снимка. Кнопка срабатывает всегда: ошибку видно внутри модалки.
 	const handleOpenHistory = useCallback(() => {
-		if (historyDataRef.current) {
-			open({
-				content: <CytologyHistory history={historyDataRef.current} />,
-			})
-		}
-	}, [historyDataRef, open])
+		open({ content: <CytologyHistory cytologyId={cytologyId} /> })
+	}, [cytologyId, open])
 
 
 	return (

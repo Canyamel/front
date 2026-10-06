@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { message } from 'antd'
 import type { ViewerAnnotationChange, ViewerAnnotationStyleFn, ViewerLegendItem } from '@medml/viewers'
 
 import { segmentsTranslated, type ISegmentStack, type SegmentType } from '../core/types/segments'
@@ -57,8 +58,14 @@ export function useCytologyContours({
 
 	const onChange = useCallback(({ type, annotation }: ViewerAnnotationChange<CytologyAnnotationData>) => {
 		const { drafts, currentType } = latest.current
+		if (!drafts) return
+
 		const segType = annotation.data?.seg_type ?? currentType
-		if (!drafts || !segType) return
+		if (!segType) {
+			console.warn('Правка контура без типа сегмента отброшена:', annotation.id)
+			message.warning('Выберите тип сегмента в панели справа — иначе правку некуда сохранить')
+			return
+		}
 
 		const points = annotation.points.map(point => ({ x: point.x, y: point.y }))
 		if (type === 'create') drafts.create(annotation.id, points, { segType })

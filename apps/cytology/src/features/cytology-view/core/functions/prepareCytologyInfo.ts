@@ -5,6 +5,7 @@ export const prepareCytologyInfo = (cytologyInfo: ICytologyInfo): ICytologyInfoP
         patient: cytologyInfo.patient.id,
         diagnosis: cytologyInfo.diagnosis,
     },
+    diagnostic_number: cytologyInfo.diagnostic_number,
     details: {
         material_type: cytologyInfo.material_type,
         calcitonin: cytologyInfo.calcitonin,

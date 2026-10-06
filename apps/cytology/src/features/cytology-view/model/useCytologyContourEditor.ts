@@ -6,7 +6,7 @@ import { useContourDrafts, type ViewerAnnotationApi } from '@medml/viewers'
 import { CYTOLOGY_INFO_DRAFT_KEY } from '@/lib/cytologyApi'
 
 import { useSaveCytologyRevisionMutation } from '../core/service/cytology'
-import type { ICytologyInfo, ICytologyInfoPatch } from '../core/types/cytology'
+import type { ICytologyInfoPatch } from '../core/types/cytology'
 import type { IPoint, ISegmentStack } from '../core/types/segments'
 import type { CytologyContourDraftData, CytologyContourDrafts } from './types'
 
@@ -25,7 +25,6 @@ export interface CytologyContourEditor {
 
 export interface UseCytologyContourEditorOptions {
 	cytologyId: string
-	info: ICytologyInfo | undefined
 	segments: ISegmentStack[]
 }
 
@@ -38,7 +37,6 @@ export interface UseCytologyContourEditorOptions {
  */
 export function useCytologyContourEditor({
 	cytologyId,
-	info,
 	segments,
 }: UseCytologyContourEditorOptions): CytologyContourEditor {
 	const navigate = useNavigate()
@@ -49,9 +47,15 @@ export function useCytologyContourEditor({
 	const annotationApiRef = useRef<ViewerAnnotationApi>(null)
 
 	const { clear, getLatest } = drafts
-	// Ревизия снимается с текущего исследования: id из карточки, пока она не
-	// загрузилась — из адреса.
-	const sourceId = info?.id ?? cytologyId
+	/*
+	 * Ревизия снимается с того же id, по которому открыта страница.
+	 *
+	 * Раньше здесь стоял `info?.id`, но это другой id: в ответе шлюза это
+	 * числовой `info.image_group.id`, а `POST /cytology/copy` ждёт uuid
+	 * исследования (у Django оба совпадали, поэтому расхождение не всплывало).
+	 * Шлюз отбивал такой запрос ошибкой про `id`, и правки не сохранялись.
+	 */
+	const sourceId = cytologyId
 
 	const reset = useCallback(() => {
 		clear()
@@ -79,12 +83,26 @@ export function useCytologyContourEditor({
 		}
 
 		try {
-			const { revisionId, failed } = await saveRevision({
+			const { revisionId, saved, failed } = await saveRevision({
 				sourceId,
 				sourceSegments: segments,
 				drafts: entries,
+				// Внутри `editedInfo` уже есть `diagnostic_number` — шлюз требует его
+				// в каждом PATCH заключения, см. `prepareCytologyInfo`.
 				info: editedInfo ? { ...editedInfo } : undefined,
 			}).unwrap()
+
+			if (saved.length === 0 && failed.length > 0) {
+				/*
+				 * Ревизия создалась, но ни одна правка в неё не легла — обычно
+				 * потому, что у текущего бэкенда нет ручек правки сегментов.
+				 * Остаёмся на странице и сохраняем черновик: врач не теряет
+				 * работу и может повторить, когда бэкенд её примет.
+				 */
+				console.error('Правки не попали в ревизию:', failed)
+				message.error(`Правки не сохранились: ${failed[0].message}`)
+				return
+			}
 
 			// Черновик относится к старой ревизии: на новой у сегментов свои id.
 			reset()

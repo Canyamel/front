@@ -43,7 +43,7 @@ export default function CytologyViewPage() {
 
 	const [currentType, setCurrentType] = useState<SegmentType | null>(null)
 	const info = cytologyData?.info
-	const editor = useCytologyContourEditor({ cytologyId, info, segments })
+	const editor = useCytologyContourEditor({ cytologyId, segments })
 
 	const segmentTypeColors = useMemo(
 		() => Object.fromEntries((segmentTypes ?? []).map(type => [type.code, type.color])),

@@ -1,5 +1,7 @@
 import { ApiFormRequestError, apiFormRequest, authorizedFetch, baseApi } from '@medml/store'
+import { describeServerErrorBody } from '@medml/shared'
 import type { FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
+import type { SerializedError } from '@reduxjs/toolkit'
 import type { ContourDraft } from '@medml/viewers'
 import type { CytologyStagedCreateFields } from '@medml/cytology-upload'
 import { CYTOLOGY_STAGED_CREATE_URL, formatCytologyUploadApiError } from '@medml/cytology-upload'
@@ -115,9 +117,7 @@ export type CytologyInfoResponse = {
 	diagnostic_number?: string | number
 	diagnos_date?: string
 	material_type?: string
-	details?: {
-		probs?: number[]
-	}
+	details?: CytologyInfoDetailsDto | null
 	file_path?: string
 	image?: string
 	info?: {
@@ -141,27 +141,13 @@ type CytologyInfoRawResponse = {
 	info?: {
 		patient?: CytologyPatientDto
 		patient_card?: string
-		image_group?: {
-			id?: string | number
-			diagnostic_marking?: string
-			diagnostic_number?: string | number
-			diagnos_date?: string
-			material_type?: string
-			is_last?: boolean
-			details?: {
-				probs?: number[]
-			}
-			patient_card?: string | number
-			diagnosis?: string
-			calcitonin?: number
-			calcitonin_in_flush?: number
-			thyroglobulin?: number
-		}
+		image_group?: CytologyInfoGroupDto
 	}
 }
 
 type CytologyInfoGroupDto = {
 	id?: string | number
+	patient_card?: string | number
 	diagnostic_marking?: string
 	diagnostic_number?: string | number
 	diagnos_date?: string
@@ -232,6 +218,21 @@ export type CytologySegmentStack = {
 
 /** Сегмент без доменных подробностей — то, что нужно для сопоставления. */
 export type CytologySegmentShape = Pick<CytologySegmentStack, 'id' | 'seg_type' | 'is_ai' | 'points'>
+
+/**
+ * Точки контура для сохранения.
+ *
+ * В спеке шлюза (`/cytology/segment/group/create/{id}`,
+ * `PATCH /cytology/segment/update/{id}`) `x` и `y` — целые и не меньше нуля,
+ * а вьювер отдаёт дробные координаты: ogen отбивает такой запрос как 400.
+ * Координаты здесь — пиксели исходного снимка, округление ничего не теряет.
+ */
+export function toPixelPoints(points: CytologyPoint[]): CytologyPoint[] {
+	return points.map(({ x, y }) => ({
+		x: Math.max(0, Math.round(x)),
+		y: Math.max(0, Math.round(y)),
+	}))
+}
 
 export type CreateSegmentPayload = {
 	seg_type: string
@@ -313,6 +314,82 @@ function parseSegmentDetails(value: CytologySegmentDetails | string | undefined)
 	}
 }
 
+/**
+ * Запрос, который `queryFn` отдаёт своим обработчикам.
+ *
+ * RTK объявляет его возвращающим `MaybePromise`, но эти типы наружу не
+ * экспортирует, а `await` одинаково работает с обоими вариантами.
+ */
+type CytologySubQuery = (args: string | FetchArgs) => Promise<{ data?: unknown; error?: FetchBaseQueryError }>
+
+/** Плоская карточка исследования из ответа шлюза. */
+function normalizeCytologyInfo(raw: CytologyInfoRawResponse): CytologyInfoResponse {
+	const group = raw.info?.image_group
+	const original = raw.original_image
+	return {
+		id: group?.id ?? original?.id,
+		diagnostic_marking: group?.diagnostic_marking,
+		diagnostic_number: group?.diagnostic_number,
+		diagnos_date: group?.diagnos_date,
+		material_type: group?.material_type,
+		details: group?.details,
+		file_path: original?.file_path,
+		image: original?.image ?? original?.file_path,
+		info: {
+			id: group?.id,
+			patient: raw.info?.patient,
+			patient_card: raw.info?.patient_card ?? (group?.patient_card == null ? undefined : String(group.patient_card)),
+			diagnosis: group?.diagnosis,
+			is_last: group?.is_last,
+			calcitonin: group?.calcitonin,
+			calcitonin_in_flush: group?.calcitonin_in_flush,
+			thyroglobulin: group?.thyroglobulin,
+		},
+	}
+}
+
+/** Ревизия, от которой сделана копия. */
+function parentRevisionId(raw: CytologyInfoRawResponse): string | null {
+	const group = raw.info?.image_group
+	const parent = group?.prev ?? group?.parent_prev
+	const id = parent == null ? '' : String(parent).trim()
+	return id ? id : null
+}
+
+/** Сколько ревизий вверх ищем снимок, прежде чем сдаться. */
+const MAX_IMAGE_LOOKUPS = 5
+
+/**
+ * Снимок предыдущей ревизии.
+ *
+ * Копии идут цепочкой, и снимка может не быть у нескольких подряд, поэтому
+ * поднимаемся по `prev` до исходного исследования. Повторы и слишком длинные
+ * цепочки обрываем: ошибка здесь не должна ломать страницу — вернём `null`,
+ * и вьювер честно покажет, что изображения нет.
+ */
+async function inheritImageFromAncestors(
+	raw: CytologyInfoRawResponse,
+	baseQuery: CytologySubQuery,
+): Promise<Pick<CytologyInfoResponse, 'image' | 'file_path'> | null> {
+	const visited = new Set<string>()
+	let parentId = parentRevisionId(raw)
+
+	for (let step = 0; step < MAX_IMAGE_LOOKUPS && parentId && !visited.has(parentId); step += 1) {
+		visited.add(parentId)
+
+		const result = await baseQuery(cytologyRoutes.info(parentId))
+		if (result.error) return null
+
+		const parent = result.data as CytologyInfoRawResponse
+		const image = parent.original_image?.image ?? parent.original_image?.file_path
+		if (image) return { image, file_path: parent.original_image?.file_path }
+
+		parentId = parentRevisionId(parent)
+	}
+
+	return null
+}
+
 export const cytologyApi = baseApi.injectEndpoints({
 	endpoints: builder => ({
 		createCytology: builder.mutation<CreateCytologyResponse, CreateCytologyBody>({
@@ -389,32 +466,26 @@ export const cytologyApi = baseApi.injectEndpoints({
 			},
 			invalidatesTags: () => [{ type: 'Cytology', id: 'LIST' }],
 		}),
+		/**
+		 * Карточка исследования.
+		 *
+		 * Если снимка в ответе нет, берём его у предыдущей ревизии: шлюз не
+		 * переносит `original_image` на копию (`POST /cytology/copy` отдаёт
+		 * `"original_image": {}`), хотя изображение у ревизии то же самое.
+		 * Когда это починят на бэкенде, лишний запрос перестанет уходить сам
+		 * собой — он делается только при пустом снимке.
+		 */
 		getCytologyInfo: builder.query<CytologyInfoResponse, string>({
-			query: id => cytologyRoutes.info(id),
-			transformResponse: (raw: CytologyInfoRawResponse): CytologyInfoResponse => {
-				const group = raw.info?.image_group
-				const original = raw.original_image
-				return {
-					id: group?.id ?? original?.id,
-					diagnostic_marking: group?.diagnostic_marking,
-					diagnostic_number: group?.diagnostic_number,
-					diagnos_date: group?.diagnos_date,
-					material_type: group?.material_type,
-					details: group?.details,
-					file_path: original?.file_path,
-					image: original?.image ?? original?.file_path,
-					info: {
-						id: group?.id,
-						patient: raw.info?.patient,
-						patient_card:
-							raw.info?.patient_card ?? (group?.patient_card == null ? undefined : String(group.patient_card)),
-						diagnosis: group?.diagnosis,
-						is_last: group?.is_last,
-						calcitonin: group?.calcitonin,
-						calcitonin_in_flush: group?.calcitonin_in_flush,
-						thyroglobulin: group?.thyroglobulin,
-					},
-				}
+			async queryFn(id, _api, _extraOptions, baseQuery) {
+				const result = await baseQuery(cytologyRoutes.info(id))
+				if (result.error) return { error: result.error }
+
+				const raw = result.data as CytologyInfoRawResponse
+				const data = normalizeCytologyInfo(raw)
+				if (data.image) return { data }
+
+				const inherited = await inheritImageFromAncestors(raw, baseQuery as CytologySubQuery)
+				return { data: inherited ? { ...data, ...inherited } : data }
 			},
 			providesTags: (_result, _error, id) => [{ type: 'Cytology', id }],
 		}),
@@ -518,7 +589,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 						return
 					}
 					const result = await baseQuery(request)
-					if (result.error) failed.push({ key, message: formatSaveError(result.error) })
+					if (result.error) failed.push({ key, message: formatApiError(result.error) })
 					else saved.push(key)
 				}
 
@@ -530,7 +601,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 						return {
 							url: cytologyRoutes.segmentGroupCreate(revisionId),
 							method: 'POST',
-							body: { seg_type: segType, data: { points: draft.points } } satisfies CreateSegmentPayload,
+							body: { seg_type: segType, data: { points: toPixelPoints(draft.points) } } satisfies CreateSegmentPayload,
 						}
 					}
 					const copyId = copiedIds.get(key)
@@ -544,7 +615,7 @@ export const cytologyApi = baseApi.injectEndpoints({
 					return {
 						url: cytologyRoutes.segmentUpdate(copyId),
 						method: 'PATCH',
-						body: { points: draft.points } satisfies PatchSegmentPayload,
+						body: { points: toPixelPoints(draft.points) } satisfies PatchSegmentPayload,
 					}
 				}
 
@@ -652,8 +723,44 @@ function matchCopiedSegments(source: CytologySegmentShape[], copied: CytologySeg
 	return result
 }
 
-function formatSaveError(error: FetchBaseQueryError): string {
-	const data = error.data as { detail?: unknown } | undefined
-	if (typeof data?.detail === 'string') return data.detail
-	return typeof error.status === 'number' ? `Ошибка ${error.status}` : 'Сервер недоступен'
+function statusOf(error: FetchBaseQueryError): number | undefined {
+	if (typeof error.status === 'number') return error.status
+	if (error.status === 'PARSING_ERROR') return error.originalStatus
+	return undefined
+}
+
+/** Ключи, в которых бэкенды держат текст ошибки. */
+const ERROR_TEXT_KEYS = ['error_message', 'message', 'detail', 'error'] as const
+
+/**
+ * Текст ошибки запроса — для сообщения врачу и для разбора проблем.
+ *
+ * Бэкенды отвечают по-разному: Django кладёт текст в `detail`, Go-шлюз —
+ * в `message`, на 404 и 500 может прийти просто строка. Статус дописываем
+ * всегда: без него не видно, ручки нет (404) или она отказала (400, 500).
+ */
+export function formatApiError(error: FetchBaseQueryError | SerializedError | undefined): string {
+	if (!error) return 'Неизвестная ошибка'
+	// `SerializedError` прилетает, когда запрос даже не ушёл (ошибка в коде).
+	if (!('status' in error)) return error.message?.trim() || 'Неизвестная ошибка'
+
+	const status = statusOf(error)
+	const body = error.data
+
+	let text: string | null = null
+	if (body && typeof body === 'object') {
+		const data = body as Record<string, unknown>
+		for (const key of ERROR_TEXT_KEYS) {
+			const value = data[key]
+			if (typeof value === 'string' && value.trim()) {
+				text = value.trim()
+				break
+			}
+		}
+	} else if (typeof body === 'string') {
+		text = describeServerErrorBody(body)
+	}
+
+	if (status == null) return text ?? 'Сервер недоступен'
+	return text ? `${status}: ${text}` : `Ошибка ${status}`
 }

@@ -26,9 +26,7 @@ const AddSegmentTypeModal: React.FC<AddSegmentTypeModalProps> = ({ options, onSu
 			centered: true,
 			onOk: form.submit,
 		})
-		// `ModalWrapper` пересоздаёт `changeModalProps` на каждом рендере, а сам
-		// вызов его перерисовывает: с ним в зависимостях эффект зациклится.
-	}, [form])
+	}, [changeModalProps, form])
 
 	const handleFinish = (values: AddSegmentTypeForm) => {
 		onSubmit(values.type)

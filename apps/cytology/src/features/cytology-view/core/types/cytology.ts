@@ -73,6 +73,13 @@ export interface ICytologyInfoPatch {
         patient: number;
         diagnosis: string;
     };
+    /**
+     * Номер исследования.
+     *
+     * Не правится в форме, но `PATCH /cytology/{id}/update` объявляет его
+     * обязательным вместе с `patient_card` — без него шлюз отвечает 400.
+     */
+    diagnostic_number: number;
     details: {
         material_type: MaterialType;
         calcitonin: number;
