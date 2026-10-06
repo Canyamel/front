@@ -25,13 +25,10 @@ function processPolyfillPlugin(mode: string) {
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), '')
-
-	// python — прежний Django-сервис плюс отдельный тайлер;
-	// go — composition-api, единый шлюз для всего, включая тайлер.
 	const backend = env.VITE_CYTOLOGY_BACKEND === 'go' ? 'go' : 'python'
 	const isGo = backend === 'go'
 
-	const defaultProxyTarget = isGo ? 'http://localhost:8080' : 'http://msa.mephi.ru:7000'
+	const defaultProxyTarget = isGo ? 'http://85.143.115.142:8080' : 'http://msa.mephi.ru:7000'
 	const proxyTarget =
 		env.VITE_CYTOLOGY_PROXY_TARGET ?? env.VITE_API_PROXY_TARGET ?? env.VITE_PROXY_TARGET ?? defaultProxyTarget
 	const dziProxyTarget = env.VITE_DZI_PROXY_TARGET ?? 'http://msa.mephi.ru:8005'
