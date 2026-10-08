@@ -265,11 +265,6 @@ export type PatchCytologyInfoPayload = {
 	[key: string]: unknown
 }
 
-export type ReviseCopyResponse = {
-	id: string | number
-	pk?: string | number
-}
-
 export type CytologyHistoryItem = {
 	id: number
 	diagnos_date?: string
@@ -388,6 +383,53 @@ async function inheritImageFromAncestors(
 	}
 
 	return null
+}
+
+/** Ключи, под которыми бэкенды отдают id созданной ревизии. */
+const REVISION_ID_KEYS = ['id', 'pk', 'uuid', 'cytology_id', 'image_group_id', 'new_id'] as const
+
+/** Объекты, внутрь которых стоит заглянуть за этим id. */
+const REVISION_CONTAINER_KEYS = ['info', 'image_group', 'cytology', 'data', 'result'] as const
+
+/** Пригодный id`. */
+function asRevisionId(value: unknown): string | null {
+	if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? String(value) : null
+	if (typeof value !== 'string') return null
+
+	const text = value.trim()
+	if (!text || text === 'undefined' || text === 'null' || text === '0') return null
+	return text
+}
+
+function findRevisionId(value: unknown, depth = 0): string | null {
+	if (typeof value === 'string' || typeof value === 'number') return asRevisionId(value)
+	if (!value || typeof value !== 'object' || depth > 2) return null
+
+	const record = value as Record<string, unknown>
+	for (const key of REVISION_ID_KEYS) {
+		const id = asRevisionId(record[key])
+		if (id) return id
+	}
+	for (const key of REVISION_CONTAINER_KEYS) {
+		const nested = findRevisionId(record[key], depth + 1)
+		if (nested) return nested
+	}
+	return null
+}
+
+/**
+ * Id новой ревизии из ответа `POST /cytology/copy`.
+ *
+ * В спеке это `{id, pk}`, но оба поля помечены `readOnly` и шлюз их не всегда заполняет — прилетает `{}`.
+ */
+function extractRevisionId(data: unknown, meta: unknown): string | null {
+	const fromBody = findRevisionId(data)
+	if (fromBody) return fromBody
+
+	const response = (meta as { response?: { headers?: { get?: (name: string) => string | null } } } | undefined)
+		?.response
+	const location = response?.headers?.get?.('location') ?? null
+	return asRevisionId(location?.split('?')[0].split('/').filter(Boolean).pop())
 }
 
 export const cytologyApi = baseApi.injectEndpoints({
@@ -550,8 +592,18 @@ export const cytologyApi = baseApi.injectEndpoints({
 			async queryFn({ sourceId, sourceSegments, drafts, info }, _api, _extraOptions, baseQuery) {
 				const copy = await baseQuery({ url: cytologyRoutes.copy(), method: 'POST', body: buildCopyBody(sourceId) })
 				if (copy.error) return { error: copy.error }
-				const copyData = copy.data as ReviseCopyResponse
-				const revisionId = String(copyData.id ?? copyData.pk)
+
+				const revisionId = extractRevisionId(copy.data, copy.meta)
+				if (!revisionId) {
+					console.error('Ответ POST /cytology/copy без id новой ревизии:', copy.data)
+					return {
+						error: {
+							status: 'CUSTOM_ERROR',
+							error: 'Шлюз не вернул id новой ревизии',
+							data: { message: 'Шлюз не вернул id новой ревизии — правки не сохранены' },
+						},
+					}
+				}
 
 				const saved: string[] = []
 				const failed: SaveCytologyRevisionResult['failed'] = []
@@ -743,6 +795,12 @@ export function formatApiError(error: FetchBaseQueryError | SerializedError | un
 	if (!error) return 'Неизвестная ошибка'
 	// `SerializedError` прилетает, когда запрос даже не ушёл (ошибка в коде).
 	if (!('status' in error)) return error.message?.trim() || 'Неизвестная ошибка'
+
+	if (error.status === 'CUSTOM_ERROR' || error.status === 'FETCH_ERROR' || error.status === 'TIMEOUT_ERROR') {
+		const data = error.data as { message?: unknown } | undefined
+		if (typeof data?.message === 'string' && data.message.trim()) return data.message.trim()
+		return error.error
+	}
 
 	const status = statusOf(error)
 	const body = error.data
