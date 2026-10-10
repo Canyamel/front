@@ -7,7 +7,7 @@ import {
 	positiveNumber,
 	readBackendVolumes,
 } from '@/features/uzi-view/model/thyroidDimensions'
-import { pxToMm } from '@medml/viewers'
+import { hasMeasurableAnatomy } from '@/features/uzi-view/model/segmentation'
 
 import type { ReportExtras, ReportLobe, ReportNodule, ThyroidReportModel } from './types'
 
@@ -52,9 +52,20 @@ function buildLobe(
 /** Размеры узла в пикселях*/
 const PX_SIZE_KEYS = ['width_px', 'height_px', 'max_dim_px', 'min_dim_px']
 
-export function needsScaleCalibration(data: ThyroidUziApiResponse, pxPerMm: number | null | undefined): boolean {
+/**
+ * Размеры в мм считает бэкенд, и для этого ему нужен масштаб: из файла
+ * либо заданный врачом линейкой (тогда бэкенд пересчитывает размеры при
+ * сохранении масштаба). Предупреждаем, когда нет ни того, ни другого.
+ */
+export function needsScaleCalibration(
+	data: ThyroidUziApiResponse,
+	pxPerMm: number | null | undefined,
+	anatomy?: Segment[],
+): boolean {
 	if (pxPerMm != null) return false
 	if (hasPhysicalPixelSpacing(data.info.details as unknown as Record<string, unknown>)) return false
+	// Контуры долей есть, а размеров без масштаба бэкенд не посчитал.
+	if (hasMeasurableAnatomy(anatomy)) return true
 
 	return getReportSegments(data.segmentation || []).some(segment => {
 		const details = (segment.details ?? {}) as Record<string, unknown>
@@ -108,25 +119,9 @@ function positive(details: Record<string, unknown>, key: string): number | undef
 }
 
 /**
- * Размер в миллиметрах: сначала то, что посчитал бэкенд, иначе тот же размер в пикселях, переведённый по калибровке врача во вьюере.
- */
-function mmValue(
-	details: Record<string, unknown>,
-	mmKey: string,
-	pxKey: string,
-	pxPerMm: number | null | undefined,
-): number | undefined {
-	const mm = positive(details, mmKey)
-	if (mm != null) return mm
-	const px = positive(details, pxKey)
-	if (px == null || pxPerMm == null) return undefined
-	return pxToMm(px, pxPerMm) ?? undefined
-}
-
-/**
  * Размеры узла по данным бэкенда.
  */
-function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | null | undefined): string {
+function noduleSize(segment: Segment, study: StudyProjection): string {
 	const details = (segment.details ?? {}) as Record<string, unknown>
 	const projection = String(details.projection_type || study.projectionType || '').toLowerCase()
 
@@ -136,8 +131,8 @@ function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | 
 	}
 
 	if (projection === 'cross') {
-		push('ширина', mmValue(details, 'cross_width_mm', 'width_px', pxPerMm))
-		push('толщина', mmValue(details, 'cross_height_mm', 'height_px', pxPerMm))
+		push('ширина', positive(details, 'cross_width_mm'))
+		push('толщина', positive(details, 'cross_height_mm'))
 	} else if (projection === 'long') {
 		// Долю берём у узла, затем у исследования; если нигде нет — ту, для
 		// которой бэкенд прислал размеры.
@@ -147,18 +142,18 @@ function noduleSize(segment: Segment, study: StudyProjection, pxPerMm: number | 
 		}
 		const maxKey = side ? `long_${side}_max_dim_mm` : ''
 		const minKey = side ? `long_${side}_min_dim_mm` : ''
-		push('длина', mmValue(details, maxKey, 'max_dim_px', pxPerMm))
-		push('толщина', mmValue(details, minKey, 'min_dim_px', pxPerMm))
+		push('длина', positive(details, maxKey))
+		push('толщина', positive(details, minKey))
 	}
 
 	return parts.join(', ')
 }
 
-function buildNodules(segments: Segment[], study: StudyProjection, pxPerMm: number | null | undefined): ReportNodule[] {
+function buildNodules(segments: Segment[], study: StudyProjection): ReportNodule[] {
 	return getReportSegments(segments).map((segment, index) => ({
 		number: index + 1,
 		tirads: segment.details?.nodule_type ?? undefined,
-		size: noduleSize(segment, study, pxPerMm),
+		size: noduleSize(segment, study),
 		location: noduleLocation(segment.details),
 		source: segment.is_ai ? 'ai' : 'doctor',
 	}))
@@ -259,7 +254,6 @@ export interface BuildReportModelOptions {
 	doctor?: DoctorProfile
 	patientBirthDate?: string
 	extras: ReportExtras
-	pxPerMm?: number | null
 }
 
 export function buildReportModel({
@@ -268,21 +262,16 @@ export function buildReportModel({
 	doctor,
 	patientBirthDate,
 	extras,
-	pxPerMm,
 }: BuildReportModelOptions): ThyroidReportModel {
 	const { patient } = data.info
-	const nodules = buildNodules(
-		data.segmentation || [],
-		{
-			projectionType: (values.projectionType as string | undefined) || data.info.details?.projection_type,
-			anatomySide:
-				(values.projectionSide as string | undefined) ||
-				data.info.details?.anatomy_side ||
-				data.info.details?.projection_side ||
-				undefined,
-		},
-		pxPerMm,
-	)
+	const nodules = buildNodules(data.segmentation || [], {
+		projectionType: (values.projectionType as string | undefined) || data.info.details?.projection_type,
+		anatomySide:
+			(values.projectionSide as string | undefined) ||
+			data.info.details?.anatomy_side ||
+			data.info.details?.projection_side ||
+			undefined,
+	})
 	const nodulesDescription = buildNodulesDescription(nodules)
 
 	const backendVolumes = readBackendVolumes(data.info.details as unknown as Record<string, unknown>)

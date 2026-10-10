@@ -17,5 +17,7 @@ export interface UziStudyViewerProps {
 	/** Досохранить правку выделенного контура перед сохранением. */
 	annotationApiRef?: React.Ref<ViewerAnnotationApi>
 	onPxPerMmChange?: (pxPerMm: number | null) => void
+	/** Сохранённый ручной масштаб исследования, пикселей на мм. */
+	initialPxPerMm?: number | null
 	thyroidStructures?: ThyroidStructureJson
 }

@@ -21,6 +21,18 @@ export const STRUCTURE_KEY_SEPARATOR = '__'
 export const isAnatomySegment = (segment: Segment): boolean =>
 	segment.details?.source_type === THYROID_ANATOMY_SOURCE_TYPE
 
+/** Структуры ЩЖ, по контурам которых бэкенд считает размеры железы. */
+const MEASURABLE_STRUCTURES = ['left_lobe', 'right_lobe', 'isthmus']
+
+/** Есть ли контуры структур ЩЖ, по которым бэкенд может посчитать размеры. */
+export function hasMeasurableAnatomy(anatomy: Segment[] | undefined): boolean {
+	return (anatomy ?? []).some(
+		segment =>
+			MEASURABLE_STRUCTURES.includes(String(segment.details?.structure_type)) &&
+			(segment.data ?? []).some(contour => (contour.points?.length ?? 0) >= 3),
+	)
+}
+
 export interface SplitSegmentation {
 	nodules: Segment[]
 	anatomy: Segment[]

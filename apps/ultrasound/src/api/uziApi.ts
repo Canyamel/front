@@ -44,6 +44,41 @@ export const uziApi = baseApi.injectEndpoints({
 			invalidatesTags: (_result, _error, { uziId }) => [{ type: 'Uzi', id: uziId }],
 		}),
 
+		/**
+		 * Ручной масштаб снимка (калибровка линейкой), `null` — сброс.
+		 *
+		 * Бэкенд под этот масштаб пересчитывает размеры узлов и ЩЖ в мм и
+		 * отвечает уже после пересчёта, поэтому следом перечитываем снимок.
+		 * В кэш кладём только `info` и `segmentation`: вместе с `image` пришли
+		 * бы новые подписанные ссылки на кадры, и вьюер открылся бы заново
+		 * посреди работы.
+		 */
+		saveUziManualScale: builder.mutation<null, { uziId: string; pxPerMm: number | null }>({
+			async queryFn({ uziId, pxPerMm }, api, _extraOptions, baseQuery) {
+				const saved = await baseQuery({
+					url: `/uzi/${encodeURIComponent(uziId)}/scale/`,
+					method: 'PUT',
+					body: { px_per_mm: pxPerMm },
+				})
+				if (saved.error) return { error: saved.error }
+
+				const fresh = await baseQuery(`/uzi/${encodeURIComponent(uziId)}/?format=json`)
+				if (fresh.data) {
+					const { info, segmentation } = fresh.data as ThyroidUziApiResponse
+					api.dispatch(
+						uziApi.util.updateQueryData('getThyroidUziData', uziId, draft => {
+							draft.info = info
+							draft.segmentation = segmentation
+						}),
+					)
+				} else {
+					api.dispatch(uziApi.util.invalidateTags([{ type: 'Uzi', id: uziId }]))
+				}
+
+				return { data: null }
+			},
+		}),
+
 		uploadUziDiagnostic: builder.mutation<
 			unknown,
 			{
@@ -94,6 +129,7 @@ export const {
 	useUploadUziDiagnosticMutation,
 	useGetThyroidUziDataQuery,
 	useUpdateThyroidUziDataMutation,
+	useSaveUziManualScaleMutation,
 } = uziApi
 
 /** Правка контура в запросе сохранения: ключ черновика и сама правка. */

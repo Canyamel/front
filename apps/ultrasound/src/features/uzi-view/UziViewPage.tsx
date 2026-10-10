@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Card, Form, Spin, theme } from 'antd'
 import { StudyWorkspaceLayout, useStudyFocusMode } from '@medml/study_view'
 
-import { useGetThyroidUziDataQuery, useGetUziDevicesQuery } from '@/api/uziApi'
+import { useGetThyroidUziDataQuery, useGetUziDevicesQuery, useSaveUziManualScaleMutation } from '@/api/uziApi'
 import { useGetDoctorProfileQuery } from '@/api/doctorApi'
 import { useGetMedPatientByIdQuery } from '@/api/patientProfileApi'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
@@ -14,6 +14,7 @@ import { Gallery } from './gallery'
 import { ActionButtons, NoduleTypesSection, PatientInfoSection, StudyDataSection } from './sidebar'
 import { anatomyToStructureJson, splitSegmentation, useUziContourEditor, useUziStudyForm } from './model'
 import type { Segment } from './model/types'
+import { positiveNumber } from './model/thyroidDimensions'
 
 /**
  * Показ контуров долей/перешейка ЩЖ. Временно выключен. Чтобы вернуть — поставить `true`.
@@ -49,6 +50,30 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const focus = useStudyFocusMode()
 
 	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+
+	// Ручной масштаб хранится в исследовании: калибровку линейкой не нужно
+	// повторять при каждом открытии. Размеры в мм под него считает бэкенд.
+	const savedPxPerMm = positiveNumber(data?.info.details?.manual_px_per_mm) ?? null
+	const savedPxPerMmRef = useRef(savedPxPerMm)
+	// Layout-эффект, а не обычный: вьюер сообщает масштаб из своего эффекта
+	// при открытии, и к этому моменту ref уже должен знать сохранённое.
+	useLayoutEffect(() => {
+		savedPxPerMmRef.current = savedPxPerMm
+	}, [savedPxPerMm])
+	const [saveManualScale] = useSaveUziManualScaleMutation()
+
+	const handlePxPerMmChange = useCallback(
+		(next: number | null) => {
+			setPxPerMm(next)
+			// Вьюер сообщает масштаб и при открытии — сохраняем только изменения.
+			const saved = savedPxPerMmRef.current
+			const unchanged = next == null ? saved == null : saved != null && Math.abs(next - saved) < 1e-9
+			if (unchanged) return
+			// Ошибку покажет общий errorMiddleware.
+			void saveManualScale({ uziId, pxPerMm: next })
+		},
+		[saveManualScale, uziId],
+	)
 
 	// --- заключение -------------------------------------------------------
 	const { doctorId } = useDoctorId()
@@ -110,7 +135,8 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						imageid={data.image.id}
 						contourEditor={contourEditor}
 						viewerHeight={focus.viewerHeight}
-						onPxPerMmChange={setPxPerMm}
+						onPxPerMmChange={handlePxPerMmChange}
+						initialPxPerMm={savedPxPerMm}
 						thyroidStructures={thyroidStructures}
 					/>
 				}
@@ -142,6 +168,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				extras={extras}
 				onExtrasChange={setExtras}
 				pxPerMm={pxPerMm}
+				anatomy={anatomy}
 			/>
 		</>
 	)

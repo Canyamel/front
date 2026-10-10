@@ -59,6 +59,7 @@ function AnnotatedStudyViewer<D = unknown>({
 	legendItems = [],
 	legendTitle,
 	onPxPerMmChange,
+	initialPxPerMm = null,
 	annotationsVisible,
 	onAnnotationsVisibleChange,
 	annotationsToggleLabel,
@@ -80,7 +81,13 @@ function AnnotatedStudyViewer<D = unknown>({
 
 	const activeTool = availableTools.includes(requestedTool) ? requestedTool : PAN_TOOL
 
-	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+	const [pxPerMm, setPxPerMm] = useState<number | null>(initialPxPerMm)
+
+	// Сохранённый масштаб может прийти позже снимка или смениться вместе с
+	// исследованием.
+	useEffect(() => {
+		setPxPerMm(initialPxPerMm)
+	}, [initialPxPerMm])
 
 	// Отрезок, для которого ждём ввод длины. Пока он не null — открыт диалог.
 	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)

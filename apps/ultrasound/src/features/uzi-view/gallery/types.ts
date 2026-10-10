@@ -29,6 +29,7 @@ export interface GalleryProps {
 	currentGroup?: string | number
 	viewerHeight?: number
 	onPxPerMmChange?: (pxPerMm: number | null) => void
+	initialPxPerMm?: number | null
 	thyroidStructures?: ThyroidStructureJson
 }
 

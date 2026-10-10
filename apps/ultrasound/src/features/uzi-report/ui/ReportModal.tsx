@@ -4,7 +4,7 @@ import type { FormInstance } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
 
 import type { DoctorProfile } from '@/api/doctorApi'
-import type { ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
+import type { Segment, ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
 import { MISSING_SCALE_WARNING } from '@/features/uzi-view/model/thyroidDimensions'
 
 import { buildReportModel, needsScaleCalibration } from '../model/buildReportModel'
@@ -24,6 +24,8 @@ export interface ReportModalProps {
 	extras: ReportExtras
 	onExtrasChange: (next: ReportExtras) => void
 	pxPerMm?: number | null
+	/** Контуры долей и перешейка ЩЖ — для предупреждения о масштабе. */
+	anatomy?: Segment[]
 }
 
 /** Подпись + контрол в одну колонку; без Form.Item, чтобы не плодить формы. */
@@ -60,6 +62,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	extras,
 	onExtrasChange,
 	pxPerMm,
+	anatomy,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null)
 	const [showPreview, setShowPreview] = useState(true)
@@ -70,11 +73,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	const values = useMemo(() => watched ?? {}, [watched])
 
 	const model = useMemo(
-		() => buildReportModel({ data, values, doctor, patientBirthDate, extras, pxPerMm }),
-		[data, values, doctor, patientBirthDate, extras, pxPerMm],
+		() => buildReportModel({ data, values, doctor, patientBirthDate, extras }),
+		[data, values, doctor, patientBirthDate, extras],
 	)
 
-	const showScaleWarning = useMemo(() => needsScaleCalibration(data, pxPerMm), [data, pxPerMm])
+	const showScaleWarning = useMemo(() => needsScaleCalibration(data, pxPerMm, anatomy), [data, pxPerMm, anatomy])
 
 	// Перерисовываем документ не на каждый символ, иначе iframe мигает.
 	const debouncedModel = useDebouncedValue(model, 400)

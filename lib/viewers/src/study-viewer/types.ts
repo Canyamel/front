@@ -81,6 +81,12 @@ export interface AnnotatedStudyViewerProps<D = unknown> {
 	 * масштаб. Вьюер передаёт его обратно: `subtitle` строит приложение.
 	 */
 	onPxPerMmChange?: (pxPerMm: number | null) => void
+	/**
+	 * Масштаб, сохранённый приложением (пикселей на мм): вьюер стартует с
+	 * ним и подхватывает его смену. Дальше масштаб ведёт сам вьюер —
+	 * калибровка и сброс приходят через `onPxPerMmChange`.
+	 */
+	initialPxPerMm?: number | null
 
 	annotationsVisible?: boolean
 	onAnnotationsVisibleChange?: (visible: boolean) => void

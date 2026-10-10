@@ -30,12 +30,13 @@ const UziStudyViewer = ({
 	currentGroup,
 	annotationApiRef,
 	onPxPerMmChange,
+	initialPxPerMm = null,
 	thyroidStructures,
 }: UziStudyViewerProps) => {
 	const [currentPage, setCurrentPage] = useState(0)
 	const [annotationsVisible, setAnnotationsVisible] = useState(true)
 	const [structuresVisible, setStructuresVisible] = useState(true)
-	const [pxPerMm, setPxPerMm] = useState<number | null>(null)
+	const [pxPerMm, setPxPerMm] = useState<number | null>(initialPxPerMm)
 
 	const handlePxPerMmChange = useCallback(
 		(next: number | null) => {
@@ -130,6 +131,7 @@ const UziStudyViewer = ({
 			status={status}
 			onIndexChange={setCurrentPage}
 			onPxPerMmChange={handlePxPerMmChange}
+			initialPxPerMm={initialPxPerMm}
 			legendItems={legendItems}
 			legendTitle={uniqueNodes.length > 0 ? 'Узлы:' : 'Структуры ЩЖ:'}
 			annotationsVisible={annotationsVisible}

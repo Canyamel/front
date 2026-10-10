@@ -147,6 +147,9 @@ export interface InfoDetails {
 	// Физический размер пикселя из файла, мм/пиксель.
 	h_pixel_spacing?: number
 	w_pixel_spacing?: number
+
+	// Масштаб, заданный врачом линейкой во вьюере, пикселей на мм.
+	manual_px_per_mm?: number | null
 }
 
 export interface Info {
