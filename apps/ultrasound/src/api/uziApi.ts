@@ -49,9 +49,6 @@ export const uziApi = baseApi.injectEndpoints({
 		 *
 		 * Бэкенд под этот масштаб пересчитывает размеры узлов и ЩЖ в мм и
 		 * отвечает уже после пересчёта, поэтому следом перечитываем снимок.
-		 * В кэш кладём только `info` и `segmentation`: вместе с `image` пришли
-		 * бы новые подписанные ссылки на кадры, и вьюер открылся бы заново
-		 * посреди работы.
 		 */
 		saveUziManualScale: builder.mutation<null, { uziId: string; pxPerMm: number | null }>({
 			async queryFn({ uziId, pxPerMm }, api, _extraOptions, baseQuery) {

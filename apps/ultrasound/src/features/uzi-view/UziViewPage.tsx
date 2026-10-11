@@ -55,8 +55,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	// повторять при каждом открытии. Размеры в мм под него считает бэкенд.
 	const savedPxPerMm = positiveNumber(data?.info.details?.manual_px_per_mm) ?? null
 	const savedPxPerMmRef = useRef(savedPxPerMm)
-	// Layout-эффект, а не обычный: вьюер сообщает масштаб из своего эффекта
-	// при открытии, и к этому моменту ref уже должен знать сохранённое.
+
 	useLayoutEffect(() => {
 		savedPxPerMmRef.current = savedPxPerMm
 	}, [savedPxPerMm])
@@ -65,11 +64,9 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const handlePxPerMmChange = useCallback(
 		(next: number | null) => {
 			setPxPerMm(next)
-			// Вьюер сообщает масштаб и при открытии — сохраняем только изменения.
 			const saved = savedPxPerMmRef.current
 			const unchanged = next == null ? saved == null : saved != null && Math.abs(next - saved) < 1e-9
 			if (unchanged) return
-			// Ошибку покажет общий errorMiddleware.
 			void saveManualScale({ uziId, pxPerMm: next })
 		},
 		[saveManualScale, uziId],

@@ -33,11 +33,7 @@ export interface ViewerStatus {
 
 export interface AnnotatedStudyViewerProps<D = unknown> {
 	images: ViewerImage[]
-
-	/**
-	 * Контуры, которые сейчас на снимке (обычно — текущего кадра). Не задан —
-	 * разметки у снимка нет, Annotorious не подключается.
-	 */
+	/** Контуры, которые сейчас на снимке (обычно — текущего кадра).*/
 	annotations?: ViewerAnnotation<D>[]
 	/** Оформление контура по его данным и состоянию (выделен / под курсором). */
 	annotationStyle?: ViewerAnnotationStyleFn<D>
@@ -66,26 +62,14 @@ export interface AnnotatedStudyViewerProps<D = unknown> {
 	navigationEnabled?: boolean
 	onIndexChange?: (index: number) => void
 
-	/** Пределы приближения движка; по умолчанию — как у `UziViewer`. */
+	/** Пределы приближения движка. */
 	zoomLimits?: ViewerZoomLimits
 	zoomUnit?: 'percent' | 'native'
-
-	/** Состояние вместо снимка: загрузка/ошибка/нет данных. */
 	status?: ViewerStatus | null
-
-	/** Легенда разметки поверх снимка. */
 	legendItems?: ViewerLegendItem[]
 	legendTitle?: string
-	/**
-	 * Габариты объектов в легенде считаются в мм, поэтому легенде нужен
-	 * масштаб. Вьюер передаёт его обратно: `subtitle` строит приложение.
-	 */
 	onPxPerMmChange?: (pxPerMm: number | null) => void
-	/**
-	 * Масштаб, сохранённый приложением (пикселей на мм): вьюер стартует с
-	 * ним и подхватывает его смену. Дальше масштаб ведёт сам вьюер —
-	 * калибровка и сброс приходят через `onPxPerMmChange`.
-	 */
+	/**Масштаб, сохранённый приложением:*/
 	initialPxPerMm?: number | null
 
 	annotationsVisible?: boolean
