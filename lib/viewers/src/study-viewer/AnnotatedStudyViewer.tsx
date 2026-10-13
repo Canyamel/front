@@ -10,6 +10,7 @@ import ViewerStatusState from './ViewerStatusState'
 import ViewerLegendOverlay from './ViewerLegendOverlay'
 import ViewerAnnotationsToggle from './ViewerAnnotationsToggle'
 import ViewerAnnotationPopup from './ViewerAnnotationPopup'
+import ViewerSnapshotSaveTarget from './ViewerSnapshotSaveTarget'
 import { annotationAnchor, useAnnotoriousLayer } from '../annotations'
 import {
 	BRUSH_TOOL,
@@ -36,6 +37,7 @@ import type { AnnotatedStudyViewerProps } from './types'
  * - разметку на Annotorious 3 (`useAnnotoriousLayer`): приложение отдаёт
  *   контуры и получает обратно правки врача;
  * - легенду разметки и переключатель её видимости;
+ * - «Сохранить картинку как» с разметкой (`ViewerSnapshotSaveTarget`);
  * - состояния «загрузка / ошибка / нет снимка».
  */
 function AnnotatedStudyViewer<D = unknown>({
@@ -358,6 +360,13 @@ function AnnotatedStudyViewer<D = unknown>({
 								})}
 							</ViewerAnnotationPopup>
 						)}
+
+						<ViewerSnapshotSaveTarget<D>
+							viewer={osdViewer}
+							imageUrl={images[currentPage]?.url || undefined}
+							annotations={annotations ?? EMPTY_ANNOTATIONS}
+							style={annotationStyle}
+						/>
 
 						{typeof overlaySlot === 'function' ? overlaySlot(context) : overlaySlot}
 					</>
