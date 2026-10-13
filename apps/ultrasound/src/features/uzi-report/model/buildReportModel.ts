@@ -165,7 +165,7 @@ export function buildNodulesDescription(nodules: ReportNodule[]): string {
 
 	return nodules
 		.map(nodule => {
-			const source = nodule.source === 'ai' ? 'определён ассистентом' : 'подтверждён врачом'
+			const source = nodule.source === 'ai' ? 'определён ассистентом по текущему снимку' : 'подтверждён врачом'
 			const head = [nodule.location, nodule.tirads != null ? `TI-RADS ${nodule.tirads}` : '', nodule.size]
 				.filter(Boolean)
 				.join(', ')
