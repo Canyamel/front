@@ -18,7 +18,7 @@ function text(value: unknown, fallback = DASH): string {
 	return s || fallback
 }
 
-function num(value: unknown, digits = 2, fallback = DASH): string {
+function num(value: unknown, digits = 1, fallback = DASH): string {
 	const n = positiveNumber(value)
 	return n == null ? fallback : String(Number(n.toFixed(digits)))
 }
