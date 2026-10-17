@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Card, Form, Spin, theme } from 'antd'
 import { StudyWorkspaceLayout, useStudyFocusMode } from '@medml/study_view'
+import { pxPerMmFromSpacing, sameScale } from '@medml/viewers'
 
 import { useGetThyroidUziDataQuery, useGetUziDevicesQuery, useSaveUziManualScaleMutation } from '@/api/uziApi'
 import { useGetDoctorProfileQuery } from '@/api/doctorApi'
@@ -62,20 +63,25 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 		() => ({ horizontal: positiveNumber(wPixelSpacing) ?? null, vertical: positiveNumber(hPixelSpacing) ?? null }),
 		[wPixelSpacing, hPixelSpacing],
 	)
+
+	const filePxPerMm = useMemo(() => pxPerMmFromSpacing(filePixelSpacing), [filePixelSpacing])
 	const savedPxPerMmRef = useRef(savedPxPerMm)
+	const filePxPerMmRef = useRef(filePxPerMm)
 
 	useLayoutEffect(() => {
 		savedPxPerMmRef.current = savedPxPerMm
-	}, [savedPxPerMm])
+		filePxPerMmRef.current = filePxPerMm
+	}, [savedPxPerMm, filePxPerMm])
 	const [saveManualScale] = useSaveUziManualScaleMutation()
 
 	const handlePxPerMmChange = useCallback(
 		(next: number | null) => {
 			setPxPerMm(next)
 			const saved = savedPxPerMmRef.current
-			const unchanged = next == null ? saved == null : saved != null && Math.abs(next - saved) < 1e-9
-			if (unchanged) return
-			void saveManualScale({ uziId, pxPerMm: next })
+			const fromFile = filePxPerMmRef.current
+			// Действующий масштаб: ручной, а без него — из файла.
+			if (sameScale(next, saved ?? fromFile)) return
+			void saveManualScale({ uziId, pxPerMm: sameScale(next, fromFile) ? null : next })
 		},
 		[saveManualScale, uziId],
 	)

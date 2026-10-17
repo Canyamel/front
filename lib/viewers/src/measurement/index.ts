@@ -5,6 +5,8 @@ export {
 	lineAngleDeg,
 	lineLabelAnchor,
 	calcPxPerMm,
+	pxPerMmFromSpacing,
+	sameScale,
 	pxToMm,
 	contourSizePx,
 	contourGroupSizePx,
