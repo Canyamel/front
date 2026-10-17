@@ -26,6 +26,7 @@ export interface ReportModalProps {
 	pxPerMm?: number | null
 	/** Контуры долей и перешейка ЩЖ — для предупреждения о масштабе. */
 	anatomy?: Segment[]
+	devices?: Array<{ id: number; name: string }>
 }
 
 /** Подпись + контрол в одну колонку; без Form.Item, чтобы не плодить формы. */
@@ -63,6 +64,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	onExtrasChange,
 	pxPerMm,
 	anatomy,
+	devices,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null)
 	const [showPreview, setShowPreview] = useState(true)
@@ -73,8 +75,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	const values = useMemo(() => watched ?? {}, [watched])
 
 	const model = useMemo(
-		() => buildReportModel({ data, values, doctor, patientBirthDate, extras }),
-		[data, values, doctor, patientBirthDate, extras],
+		() => buildReportModel({ data, values, doctor, patientBirthDate, extras, devices }),
+		[data, values, doctor, patientBirthDate, extras, devices],
 	)
 
 	const showScaleWarning = useMemo(() => needsScaleCalibration(data, pxPerMm, anatomy), [data, pxPerMm, anatomy])
@@ -220,7 +222,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					<Row gutter={12}>
 						<Col span={8}>
 							<Field label='Перешеек, толщина (мм)'>
-								<Input type='number' value={fv('isthmus_thickness')} onChange={e => setFv('isthmus_thickness', e.target.value)} />
+								<Input
+									type='number'
+									value={fv('isthmus_thickness')}
+									onChange={e => setFv('isthmus_thickness', e.target.value)}
+								/>
 							</Field>
 						</Col>
 						<Col span={8}>

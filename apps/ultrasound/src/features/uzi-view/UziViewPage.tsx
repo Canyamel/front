@@ -175,6 +175,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				onExtrasChange={setExtras}
 				pxPerMm={pxPerMm}
 				anatomy={anatomy}
+				devices={devices}
 			/>
 		</>
 	)

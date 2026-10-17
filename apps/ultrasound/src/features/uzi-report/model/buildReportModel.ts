@@ -245,15 +245,11 @@ function formatRuDateTime(iso: string | undefined): string {
 export interface BuildReportModelOptions {
 	/** Ответ `/uzi/{id}/?format=json`. */
 	data: ThyroidUziApiResponse
-	/**
-	 * Текущие значения формы параметров исследования. Берём именно их, а не
-	 * `data.info.details`: врач должен видеть в заключении то, что перед ним
-	 * на экране, даже если он ещё не нажал «Сохранить результат».
-	 */
 	values: Record<string, unknown>
 	doctor?: DoctorProfile
 	patientBirthDate?: string
 	extras: ReportExtras
+	devices?: Array<{ id: number; name: string }>
 }
 
 export function buildReportModel({
@@ -262,6 +258,7 @@ export function buildReportModel({
 	doctor,
 	patientBirthDate,
 	extras,
+	devices,
 }: BuildReportModelOptions): ThyroidReportModel {
 	const { patient } = data.info
 	const nodules = buildNodules(data.segmentation || [], {
@@ -300,7 +297,8 @@ export function buildReportModel({
 		patientAge: ageFromDisplayDate(patientBirthDate, data.info.diagnos_date),
 
 		studyDateTime: formatRuDateTime(data.info.diagnos_date),
-		deviceName: text(data.info.uzi_device_name),
+		// Аппарат — тот, что выбран в форме, либо тот, что в исследовании.
+		deviceName: text(devices?.find(device => device.id === values.uziDevice)?.name ?? data.info.uzi_device_name),
 		projection: formatProjection(
 			values.projectionType as string | undefined,
 			values.projectionSide as string | undefined,
