@@ -182,6 +182,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				pxPerMm={pxPerMm}
 				anatomy={anatomy}
 				devices={devices}
+				onPrint={studyForm.rememberPrintedReport}
 			/>
 		</>
 	)
