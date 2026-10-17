@@ -2,6 +2,7 @@ import React from 'react'
 import { Button, InputNumber, Segmented, Space, Tooltip, Typography } from 'antd'
 
 import { BRUSH_TOOL, CALIBRATE_TOOL, RULER_TOOL, VIEWER_TOOL_META, type BrushMode, type ViewerToolId } from './tools'
+import type { ViewerPixelSpacing } from './types'
 
 export interface ViewerToolPanelProps {
 	tools: ViewerToolId[]
@@ -9,6 +10,8 @@ export interface ViewerToolPanelProps {
 	onToolChange: (tool: ViewerToolId) => void
 
 	pxPerMm: number | null
+	/** Размер пикселя из метаданных файла; */
+	filePixelSpacing?: ViewerPixelSpacing
 
 	brushMode: BrushMode
 	onBrushModeChange: (mode: BrushMode) => void
@@ -61,6 +64,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	activeTool,
 	onToolChange,
 	pxPerMm,
+	filePixelSpacing,
 	brushMode,
 	onBrushModeChange,
 	brushRadius,
@@ -118,6 +122,15 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 				)}
 			</div>
 
+			{filePixelSpacing && (
+				<div style={{ ...rowStyle, justifyContent: 'flex-end' }}>
+					<Space size={16} wrap>
+						<FileSpacingValue label='Масштаб (по горизонтали)' value={filePixelSpacing.horizontal} />
+						<FileSpacingValue label='Масштаб (по вертикали)' value={filePixelSpacing.vertical} />
+					</Space>
+				</div>
+			)}
+
 			{extra && <div style={rowStyle}>{extra}</div>}
 
 			{showBrushControls && (
@@ -163,6 +176,31 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 			)}
 		</div>
 	)
+}
+
+/** Размер пикселя из файла: значение в мм/пикс или «нет в файле». */
+const FileSpacingValue: React.FC<{ label: string; value: number | null }> = ({ label, value }) => (
+	<Tooltip title='Физический размер пикселя из метаданных файла'>
+		<Space size={6} align='center'>
+			<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
+				{label}
+			</Typography.Text>
+			{value != null && value > 0 ? (
+				<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
+					{formatSpacing(value)} мм / пикс
+				</Typography.Text>
+			) : (
+				<Typography.Text type='warning' style={{ whiteSpace: 'nowrap' }}>
+					нет в файле
+				</Typography.Text>
+			)}
+		</Space>
+	</Tooltip>
+)
+
+/** 4 значащие цифры без хвостовых нулей: 0.0625, 0.1, 0.07813. */
+function formatSpacing(value: number): string {
+	return String(Number(value.toPrecision(4)))
 }
 
 export default ViewerToolPanel

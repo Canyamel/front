@@ -54,6 +54,14 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	// Ручной масштаб хранится в исследовании: калибровку линейкой не нужно
 	// повторять при каждом открытии. Размеры в мм под него считает бэкенд.
 	const savedPxPerMm = positiveNumber(data?.info.details?.manual_px_per_mm) ?? null
+
+	// Размер пикселя из метаданных файла (мм/пикс).
+	const wPixelSpacing = data?.info.details?.w_pixel_spacing
+	const hPixelSpacing = data?.info.details?.h_pixel_spacing
+	const filePixelSpacing = useMemo(
+		() => ({ horizontal: positiveNumber(wPixelSpacing) ?? null, vertical: positiveNumber(hPixelSpacing) ?? null }),
+		[wPixelSpacing, hPixelSpacing],
+	)
 	const savedPxPerMmRef = useRef(savedPxPerMm)
 
 	useLayoutEffect(() => {
@@ -134,6 +142,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						viewerHeight={focus.viewerHeight}
 						onPxPerMmChange={handlePxPerMmChange}
 						initialPxPerMm={savedPxPerMm}
+						filePixelSpacing={filePixelSpacing}
 						thyroidStructures={thyroidStructures}
 					/>
 				}

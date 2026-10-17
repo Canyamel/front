@@ -1,3 +1,5 @@
+import type { ViewerPixelSpacing } from '@medml/viewers'
+
 import type { Segment } from '../model/types'
 import type { UziContourEditor } from '../model/useUziContourEditor'
 import type { ThyroidStructureJson } from '../structures'
@@ -30,6 +32,8 @@ export interface GalleryProps {
 	viewerHeight?: number
 	onPxPerMmChange?: (pxPerMm: number | null) => void
 	initialPxPerMm?: number | null
+	/** Размер пикселя из метаданных файла (`w_pixel_spacing` / `h_pixel_spacing`). */
+	filePixelSpacing?: ViewerPixelSpacing
 	thyroidStructures?: ThyroidStructureJson
 }
 

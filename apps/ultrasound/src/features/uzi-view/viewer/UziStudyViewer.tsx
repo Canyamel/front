@@ -31,6 +31,7 @@ const UziStudyViewer = ({
 	annotationApiRef,
 	onPxPerMmChange,
 	initialPxPerMm = null,
+	filePixelSpacing,
 	thyroidStructures,
 }: UziStudyViewerProps) => {
 	const [currentPage, setCurrentPage] = useState(0)
@@ -132,6 +133,7 @@ const UziStudyViewer = ({
 			onIndexChange={setCurrentPage}
 			onPxPerMmChange={handlePxPerMmChange}
 			initialPxPerMm={initialPxPerMm}
+			filePixelSpacing={filePixelSpacing}
 			legendItems={legendItems}
 			legendTitle={uniqueNodes.length > 0 ? 'Узлы:' : 'Структуры ЩЖ:'}
 			annotationsVisible={annotationsVisible}

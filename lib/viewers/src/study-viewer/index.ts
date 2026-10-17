@@ -34,5 +34,6 @@ export type { ViewerToolId, DrawingToolId, BrushMode, ViewerToolMeta } from './t
 export type {
 	ViewerLegendItem,
 	ViewerStatus,
+	ViewerPixelSpacing,
 	AnnotatedStudyViewerProps,
 } from './types'
