@@ -87,18 +87,34 @@ function dimensionsDetails(model: ThyroidReportModel): string {
 	return `${parts.join(' ').slice(0, -1)} (определены ассистентом по всем загруженным снимкам пациента).`
 }
 
-function conclusionText(model: ThyroidReportModel): string {
+/**
+ * Заключение — два абзаца: текст врача (по умолчанию это диагноз из карты
+ * пациента) и под ним вывод по разметке узлов.
+ */
+function conclusionParagraphs(model: ThyroidReportModel): string[] {
 	const own = clean(model.conclusion)
-	if (own) return own
+	const auto = nodulesConclusion(model)
+	if (!own) return [auto]
+	return normalizeText(own).includes(normalizeText(auto)) ? [own] : [own, auto]
+}
 
-	// Врач не заполнил заключение — печатаем то, что следует из разметки,
-	// вместо пустого раздела.
+/** Вывод, который следует из разметки узлов. */
+function nodulesConclusion(model: ThyroidReportModel): string {
 	if (model.highestTirads != null) {
 		return `Выявлены узловые изменения щитовидной железы, наибольшая категория TI-RADS ${model.highestTirads}.`
 	}
 	return model.hasNodules
 		? 'Выявлены узловые изменения щитовидной железы.'
 		: 'Узловые изменения щитовидной железы не выявлены.'
+}
+
+/** Для сравнения текстов: без регистра, лишних пробелов и точки в конце. */
+function normalizeText(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/\s+/g, ' ')
+		.replace(/[.\s]+$/, '')
+		.trim()
 }
 
 const STYLES = `
@@ -288,7 +304,12 @@ export function renderReportHtml(model: ThyroidReportModel): string {
 
 		${section('Информация об исследовании', studyInfo)}
 		${section('Описание', description)}
-		${section('Заключение', `<p class="plain">${esc(conclusionText(model))}</p>`)}
+		${section(
+			'Заключение',
+			conclusionParagraphs(model)
+				.map(text => `<p class="plain">${esc(text)}</p>`)
+				.join(''),
+		)}
 		${clean(model.recommendations) ? section('Рекомендации', `<p class="plain">${esc(clean(model.recommendations))}</p>`) : ''}
 		${section('Информация об оборудовании', line('Название устройства', model.deviceName, { always: true }))}
 
