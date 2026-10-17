@@ -62,6 +62,7 @@ function AnnotatedStudyViewer<D = unknown>({
 	legendTitle,
 	onPxPerMmChange,
 	initialPxPerMm = null,
+	filePixelSpacing,
 	annotationsVisible,
 	onAnnotationsVisibleChange,
 	annotationsToggleLabel,
@@ -297,6 +298,7 @@ function AnnotatedStudyViewer<D = unknown>({
 					activeTool={activeTool}
 					onToolChange={handleToolChange}
 					pxPerMm={pxPerMm}
+					filePixelSpacing={filePixelSpacing}
 					brushMode={brushMode}
 					onBrushModeChange={setBrushMode}
 					brushRadius={brushRadius}
