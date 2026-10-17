@@ -18,7 +18,7 @@ function text(value: unknown, fallback = DASH): string {
 	return s || fallback
 }
 
-function num(value: unknown, digits = 2, fallback = DASH): string {
+function num(value: unknown, digits = 1, fallback = DASH): string {
 	const n = positiveNumber(value)
 	return n == null ? fallback : String(Number(n.toFixed(digits)))
 }
@@ -165,7 +165,7 @@ export function buildNodulesDescription(nodules: ReportNodule[]): string {
 
 	return nodules
 		.map(nodule => {
-			const source = nodule.source === 'ai' ? 'определён ассистентом' : 'подтверждён врачом'
+			const source = nodule.source === 'ai' ? 'определён ассистентом по текущему снимку' : 'подтверждён врачом'
 			const head = [nodule.location, nodule.tirads != null ? `TI-RADS ${nodule.tirads}` : '', nodule.size]
 				.filter(Boolean)
 				.join(', ')

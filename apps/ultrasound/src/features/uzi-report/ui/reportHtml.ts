@@ -83,7 +83,8 @@ function dimensionsDetails(model: ThyroidReportModel): string {
 		.join(', ')
 	if (tail) parts.push(`${tail}.`)
 
-	return parts.join(' ')
+	if (!parts.length) return ''
+	return `${parts.join(' ').slice(0, -1)} (определены ассистентом по всем загруженным снимкам пациента).`
 }
 
 function conclusionText(model: ThyroidReportModel): string {
