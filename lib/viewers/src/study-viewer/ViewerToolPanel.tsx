@@ -9,7 +9,6 @@ export interface ViewerToolPanelProps {
 	onToolChange: (tool: ViewerToolId) => void
 
 	pxPerMm: number | null
-	onResetScale: () => void
 
 	brushMode: BrushMode
 	onBrushModeChange: (mode: BrushMode) => void
@@ -62,7 +61,6 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	activeTool,
 	onToolChange,
 	pxPerMm,
-	onResetScale,
 	brushMode,
 	onBrushModeChange,
 	brushRadius,
@@ -88,7 +86,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 						const disabled = tool === RULER_TOOL && rulerDisabled
 
 						return (
-							<Tooltip key={tool} title={disabled ? 'Сначала задайте масштаб по отрезку' : meta.hint}>
+							<Tooltip key={tool} title={disabled ? 'Сначала задайте масштаб' : meta.hint}>
 								<Button
 									type={activeTool === tool ? 'primary' : 'default'}
 									disabled={disabled}
@@ -108,18 +106,13 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 							Масштаб
 						</Typography.Text>
 						{pxPerMm == null ? (
-							<Button type='primary' ghost onClick={() => onToolChange(CALIBRATE_TOOL)}>
-								Задать по отрезку
-							</Button>
+							<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
+								не задан
+							</Typography.Text>
 						) : (
-							<>
-								<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
-									{pxPerMm.toFixed(2)} px / мм
-								</Typography.Text>
-								<Button size='small' onClick={onResetScale}>
-									Задать заново
-								</Button>
-							</>
+							<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
+								{pxPerMm.toFixed(2)} px / мм
+							</Typography.Text>
 						)}
 					</Space>
 				)}
