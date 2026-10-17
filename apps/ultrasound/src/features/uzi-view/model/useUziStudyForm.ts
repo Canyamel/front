@@ -31,6 +31,11 @@ export interface UseUziStudyFormResult {
 	handleSave: () => Promise<void>
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+	const norm = (value: unknown) => (value === undefined || value === '' ? null : value)
+	return Object.is(norm(a), norm(b))
+}
+
 /**
  * Синхронизация формы параметров исследования с ответом API и её сохранение.
  */
@@ -42,6 +47,9 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 	// Размеры в том виде, в каком они пришли с бэкенда, — чтобы при
 	// сохранении отправить только изменённые.
 	const initialDimensionsRef = useRef<ThyroidDimensionsMm>(readThyroidDimensions(undefined))
+	// Значения формы по последнему ответу сервера — чтобы при перечитывании
+	// снимка отличить правку врача от правки сервера.
+	const serverValuesRef = useRef<{ uziId: string; values: Record<string, unknown> } | null>(null)
 
 	useEffect(() => {
 		if (!data || !devices) return
@@ -51,7 +59,7 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 		// (`right_lobe_length`, …), см. `thyroidDimensions.ts`.
 		const dimensions = readThyroidDimensions(details as unknown as Record<string, unknown>)
 		initialDimensionsRef.current = dimensions
-		form.setFieldsValue({
+		const serverValues: Record<string, unknown> = {
 			uziDevice: devices.find(d => d.name === data.info.uzi_device_name)?.id ?? null,
 			projectionType: details.projection_type || PROJECTION_LONG,
 			projectionSide: needsProjectionSide(details.projection_type || PROJECTION_LONG)
@@ -68,8 +76,24 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 			rln: details.rln,
 			structure: details.structure,
 			additional_data: details.additional_data,
-		})
-	}, [data, devices, form])
+		}
+
+		const previous = serverValuesRef.current?.uziId === uziId ? serverValuesRef.current.values : null
+		serverValuesRef.current = { uziId, values: serverValues }
+
+		if (!previous) {
+			form.setFieldsValue(serverValues)
+			return
+		}
+
+		const current = form.getFieldsValue(true) as Record<string, unknown>
+		const patch: Record<string, unknown> = {}
+		for (const [name, value] of Object.entries(serverValues)) {
+			if (sameValue(previous[name], value)) continue
+			if (sameValue(current[name], previous[name])) patch[name] = value
+		}
+		if (Object.keys(patch).length > 0) form.setFieldsValue(patch)
+	}, [data, devices, form, uziId])
 
 	const handleSave = useCallback(async () => {
 		setSaving(true)
