@@ -297,10 +297,6 @@ function AnnotatedStudyViewer<D = unknown>({
 					activeTool={activeTool}
 					onToolChange={handleToolChange}
 					pxPerMm={pxPerMm}
-					onResetScale={() => {
-						setPxPerMm(null)
-						handleToolChange(CALIBRATE_TOOL)
-					}}
 					brushMode={brushMode}
 					onBrushModeChange={setBrushMode}
 					brushRadius={brushRadius}
