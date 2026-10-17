@@ -5,6 +5,7 @@ import { useUpdateThyroidUziDataMutation } from '@/api/uziApi'
 import type { ThyroidUziApiResponse, UziDeviceInfo } from '../model/types'
 import { PROJECTION_LONG, needsProjectionSide } from '@/lib/projection'
 import { readThyroidDimensions, toLegacyDetails, type ThyroidDimensionsMm } from './thyroidDimensions'
+import { pickPrintedFields, readPrintedReport, writePrintedReport } from './printedReport'
 
 const TEXT_DETAIL_FIELDS = [
 	'profile',
@@ -29,6 +30,21 @@ export interface UseUziStudyFormResult {
 	modalVisible: boolean
 	setModalVisible: (visible: boolean) => void
 	handleSave: () => Promise<void>
+	rememberPrintedReport: () => void
+}
+
+/**
+ * Поля заключения, напечатанные в прошлый раз, — поверх значений сервера.
+ * Берём только те, которые сервер с тех пор не менял.
+ */
+function restorePrintedReport(uziId: string, serverValues: Record<string, unknown>): Record<string, unknown> {
+	const printed = readPrintedReport(uziId)
+	if (!printed) return {}
+	const restored: Record<string, unknown> = {}
+	for (const [name, value] of Object.entries(printed.values)) {
+		if (sameValue(serverValues[name], printed.basis[name])) restored[name] = value ?? undefined
+	}
+	return restored
 }
 
 function sameValue(a: unknown, b: unknown): boolean {
@@ -82,7 +98,7 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 		serverValuesRef.current = { uziId, values: serverValues }
 
 		if (!previous) {
-			form.setFieldsValue(serverValues)
+			form.setFieldsValue({ ...serverValues, ...restorePrintedReport(uziId, serverValues) })
 			return
 		}
 
@@ -147,5 +163,13 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 		}
 	}, [data, form, updateUzi, uziId])
 
-	return { form, saving, modalVisible, setModalVisible, handleSave }
+	const rememberPrintedReport = useCallback(() => {
+		const server = serverValuesRef.current?.uziId === uziId ? serverValuesRef.current.values : {}
+		writePrintedReport(uziId, {
+			values: pickPrintedFields(form.getFieldsValue(true) as Record<string, unknown>),
+			basis: pickPrintedFields(server),
+		})
+	}, [form, uziId])
+
+	return { form, saving, modalVisible, setModalVisible, handleSave, rememberPrintedReport }
 }

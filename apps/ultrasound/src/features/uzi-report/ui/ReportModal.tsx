@@ -27,6 +27,8 @@ export interface ReportModalProps {
 	/** Контуры долей и перешейка ЩЖ — для предупреждения о масштабе. */
 	anatomy?: Segment[]
 	devices?: Array<{ id: number; name: string }>
+	/** Заключение отправлено на печать — запомнить его заполнение. */
+	onPrint?: () => void
 }
 
 /** Подпись + контрол в одну колонку; без Form.Item, чтобы не плодить формы. */
@@ -65,6 +67,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	pxPerMm,
 	anatomy,
 	devices,
+	onPrint,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null)
 	const [showPreview, setShowPreview] = useState(true)
@@ -94,9 +97,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
 		// Печатаем окно iframe, а не родительскую страницу: иначе в вывод
 		// попадут модалка и весь интерфейс под ней.
+		onPrint?.()
+
 		frameWindow.focus()
 		frameWindow.print()
-	}, [])
+	}, [onPrint])
 
 	const patch = useCallback(
 		(next: Partial<ReportExtras>) => onExtrasChange({ ...extras, ...next }),
