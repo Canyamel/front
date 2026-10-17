@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, InputNumber, Segmented, Space, Tooltip, Typography } from 'antd'
+import { Button, InputNumber, Segmented, Space, Tag, Tooltip, Typography } from 'antd'
 
 import { BRUSH_TOOL, CALIBRATE_TOOL, RULER_TOOL, VIEWER_TOOL_META, type BrushMode, type ViewerToolId } from './tools'
 import type { ViewerPixelSpacing } from './types'
@@ -10,6 +10,8 @@ export interface ViewerToolPanelProps {
 	onToolChange: (tool: ViewerToolId) => void
 
 	pxPerMm: number | null
+	scaleSource?: 'file' | 'manual' | null
+	onUseFileScale?: () => void
 	/** Размер пикселя из метаданных файла; */
 	filePixelSpacing?: ViewerPixelSpacing
 
@@ -64,6 +66,8 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	activeTool,
 	onToolChange,
 	pxPerMm,
+	scaleSource,
+	onUseFileScale,
 	filePixelSpacing,
 	brushMode,
 	onBrushModeChange,
@@ -105,31 +109,14 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 				</Space>
 
 				{showScaleControls && (
-					<Space size={8} align='center'>
-						<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
-							Масштаб
-						</Typography.Text>
-						{pxPerMm == null ? (
-							<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
-								не задан
-							</Typography.Text>
-						) : (
-							<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
-								{pxPerMm.toFixed(2)} px / мм
-							</Typography.Text>
-						)}
-					</Space>
+					<ScaleInfo
+						pxPerMm={pxPerMm}
+						scaleSource={scaleSource}
+						onUseFileScale={onUseFileScale}
+						filePixelSpacing={filePixelSpacing}
+					/>
 				)}
 			</div>
-
-			{filePixelSpacing && (
-				<div style={{ ...rowStyle, justifyContent: 'flex-end' }}>
-					<Space size={16} wrap>
-						<FileSpacingValue label='Масштаб (по горизонтали)' value={filePixelSpacing.horizontal} />
-						<FileSpacingValue label='Масштаб (по вертикали)' value={filePixelSpacing.vertical} />
-					</Space>
-				</div>
-			)}
 
 			{extra && <div style={rowStyle}>{extra}</div>}
 
@@ -178,29 +165,102 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	)
 }
 
-/** Размер пикселя из файла: значение в мм/пикс или «нет в файле». */
-const FileSpacingValue: React.FC<{ label: string; value: number | null }> = ({ label, value }) => (
-	<Tooltip title='Физический размер пикселя из метаданных файла'>
-		<Space size={6} align='center'>
-			<Typography.Text type='secondary' style={{ whiteSpace: 'nowrap' }}>
-				{label}
+const scaleBlockStyle: React.CSSProperties = {
+	display: 'flex',
+	flexDirection: 'column',
+	alignItems: 'flex-end',
+	gap: 2,
+	marginLeft: 'auto',
+}
+
+const nowrap: React.CSSProperties = { whiteSpace: 'nowrap' }
+
+interface ScaleInfoProps {
+	pxPerMm: number | null
+	scaleSource?: 'file' | 'manual' | null
+	onUseFileScale?: () => void
+	filePixelSpacing?: ViewerPixelSpacing
+}
+
+/**
+ * Масштаб снимка одним блоком
+ */
+const ScaleInfo: React.FC<ScaleInfoProps> = ({ pxPerMm, scaleSource, onUseFileScale, filePixelSpacing }) => (
+	<div style={scaleBlockStyle}>
+		<Space size={8} align='center'>
+			<Typography.Text type='secondary' style={nowrap}>
+				Масштаб
 			</Typography.Text>
-			{value != null && value > 0 ? (
-				<Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
-					{formatSpacing(value)} мм / пикс
+			{pxPerMm == null ? (
+				<Typography.Text type='warning' style={nowrap}>
+					не задан
 				</Typography.Text>
 			) : (
-				<Typography.Text type='warning' style={{ whiteSpace: 'nowrap' }}>
-					нет в файле
+				<Typography.Text strong style={nowrap}>
+					{formatPxPerMm(pxPerMm)}
 				</Typography.Text>
 			)}
+			{pxPerMm != null && scaleSource && (
+				<Tag color={scaleSource === 'file' ? 'green' : 'blue'} style={{ marginInlineEnd: 0 }}>
+					{scaleSource === 'file' ? 'из файла' : 'вручную'}
+				</Tag>
+			)}
+			{onUseFileScale && (
+				<Tooltip title='Вернуть масштаб из метаданных файла вместо ручной калибровки'>
+					<Button type='link' size='small' onClick={onUseFileScale} style={{ paddingInline: 0 }}>
+						Взять из файла
+					</Button>
+				</Tooltip>
+			)}
 		</Space>
-	</Tooltip>
+
+		{filePixelSpacing && <FileSpacingLine spacing={filePixelSpacing} />}
+	</div>
 )
 
-/** 4 значащие цифры без хвостовых нулей: 0.0625, 0.1, 0.07813. */
-function formatSpacing(value: number): string {
-	return String(Number(value.toPrecision(4)))
+/**
+ * Масштаб из метаданных файла — в тех же единицах, что и основной
+ */
+const FileSpacingLine: React.FC<{ spacing: ViewerPixelSpacing }> = ({ spacing }) => {
+	const textStyle: React.CSSProperties = { ...nowrap, fontSize: 12 }
+	const horizontal = spacing.horizontal != null && spacing.horizontal > 0 ? 1 / spacing.horizontal : null
+	const vertical = spacing.vertical != null && spacing.vertical > 0 ? 1 / spacing.vertical : null
+
+	if (horizontal == null && vertical == null) {
+		return (
+			<Typography.Text type='warning' style={textStyle}>
+				В файле масштаба нет
+			</Typography.Text>
+		)
+	}
+
+	const value =
+		horizontal != null && vertical != null && Math.abs(horizontal - vertical) < 0.005
+			? formatPxPerMm(horizontal)
+			: `${horizontal != null ? horizontal.toFixed(2) : '—'} × ${vertical != null ? vertical.toFixed(2) : '—'} ${PX_PER_MM_UNIT}`
+
+	return (
+		<Tooltip
+			title={`Из метаданных файла: размер пикселя ${formatSpacing(spacing.horizontal)} × ${formatSpacing(spacing.vertical)} мм (по горизонтали × по вертикали)`}
+		>
+			<Typography.Text type='secondary' style={textStyle}>
+				Из файла: {value}
+			</Typography.Text>
+		</Tooltip>
+	)
+}
+
+/** Единица масштаба — одна на всю панель и сообщения. */
+const PX_PER_MM_UNIT = 'пикс / мм'
+
+/** Масштаб для показа: `19.84 пикс / мм`. */
+export function formatPxPerMm(pxPerMm: number): string {
+	return `${pxPerMm.toFixed(2)} ${PX_PER_MM_UNIT}`
+}
+
+/** Размер пикселя для подсказки: 4 значащие цифры без хвостовых нулей. */
+function formatSpacing(value: number | null): string {
+	return value != null && value > 0 ? String(Number(value.toPrecision(4))) : '—'
 }
 
 export default ViewerToolPanel
