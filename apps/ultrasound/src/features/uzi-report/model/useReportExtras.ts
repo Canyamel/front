@@ -11,7 +11,9 @@ function storageKey(uziId: string): string {
 function isEmpty(extras: ReportExtras): boolean {
 	return (Object.keys(EMPTY_REPORT_EXTRAS) as (keyof ReportExtras)[]).every(key => {
 		const value = extras[key]
-		return typeof value === 'boolean' ? value === EMPTY_REPORT_EXTRAS[key] : !value
+		const fallback = EMPTY_REPORT_EXTRAS[key]
+		if (fallback === null) return value === null
+		return typeof value === 'boolean' ? value === fallback : !value
 	})
 }
 
@@ -28,6 +30,8 @@ function read(uziId: string): ReportExtras {
 			const value = parsed[key]
 			if (typeof fallback === 'boolean') {
 				;(next[key] as boolean) = Boolean(value ?? fallback)
+			} else if (fallback === null) {
+				;(next[key] as string | null) = value == null ? null : String(value)
 			} else {
 				;(next[key] as string) = String(value ?? '')
 			}

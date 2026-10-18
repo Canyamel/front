@@ -8,6 +8,7 @@ import {
 	readBackendVolumes,
 } from '@/features/uzi-view/model/thyroidDimensions'
 import { hasMeasurableAnatomy } from '@/features/uzi-view/model/segmentation'
+import { formatNoduleMm, noduleDimensions, type StudyProjection } from '@/features/uzi-view/model/noduleSize'
 
 import type { ReportExtras, ReportLobe, ReportNodule, ThyroidReportModel } from './types'
 
@@ -104,49 +105,10 @@ function noduleLocation(details: Segment['details'] | undefined): string {
 	return NODULE_LOCATION_LABELS[raw] ?? ''
 }
 
-/** Проекция и доля исследования — запасной источник, если у узла их нет. */
-interface StudyProjection {
-	projectionType?: string
-	anatomySide?: string
-}
-
-const round1 = (mm: number): string => String(Number(mm.toFixed(1)))
-
-/** Положительное число из `details` или `undefined`. */
-function positive(details: Record<string, unknown>, key: string): number | undefined {
-	const n = Number(details[key])
-	return Number.isFinite(n) && n > 0 ? n : undefined
-}
-
-/**
- * Размеры узла по данным бэкенда.
- */
 function noduleSize(segment: Segment, study: StudyProjection): string {
-	const details = (segment.details ?? {}) as Record<string, unknown>
-	const projection = String(details.projection_type || study.projectionType || '').toLowerCase()
-
-	const parts: string[] = []
-	const push = (label: string, value: number | undefined) => {
-		if (value != null) parts.push(`${label} ${round1(value)} мм`)
-	}
-
-	if (projection === 'cross') {
-		push('ширина', positive(details, 'cross_width_mm'))
-		push('толщина', positive(details, 'cross_height_mm'))
-	} else if (projection === 'long') {
-		// Долю берём у узла, затем у исследования; если нигде нет — ту, для
-		// которой бэкенд прислал размеры.
-		let side = String(details.anatomy_side || study.anatomySide || '').toLowerCase()
-		if (side !== 'left' && side !== 'right') {
-			side = ['left', 'right'].find(s => positive(details, `long_${s}_max_dim_mm`) != null) ?? ''
-		}
-		const maxKey = side ? `long_${side}_max_dim_mm` : ''
-		const minKey = side ? `long_${side}_min_dim_mm` : ''
-		push('длина', positive(details, maxKey))
-		push('толщина', positive(details, minKey))
-	}
-
-	return parts.join(', ')
+	return noduleDimensions(segment.details, study)
+		.map(({ label, mm }) => `${label} ${formatNoduleMm(mm)} мм`)
+		.join(', ')
 }
 
 function buildNodules(segments: Segment[], study: StudyProjection): ReportNodule[] {
@@ -329,7 +291,7 @@ export function buildReportModel({
 		structureDescription: text(extras.structureDescription, ''),
 
 		// Врач может переписать автоописание узлов своими словами.
-		focalChanges: text(extras.focalChanges, '') || nodulesDescription,
+		focalChanges: extras.focalChanges == null ? nodulesDescription : text(extras.focalChanges, ''),
 		parathyroidDescription: text(extras.parathyroidDescription, ''),
 		parathyroidMassesFound: Boolean(extras.parathyroidMassesFound),
 		lymphNodes: text(values.rln),
