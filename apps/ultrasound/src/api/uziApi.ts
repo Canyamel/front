@@ -29,6 +29,33 @@ export const uziApi = baseApi.injectEndpoints({
 				})),
 		}),
 
+		/**
+		 * Новый аппарат (thyroid). Если аппарат с таким названием уже есть,
+		 * бэкенд вернёт его, а не создаст дубль.
+		 */
+		createUziDevice: builder.mutation<UziDeviceDto, string>({
+			query: name => ({ url: '/uzi/devices/', method: 'POST', body: { name } }),
+			transformResponse: (response: { id: number | string; name: string }) => ({
+				id: String(response.id),
+				name: response.name,
+			}),
+			async onQueryStarted(_name, { dispatch, queryFulfilled }) {
+				try {
+					const { data: device } = await queryFulfilled
+					dispatch(
+						uziApi.util.updateQueryData('getUziDevices', undefined, list => {
+							if (!list.some(item => item.id === device.id)) {
+								list.push(device)
+								list.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+							}
+						}),
+					)
+				} catch {
+					// Ошибку покажет вызывающий код.
+				}
+			},
+		}),
+
 		/** Thyroid: полный bundle для ResultsPage (`?format=json`). */
 		getThyroidUziData: builder.query<ThyroidUziApiResponse, string>({
 			query: uziId => `/uzi/${encodeURIComponent(uziId)}/?format=json`,
@@ -123,6 +150,7 @@ export const uziApi = baseApi.injectEndpoints({
 
 export const {
 	useGetUziDevicesQuery,
+	useCreateUziDeviceMutation,
 	useUploadUziDiagnosticMutation,
 	useGetThyroidUziDataQuery,
 	useUpdateThyroidUziDataMutation,

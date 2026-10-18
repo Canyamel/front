@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Col, Divider, Form, Input, Modal, Row, Space, Switch, Typography } from 'antd'
 import type { FormInstance } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
@@ -26,6 +26,9 @@ export interface ReportModalProps {
 	pxPerMm?: number | null
 	/** Контуры долей и перешейка ЩЖ — для предупреждения о масштабе. */
 	anatomy?: Segment[]
+	devices?: Array<{ id: number; name: string }>
+	/** Заключение отправлено на печать — запомнить его заполнение. */
+	onPrint?: () => void
 }
 
 /** Подпись + контрол в одну колонку; без Form.Item, чтобы не плодить формы. */
@@ -63,6 +66,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	onExtrasChange,
 	pxPerMm,
 	anatomy,
+	devices,
+	onPrint,
 }) => {
 	const frameRef = useRef<HTMLIFrameElement>(null)
 	const [showPreview, setShowPreview] = useState(true)
@@ -73,8 +78,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	const values = useMemo(() => watched ?? {}, [watched])
 
 	const model = useMemo(
-		() => buildReportModel({ data, values, doctor, patientBirthDate, extras }),
-		[data, values, doctor, patientBirthDate, extras],
+		() => buildReportModel({ data, values, doctor, patientBirthDate, extras, devices }),
+		[data, values, doctor, patientBirthDate, extras, devices],
 	)
 
 	const showScaleWarning = useMemo(() => needsScaleCalibration(data, pxPerMm, anatomy), [data, pxPerMm, anatomy])
@@ -92,14 +97,22 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
 		// Печатаем окно iframe, а не родительскую страницу: иначе в вывод
 		// попадут модалка и весь интерфейс под ней.
+		onPrint?.()
+
 		frameWindow.focus()
 		frameWindow.print()
-	}, [])
+	}, [onPrint])
 
 	const patch = useCallback(
 		(next: Partial<ReportExtras>) => onExtrasChange({ ...extras, ...next }),
 		[extras, onExtrasChange],
 	)
+
+	// Описание узлов по разметке — сразу текстом в поле, а не фоновой
+	// подстановкой.
+	useEffect(() => {
+		if (open && extras.focalChanges == null) patch({ focalChanges: model.nodulesDescription })
+	}, [open, extras.focalChanges, model.nodulesDescription, patch])
 
 	/** Значение поля формы исследования. */
 	const fv = useCallback((name: string) => (values[name] ?? '') as string | number, [values])
@@ -220,7 +233,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					<Row gutter={12}>
 						<Col span={8}>
 							<Field label='Перешеек, толщина (мм)'>
-								<Input type='number' value={fv('isthmus_thickness')} onChange={e => setFv('isthmus_thickness', e.target.value)} />
+								<Input
+									type='number'
+									value={fv('isthmus_thickness')}
+									onChange={e => setFv('isthmus_thickness', e.target.value)}
+								/>
 							</Field>
 						</Col>
 						<Col span={8}>
@@ -297,13 +314,24 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					</Row>
 
 					<SectionTitle>Очаговые изменения и окружение</SectionTitle>
-					<Field label='Очаговые изменения' hint='Пусто — подставим описание узлов, собранное по разметке'>
+					<Field
+						label='Очаговые изменения'
+						hint='Заполнено по разметке узлов — проверьте и при необходимости исправьте'
+					>
 						<Input.TextArea
 							rows={3}
-							value={extras.focalChanges}
-							placeholder={model.nodulesDescription}
+							value={extras.focalChanges ?? ''}
 							onChange={e => patch({ focalChanges: e.target.value })}
 						/>
+						<Button
+							type='link'
+							size='small'
+							style={{ paddingInline: 0 }}
+							disabled={extras.focalChanges === model.nodulesDescription}
+							onClick={() => patch({ focalChanges: model.nodulesDescription })}
+						>
+							Заполнить заново по разметке
+						</Button>
 					</Field>
 					<Field label='Околощитовидные железы'>
 						<Input.TextArea

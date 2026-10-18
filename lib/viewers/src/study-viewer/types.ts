@@ -25,6 +25,12 @@ export interface ViewerLegendItem {
 	dashed?: boolean
 }
 
+/** Размер пикселя снимка, мм. `null` — в файле его нет. */
+export interface ViewerPixelSpacing {
+	horizontal: number | null
+	vertical: number | null
+}
+
 export interface ViewerStatus {
 	kind: 'loading' | 'error' | 'empty'
 	title?: string
@@ -71,6 +77,7 @@ export interface AnnotatedStudyViewerProps<D = unknown> {
 	onPxPerMmChange?: (pxPerMm: number | null) => void
 	/**Масштаб, сохранённый приложением:*/
 	initialPxPerMm?: number | null
+	filePixelSpacing?: ViewerPixelSpacing
 
 	annotationsVisible?: boolean
 	onAnnotationsVisibleChange?: (visible: boolean) => void

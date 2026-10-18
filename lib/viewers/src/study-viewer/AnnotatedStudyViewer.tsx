@@ -4,8 +4,16 @@ import { InputNumber, Modal, Typography, message } from 'antd'
 import UziViewer from '../uzi-viewer/UziViewer'
 import type { ViewerInstance } from '../uzi-viewer/types'
 import { BrushCanvasOverlay, createMask, isMaskEmpty, maskToPolygon, type BrushMask } from '../brush'
-import { RulerOverlay, calcPxPerMm, lineLengthPx, useRulerMeasurements, type MeasuredLine } from '../measurement'
-import ViewerToolPanel from './ViewerToolPanel'
+import {
+	RulerOverlay,
+	calcPxPerMm,
+	lineLengthPx,
+	pxPerMmFromSpacing,
+	sameScale,
+	useRulerMeasurements,
+	type MeasuredLine,
+} from '../measurement'
+import ViewerToolPanel, { formatPxPerMm } from './ViewerToolPanel'
 import ViewerStatusState from './ViewerStatusState'
 import ViewerLegendOverlay from './ViewerLegendOverlay'
 import ViewerAnnotationsToggle from './ViewerAnnotationsToggle'
@@ -62,6 +70,7 @@ function AnnotatedStudyViewer<D = unknown>({
 	legendTitle,
 	onPxPerMmChange,
 	initialPxPerMm = null,
+	filePixelSpacing,
 	annotationsVisible,
 	onAnnotationsVisibleChange,
 	annotationsToggleLabel,
@@ -83,13 +92,30 @@ function AnnotatedStudyViewer<D = unknown>({
 
 	const activeTool = availableTools.includes(requestedTool) ? requestedTool : PAN_TOOL
 
-	const [pxPerMm, setPxPerMm] = useState<number | null>(initialPxPerMm)
+	// Масштаб из метаданных файла. Пока врач не калибровал вручную, линейка
+	// и размеры работают по нему — калибровка нужна только файлам без него.
+	const fileHorizontal = filePixelSpacing?.horizontal ?? null
+	const fileVertical = filePixelSpacing?.vertical ?? null
+	const filePxPerMm = useMemo(
+		() => pxPerMmFromSpacing({ horizontal: fileHorizontal, vertical: fileVertical }),
+		[fileHorizontal, fileVertical],
+	)
+	const startPxPerMm = initialPxPerMm ?? filePxPerMm
+
+	const [pxPerMm, setPxPerMm] = useState<number | null>(startPxPerMm)
 
 	// Сохранённый масштаб может прийти позже снимка или смениться вместе с
 	// исследованием.
 	useEffect(() => {
-		setPxPerMm(initialPxPerMm)
-	}, [initialPxPerMm])
+		setPxPerMm(startPxPerMm)
+	}, [startPxPerMm])
+
+	const scaleSource = pxPerMm == null ? null : sameScale(pxPerMm, filePxPerMm) ? 'file' : 'manual'
+	const handleUseFileScale = useCallback(() => {
+		if (filePxPerMm == null) return
+		setPxPerMm(filePxPerMm)
+		message.success(`Масштаб из файла: ${formatPxPerMm(filePxPerMm)}`)
+	}, [filePxPerMm])
 
 	// Отрезок, для которого ждём ввод длины. Пока он не null — открыт диалог.
 	const [calibrationPx, setCalibrationPx] = useState<number | null>(null)
@@ -232,7 +258,7 @@ function AnnotatedStudyViewer<D = unknown>({
 		setPxPerMm(next)
 		setCalibrationPx(null)
 		handleToolChange(PAN_TOOL)
-		message.success(`Масштаб задан: ${next.toFixed(2)} px / мм`)
+		message.success(`Масштаб задан: ${formatPxPerMm(next)}`)
 	}, [calibrationPx, calibrationMm, handleToolChange])
 
 	const handleIndexChange = useCallback(
@@ -297,10 +323,9 @@ function AnnotatedStudyViewer<D = unknown>({
 					activeTool={activeTool}
 					onToolChange={handleToolChange}
 					pxPerMm={pxPerMm}
-					onResetScale={() => {
-						setPxPerMm(null)
-						handleToolChange(CALIBRATE_TOOL)
-					}}
+					scaleSource={scaleSource}
+					onUseFileScale={filePxPerMm != null && scaleSource !== 'file' ? handleUseFileScale : undefined}
+					filePixelSpacing={filePixelSpacing}
 					brushMode={brushMode}
 					onBrushModeChange={setBrushMode}
 					brushRadius={brushRadius}

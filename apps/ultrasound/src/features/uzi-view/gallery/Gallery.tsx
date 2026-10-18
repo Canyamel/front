@@ -18,6 +18,7 @@ const Gallery = ({
 	viewerHeight = 600,
 	onPxPerMmChange,
 	initialPxPerMm,
+	filePixelSpacing,
 	thyroidStructures,
 }: GalleryProps) => {
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
@@ -83,6 +84,7 @@ const Gallery = ({
 				annotationApiRef={contourEditor.annotationApiRef}
 				onPxPerMmChange={onPxPerMmChange}
 				initialPxPerMm={initialPxPerMm}
+				filePixelSpacing={filePixelSpacing}
 				thyroidStructures={thyroidStructures}
 			/>
 		</div>

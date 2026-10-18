@@ -12,7 +12,7 @@ import {
 	needsProjectionSide,
 } from '@/lib/projection'
 import { useGetDoctorPatientsQuery } from '@/api/patientsApi'
-import { useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from '@/api/uziApi'
+import { useCreateUziDeviceMutation, useUploadUziDiagnosticMutation, useGetUziDevicesQuery } from '@/api/uziApi'
 import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
 import type { UploadSchemaField } from '@medml/ui'
@@ -47,15 +47,22 @@ function singleFileList(file: File | null, uid: string): UploadFile[] {
 	return file ? [{ uid, name: file.name, status: 'done', originFileObj: file } as UploadFile] : []
 }
 
+export const OTHER_DEVICE = '__other__'
+
 export interface UseUziUploadOptions {
 	presetPatientId: string
 	projection?: string
+	device?: string
 	onUploaded: (studyId: string | null) => void
 }
 
-export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUziUploadOptions) {
+export function useUziUpload({ presetPatientId, projection, device, onUploaded }: UseUziUploadOptions) {
 	const { doctorId, status } = useDoctorId()
-	const [uploadUzi, { isLoading: isUploading }] = useUploadUziDiagnosticMutation()
+	const [uploadUzi, { isLoading: isUploadingFile }] = useUploadUziDiagnosticMutation()
+	const [createDevice, { isLoading: isCreatingDevice }] = useCreateUziDeviceMutation()
+	const isUploading = isUploadingFile || isCreatingDevice
+	// Добавлять аппараты умеет только Django-бэкенд (thyroid).
+	const canAddDevice = isThyroidBackend()
 
 	const { data: devices = [], isFetching: devicesLoading } = useGetUziDevicesQuery(undefined, {
 		skip: status !== 'authenticated',
@@ -71,7 +78,10 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 	const [file, setFile] = React.useState<File | null>(null)
 
 	const fields = React.useMemo<UploadSchemaField[]>(() => {
-		const deviceOptions = devices.map(d => ({ value: d.id, label: d.name }))
+		const deviceOptions = [
+			...devices.map(d => ({ value: d.id, label: d.name })),
+			...(canAddDevice ? [{ value: OTHER_DEVICE, label: 'Другое — ввести вручную' }] : []),
+		]
 		const patientOptions = patients
 			.filter(p => (isThyroidBackend() ? p.patientCardId : p.id))
 			.map(p => ({
@@ -87,8 +97,20 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 				required: true,
 				placeholder: 'Выберите аппарат',
 				options: deviceOptions,
-				disabled: devicesLoading && deviceOptions.length === 0,
+				disabled: devicesLoading && devices.length === 0,
 			},
+			...(device === OTHER_DEVICE
+				? [
+						{
+							name: 'deviceName',
+							label: 'Название аппарата',
+							type: 'input' as const,
+							required: true,
+							placeholder: 'Например, Canon Aplio i800',
+							tooltip: 'Аппарат добавится в список и будет доступен при следующих загрузках',
+						},
+					]
+				: []),
 			{
 				name: 'projection',
 				label: 'Проекция',
@@ -125,7 +147,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 		})
 
 		return result
-	}, [devices, devicesLoading, patients, patientsLoading, projection])
+	}, [devices, devicesLoading, canAddDevice, device, patients, patientsLoading, projection])
 
 	const uploadProps: UploadProps = React.useMemo(
 		() => ({
@@ -148,6 +170,37 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 		[file],
 	)
 
+	/**
+	 * id аппарата для загрузки. «Другое» — аппарат из ручного ввода: уже
+	 * известный по названию берём из списка, новый сначала добавляем.
+	 */
+	const resolveDeviceId = React.useCallback(
+		async (values: Record<string, unknown>): Promise<string | null> => {
+			if (values.device !== OTHER_DEVICE) return String(values.device ?? '')
+
+			const name = String(values.deviceName ?? '')
+				.split(/\s+/)
+				.filter(Boolean)
+				.join(' ')
+			if (!name) {
+				message.error('Введите название аппарата')
+				return null
+			}
+			const known = devices.find(d => d.name.trim().toLowerCase() === name.toLowerCase())
+			if (known) return known.id
+
+			try {
+				const created = await createDevice(name).unwrap()
+				message.success(`Аппарат «${created.name}» добавлен`)
+				return created.id
+			} catch (e) {
+				message.error(`Не удалось добавить аппарат: ${getRtkErrorMessage(e)}`)
+				return null
+			}
+		},
+		[createDevice, devices],
+	)
+
 	const handleSubmit = React.useCallback(
 		async ({ values }: { values: Record<string, unknown> }) => {
 			if (!file) {
@@ -163,11 +216,14 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 				needsProjectionSide(projectionValue) && values.projectionSide ? String(values.projectionSide) : undefined
 
 			try {
+				const deviceId = await resolveDeviceId(values)
+				if (!deviceId) return
+
 				const response = await uploadUzi({
 					file,
 					projection: projectionValue,
 					patientRefId: String(values.patient ?? ''),
-					deviceId: String(values.device ?? ''),
+					deviceId,
 					...(projectionSide ? { projectionSide } : {}),
 				}).unwrap()
 
@@ -177,7 +233,7 @@ export function useUziUpload({ presetPatientId, projection, onUploaded }: UseUzi
 				console.error('Загрузка снимка УЗИ:', getRtkErrorMessage(e), e)
 			}
 		},
-		[file, onUploaded, uploadUzi],
+		[file, onUploaded, uploadUzi, resolveDeviceId],
 	)
 
 	const initialValues = React.useMemo(() => {

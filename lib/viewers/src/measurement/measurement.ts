@@ -93,6 +93,29 @@ export function calcPxPerMm(lengthPx: number, lengthMm: number): number | null {
 	return lengthPx / lengthMm
 }
 
+/**
+ * Масштаб (пикселей на мм) по размеру пикселя из метаданных файла (мм на
+ * пиксель).
+ */
+export function pxPerMmFromSpacing(
+	spacing: { horizontal: number | null; vertical: number | null } | null | undefined,
+): number | null {
+	const horizontal = spacing?.horizontal
+	const vertical = spacing?.vertical
+	if (horizontal == null || vertical == null || !(horizontal > 0) || !(vertical > 0)) return null
+	if (Math.abs(horizontal - vertical) / Math.max(horizontal, vertical) > SQUARE_PIXEL_TOLERANCE) return null
+	return 2 / (horizontal + vertical)
+}
+
+/** Расхождение шага по осям, при котором пиксель ещё считаем квадратным. */
+const SQUARE_PIXEL_TOLERANCE = 0.01
+
+/** Совпадают ли два масштаба с точностью до округления. */
+export function sameScale(a: number | null | undefined, b: number | null | undefined): boolean {
+	if (a == null || b == null) return a == b
+	return Math.abs(a - b) <= Math.max(a, b) * 1e-6
+}
+
 export function pxToMm(px: number, pxPerMm: number | null): number | null {
 	if (pxPerMm == null || pxPerMm <= 0) return null
 	if (!Number.isFinite(px)) return null

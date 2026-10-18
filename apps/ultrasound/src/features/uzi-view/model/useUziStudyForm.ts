@@ -5,6 +5,7 @@ import { useUpdateThyroidUziDataMutation } from '@/api/uziApi'
 import type { ThyroidUziApiResponse, UziDeviceInfo } from '../model/types'
 import { PROJECTION_LONG, needsProjectionSide } from '@/lib/projection'
 import { readThyroidDimensions, toLegacyDetails, type ThyroidDimensionsMm } from './thyroidDimensions'
+import { pickPrintedFields, readPrintedReport, writePrintedReport } from './printedReport'
 
 const TEXT_DETAIL_FIELDS = [
 	'profile',
@@ -29,6 +30,26 @@ export interface UseUziStudyFormResult {
 	modalVisible: boolean
 	setModalVisible: (visible: boolean) => void
 	handleSave: () => Promise<void>
+	rememberPrintedReport: () => void
+}
+
+/**
+ * Поля заключения, напечатанные в прошлый раз, — поверх значений сервера.
+ * Берём только те, которые сервер с тех пор не менял.
+ */
+function restorePrintedReport(uziId: string, serverValues: Record<string, unknown>): Record<string, unknown> {
+	const printed = readPrintedReport(uziId)
+	if (!printed) return {}
+	const restored: Record<string, unknown> = {}
+	for (const [name, value] of Object.entries(printed.values)) {
+		if (sameValue(serverValues[name], printed.basis[name])) restored[name] = value ?? undefined
+	}
+	return restored
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+	const norm = (value: unknown) => (value === undefined || value === '' ? null : value)
+	return Object.is(norm(a), norm(b))
 }
 
 /**
@@ -42,6 +63,9 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 	// Размеры в том виде, в каком они пришли с бэкенда, — чтобы при
 	// сохранении отправить только изменённые.
 	const initialDimensionsRef = useRef<ThyroidDimensionsMm>(readThyroidDimensions(undefined))
+	// Значения формы по последнему ответу сервера — чтобы при перечитывании
+	// снимка отличить правку врача от правки сервера.
+	const serverValuesRef = useRef<{ uziId: string; values: Record<string, unknown> } | null>(null)
 
 	useEffect(() => {
 		if (!data || !devices) return
@@ -51,7 +75,7 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 		// (`right_lobe_length`, …), см. `thyroidDimensions.ts`.
 		const dimensions = readThyroidDimensions(details as unknown as Record<string, unknown>)
 		initialDimensionsRef.current = dimensions
-		form.setFieldsValue({
+		const serverValues: Record<string, unknown> = {
 			uziDevice: devices.find(d => d.name === data.info.uzi_device_name)?.id ?? null,
 			projectionType: details.projection_type || PROJECTION_LONG,
 			projectionSide: needsProjectionSide(details.projection_type || PROJECTION_LONG)
@@ -68,8 +92,24 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 			rln: details.rln,
 			structure: details.structure,
 			additional_data: details.additional_data,
-		})
-	}, [data, devices, form])
+		}
+
+		const previous = serverValuesRef.current?.uziId === uziId ? serverValuesRef.current.values : null
+		serverValuesRef.current = { uziId, values: serverValues }
+
+		if (!previous) {
+			form.setFieldsValue({ ...serverValues, ...restorePrintedReport(uziId, serverValues) })
+			return
+		}
+
+		const current = form.getFieldsValue(true) as Record<string, unknown>
+		const patch: Record<string, unknown> = {}
+		for (const [name, value] of Object.entries(serverValues)) {
+			if (sameValue(previous[name], value)) continue
+			if (sameValue(current[name], previous[name])) patch[name] = value
+		}
+		if (Object.keys(patch).length > 0) form.setFieldsValue(patch)
+	}, [data, devices, form, uziId])
 
 	const handleSave = useCallback(async () => {
 		setSaving(true)
@@ -123,5 +163,13 @@ export function useUziStudyForm({ uziId, data, devices }: UseUziStudyFormOptions
 		}
 	}, [data, form, updateUzi, uziId])
 
-	return { form, saving, modalVisible, setModalVisible, handleSave }
+	const rememberPrintedReport = useCallback(() => {
+		const server = serverValuesRef.current?.uziId === uziId ? serverValuesRef.current.values : {}
+		writePrintedReport(uziId, {
+			values: pickPrintedFields(form.getFieldsValue(true) as Record<string, unknown>),
+			basis: pickPrintedFields(server),
+		})
+	}, [form, uziId])
+
+	return { form, saving, modalVisible, setModalVisible, handleSave, rememberPrintedReport }
 }

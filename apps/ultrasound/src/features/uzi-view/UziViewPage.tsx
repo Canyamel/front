@@ -1,6 +1,7 @@
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Card, Form, Spin, theme } from 'antd'
 import { StudyWorkspaceLayout, useStudyFocusMode } from '@medml/study_view'
+import { pxPerMmFromSpacing, sameScale } from '@medml/viewers'
 
 import { useGetThyroidUziDataQuery, useGetUziDevicesQuery, useSaveUziManualScaleMutation } from '@/api/uziApi'
 import { useGetDoctorProfileQuery } from '@/api/doctorApi'
@@ -54,20 +55,33 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	// Ручной масштаб хранится в исследовании: калибровку линейкой не нужно
 	// повторять при каждом открытии. Размеры в мм под него считает бэкенд.
 	const savedPxPerMm = positiveNumber(data?.info.details?.manual_px_per_mm) ?? null
+
+	// Размер пикселя из метаданных файла (мм/пикс).
+	const wPixelSpacing = data?.info.details?.w_pixel_spacing
+	const hPixelSpacing = data?.info.details?.h_pixel_spacing
+	const filePixelSpacing = useMemo(
+		() => ({ horizontal: positiveNumber(wPixelSpacing) ?? null, vertical: positiveNumber(hPixelSpacing) ?? null }),
+		[wPixelSpacing, hPixelSpacing],
+	)
+
+	const filePxPerMm = useMemo(() => pxPerMmFromSpacing(filePixelSpacing), [filePixelSpacing])
 	const savedPxPerMmRef = useRef(savedPxPerMm)
+	const filePxPerMmRef = useRef(filePxPerMm)
 
 	useLayoutEffect(() => {
 		savedPxPerMmRef.current = savedPxPerMm
-	}, [savedPxPerMm])
+		filePxPerMmRef.current = filePxPerMm
+	}, [savedPxPerMm, filePxPerMm])
 	const [saveManualScale] = useSaveUziManualScaleMutation()
 
 	const handlePxPerMmChange = useCallback(
 		(next: number | null) => {
 			setPxPerMm(next)
 			const saved = savedPxPerMmRef.current
-			const unchanged = next == null ? saved == null : saved != null && Math.abs(next - saved) < 1e-9
-			if (unchanged) return
-			void saveManualScale({ uziId, pxPerMm: next })
+			const fromFile = filePxPerMmRef.current
+			// Действующий масштаб: ручной, а без него — из файла.
+			if (sameScale(next, saved ?? fromFile)) return
+			void saveManualScale({ uziId, pxPerMm: sameScale(next, fromFile) ? null : next })
 		},
 		[saveManualScale, uziId],
 	)
@@ -134,6 +148,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						viewerHeight={focus.viewerHeight}
 						onPxPerMmChange={handlePxPerMmChange}
 						initialPxPerMm={savedPxPerMm}
+						filePixelSpacing={filePixelSpacing}
 						thyroidStructures={thyroidStructures}
 					/>
 				}
@@ -166,6 +181,8 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				onExtrasChange={setExtras}
 				pxPerMm={pxPerMm}
 				anatomy={anatomy}
+				devices={devices}
+				onPrint={studyForm.rememberPrintedReport}
 			/>
 		</>
 	)

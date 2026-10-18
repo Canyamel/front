@@ -42,10 +42,12 @@ export default function UploadPhotoRoute() {
 	const isCreatingPatient = isThyroidBackend() ? isCreatingThyroid : isCreatingMedPatient || isCreatingMedCard
 
 	const projection = Form.useWatch('projection', form)
+	const device = Form.useWatch('device', form)
 
 	const { fields, file, uploadProps, initialValues, handleSubmit, pageBusy, isUploading } = useUziUpload({
 		presetPatientId,
 		projection: typeof projection === 'string' ? projection : undefined,
+		device: typeof device === 'string' ? device : undefined,
 		onUploaded: studyId => navigate(studyId ? `/uzi_view/${encodeURIComponent(studyId)}` : '/patients'),
 	})
 
