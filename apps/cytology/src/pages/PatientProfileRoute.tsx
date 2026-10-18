@@ -170,7 +170,7 @@ export default function PatientProfileRoute() {
 					patient: {
 						first_name: values.firstName.trim(),
 						last_name: values.lastName.trim(),
-						fathers_name: values.fathersName.trim(),
+						fathers_name: (values.fathersName ?? '').trim(),
 						personal_policy: stripPolicyDigits(values.personalPolicy),
 						email: values.email.trim(),
 						...(values.active ? { is_active: true } : {}),

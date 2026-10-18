@@ -137,8 +137,8 @@ export const patientsApi = baseApi.injectEndpoints({
 					patient: {
 						last_name: surname,
 						first_name: name,
-						fathers_name: patronymic,
-						email: email.trim(),
+						fathers_name: patronymic ?? '',
+						email: email.trim() || null,
 						personal_policy: policy,
 						birth_date,
 						is_active: active,
@@ -178,8 +178,8 @@ export const patientsApi = baseApi.injectEndpoints({
 					patient: {
 						last_name: surname,
 						first_name: name,
-						fathers_name: patronymic,
-						email: email.trim(),
+						fathers_name: patronymic ?? '',
+						email: email.trim() || null,
 						personal_policy: policy,
 						birth_date,
 						is_active: active,

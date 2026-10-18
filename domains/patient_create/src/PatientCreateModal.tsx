@@ -1,5 +1,3 @@
-'use client'
-
 import * as React from 'react'
 import { Button, Form, Modal, Space } from 'antd'
 import type { FormProps } from 'antd'
@@ -20,6 +18,7 @@ export type PatientCreateModalProps = {
 	okText?: string
 	cancelText?: string
 	width?: number
+	emailOptional?: boolean
 }
 
 export function PatientCreateModal({
@@ -33,6 +32,7 @@ export function PatientCreateModal({
 	okText = 'Создать',
 	cancelText = 'Отменить',
 	width = 600,
+	emailOptional = false,
 }: PatientCreateModalProps) {
 	const [form] = Form.useForm()
 
@@ -48,7 +48,7 @@ export function PatientCreateModal({
 	return (
 		<Modal title={title} open={open} onCancel={onCancel} footer={null} width={width} destroyOnHidden>
 			<Form form={form} layout='vertical' onFinish={onFinish} style={{ marginTop: 8 }}>
-				<PatientCreateFormFields variant={variant} />
+				<PatientCreateFormFields variant={variant} emailOptional={emailOptional} />
 				<Space style={{ width: '100%', justifyContent: 'flex-end', marginTop: 16 }}>
 					<Button onClick={onCancel}>{cancelText}</Button>
 					<Button type='primary' htmlType='submit' loading={confirmLoading}>

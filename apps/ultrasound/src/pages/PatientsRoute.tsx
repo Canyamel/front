@@ -82,8 +82,8 @@ export default function PatientsRoute() {
         doctorId,
         surname: values.surname.trim(),
         name: values.name.trim(),
-        patronymic: values.patronymic.trim(),
-        email: values.email.trim(),
+        patronymic: (values.patronymic ?? '').trim(),
+        email: (values.email ?? '').trim(),
         policy,
         active: values.active,
         malignancy: values.malignancy,
@@ -96,7 +96,7 @@ export default function PatientsRoute() {
       }
     } else {
       const created = await createMedPatient({
-        email: values.email.trim(),
+        email: (values.email ?? '').trim(),
         fullname: buildFullNameUzi(values),
         policy,
         active: values.active,
@@ -151,6 +151,7 @@ export default function PatientsRoute() {
       <PatientCreateModal
         open={createModalOpen}
         variant="uzi"
+        emailOptional={isThyroidBackend()}
         onCancel={() => setCreateModalOpen(false)}
         onFinish={(vals) => void handleCreateFinish(vals as PatientCreateValuesUzi)}
         confirmLoading={isCreatingPatient}
