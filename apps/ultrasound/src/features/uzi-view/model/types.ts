@@ -53,6 +53,8 @@ export interface SegmentDetails {
 	min_dim_px?: number
 	max_dim_mm?: number
 	min_dim_mm?: number
+	detection_confidence?: number
+	detection_confidences?: Record<string, number>
 	cross_width_mm?: number
 	cross_height_mm?: number
 	long_left_max_dim_mm?: number

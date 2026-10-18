@@ -136,8 +136,8 @@ export default function PatientProfileRoute() {
 				patientId,
 				surname: values.surname.trim(),
 				name: values.name.trim(),
-				patronymic: values.patronymic.trim(),
-				email: values.email.trim(),
+				patronymic: (values.patronymic ?? '').trim(),
+				email: (values.email ?? '').trim(),
 				policy: stripPolicyDigits(values.policy),
 				birth_date: dayjs(values.birthDate).format('YYYY-MM-DD'),
 				active: values.active,
@@ -223,6 +223,7 @@ export default function PatientProfileRoute() {
 			<PatientEditModal
 				open={editOpen}
 				variant='uzi'
+				emailOptional={isThyroidBackend()}
 				patient={patient}
 				confirmLoading={isSaving}
 				onCancel={() => setEditOpen(false)}

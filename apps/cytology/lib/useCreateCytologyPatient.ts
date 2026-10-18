@@ -38,7 +38,7 @@ export function useCreateCytologyPatient(doctorId: string): {
 		try {
 			if (isGoBackend()) {
 				const fullname = [values.lastName, values.firstName, values.fathersName]
-					.map(part => part.trim())
+					.map(part => (part ?? '').trim())
 					.filter(Boolean)
 					.join(' ')
 
@@ -69,7 +69,7 @@ export function useCreateCytologyPatient(doctorId: string): {
 						patient: {
 							first_name: values.firstName.trim(),
 							last_name: values.lastName.trim(),
-							fathers_name: values.fathersName.trim(),
+							fathers_name: (values.fathersName ?? '').trim(),
 							personal_policy: policy,
 							email: values.email.trim(),
 							...(values.active ? { is_active: true } : {}),

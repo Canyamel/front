@@ -1,5 +1,5 @@
 import React from 'react'
-import { Button, Typography } from 'antd'
+import { Button, Tooltip, Typography } from 'antd'
 import { DeleteOutlined } from '@ant-design/icons'
 import type { ViewerAnnotationPopupContext } from '@medml/viewers'
 
@@ -62,6 +62,7 @@ const UziContourCard: React.FC<UziContourCardProps> = ({ annotation, nodes, read
 	// Контуры с сервера всегда несут номер узла; у нарисованного или
 	// созданного кистью, но не сохранённого, его нет.
 	const isDraft = props?.displayIndex == null
+	const detection = props?.detectionConfidence
 
 	return (
 		<div style={cardStyle}>
@@ -84,6 +85,20 @@ const UziContourCard: React.FC<UziContourCardProps> = ({ annotation, nodes, read
 					</span>
 				)}
 			</div>
+
+			{detection && (
+				<Tooltip
+					title={
+						detection.scope === 'frame'
+							? 'Уверенность детектора в узле на этом кадре'
+							: 'Средняя уверенность детектора по кадрам, где найден узел'
+					}
+				>
+					<Text style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+						Уверенность {(detection.value * 100).toFixed(1)}%
+					</Text>
+				</Tooltip>
+			)}
 
 			<Text type='secondary' style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
 				{isDraft ? 'Не сохранён' : props?.isAi ? 'Найден ассистентом' : 'Отмечен врачом'}

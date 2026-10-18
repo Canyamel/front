@@ -1,11 +1,30 @@
 import type { PlanePoint, ViewerAnnotation, ViewerImage } from '@medml/viewers'
-import type { Segment, SegmentContour, SegmentPoint, UziContourDraft } from '../model/types'
+import type { Segment, SegmentContour, SegmentDetails, SegmentPoint, UziContourDraft } from '../model/types'
 import { getStructureFrame, type ThyroidStructureJson } from '../structures'
 import { STRUCTURE_KEY_SEPARATOR } from '../model/segmentation'
 import { NODE_COLORS } from './constants'
 
 export function formatProbability(value?: number): string {
 	return typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : '—'
+}
+
+/** Уверенность детектора в узле для карточки контура. */
+export interface DetectionConfidence {
+	/** 0..1 */
+	value: number
+	/** `frame` — на этом кадре; `mean` — средняя по кадрам, где узел найден. */
+	scope: 'frame' | 'mean'
+}
+
+export function getDetectionConfidence(
+	details: SegmentDetails | undefined,
+	page: number,
+): DetectionConfidence | undefined {
+	const onFrame = details?.detection_confidences?.[String(page)]
+	if (typeof onFrame === 'number' && Number.isFinite(onFrame)) return { value: onFrame, scope: 'frame' }
+	const mean = details?.detection_confidence
+	if (typeof mean === 'number' && Number.isFinite(mean)) return { value: mean, scope: 'mean' }
+	return undefined
 }
 
 export function getProbabilityValue(segment: { details?: unknown } | undefined, keys: string[]): number | undefined {
@@ -30,6 +49,7 @@ export interface UziAnnotationData {
 	contourId?: string
 	page?: number
 	probabilities?: Record<string, string>
+	detectionConfidence?: DetectionConfidence
 	label?: string
 	confidence?: number
 }
@@ -235,6 +255,7 @@ export function buildSegmentAnnotationsByPage(
 					page,
 					isAi: contourIsAi,
 					probabilities: contourIsAi ? probabilities : undefined,
+					detectionConfidence: contourIsAi ? getDetectionConfidence(segment.details, page) : undefined,
 				})
 				if (!contourId && !contour.draftKey) annotation.editable = false
 				pageAnnotationsMap[page].push(annotation)
