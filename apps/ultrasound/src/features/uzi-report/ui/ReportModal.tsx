@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Button, Col, Divider, Form, Input, Modal, Row, Space, Switch, Typography } from 'antd'
 import type { FormInstance } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
@@ -107,6 +107,12 @@ const ReportModal: React.FC<ReportModalProps> = ({
 		(next: Partial<ReportExtras>) => onExtrasChange({ ...extras, ...next }),
 		[extras, onExtrasChange],
 	)
+
+	// Описание узлов по разметке — сразу текстом в поле, а не фоновой
+	// подстановкой.
+	useEffect(() => {
+		if (open && extras.focalChanges == null) patch({ focalChanges: model.nodulesDescription })
+	}, [open, extras.focalChanges, model.nodulesDescription, patch])
 
 	/** Значение поля формы исследования. */
 	const fv = useCallback((name: string) => (values[name] ?? '') as string | number, [values])
@@ -308,13 +314,24 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					</Row>
 
 					<SectionTitle>Очаговые изменения и окружение</SectionTitle>
-					<Field label='Очаговые изменения' hint='Пусто — подставим описание узлов, собранное по разметке'>
+					<Field
+						label='Очаговые изменения'
+						hint='Заполнено по разметке узлов — проверьте и при необходимости исправьте'
+					>
 						<Input.TextArea
 							rows={3}
-							value={extras.focalChanges}
-							placeholder={model.nodulesDescription}
+							value={extras.focalChanges ?? ''}
 							onChange={e => patch({ focalChanges: e.target.value })}
 						/>
+						<Button
+							type='link'
+							size='small'
+							style={{ paddingInline: 0 }}
+							disabled={extras.focalChanges === model.nodulesDescription}
+							onClick={() => patch({ focalChanges: model.nodulesDescription })}
+						>
+							Заполнить заново по разметке
+						</Button>
 					</Field>
 					<Field label='Околощитовидные железы'>
 						<Input.TextArea

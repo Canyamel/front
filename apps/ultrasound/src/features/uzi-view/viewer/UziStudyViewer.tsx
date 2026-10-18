@@ -1,12 +1,13 @@
 import './viewer.scss'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AnnotatedStudyViewer, ViewerAnnotationsToggle, contourGroupSizePx, formatMm, pxToMm } from '@medml/viewers'
+import { AnnotatedStudyViewer, ViewerAnnotationsToggle, contourGroupSizePx, pxToMm } from '@medml/viewers'
 import type { ViewerImage, ViewerLegendItem } from '@medml/viewers'
 
+import { formatNoduleMm, noduleDimensions } from '../model/noduleSize'
 import { useUziContours } from './useUziContours'
 import UziContourCard from './UziContourCard'
-import type { UziAnnotationData } from './uziAnnotations'
+import type { DisplaySegment, UziAnnotationData } from './uziAnnotations'
 import { UZI_VIEWER_TOOLS } from './constants'
 import type { UziStudyViewerProps } from './types'
 
@@ -81,22 +82,34 @@ const UziStudyViewer = ({
 		}
 	}, [images, currentPage])
 
+	// Узлы с несохранёнными правками контуров: размеры бэкенда для них уже
+	// устарели, считаем по контуру на экране.
+	const editedNodeIds = useMemo(() => {
+		const ids = new Set<string>()
+		if (readOnly || !drafts) return ids
+		drafts.drafts.forEach((draft, key) => {
+			if (draft.data?.group != null) ids.add(String(draft.data.group))
+			const owner = segments.find(segment => segment.data?.some(contour => String(contour.id) === key))
+			if (owner) ids.add(String(owner.id))
+		})
+		return ids
+	}, [readOnly, drafts, segments])
+
 	const legendItems = useMemo<ViewerLegendItem[]>(
 		() => [
 			...uniqueNodes.map((node): ViewerLegendItem => {
 				const segment = displaySegments.find(item => item.id === node.id)
-				const size = contourGroupSizePx(segment?.data)
-				const width = size ? pxToMm(size.widthPx, pxPerMm) : null
-				const height = size ? pxToMm(size.heightPx, pxPerMm) : null
+				const { subtitle, sizeHint } = legendNodeSize(segment, editedNodeIds.has(String(node.id)), pxPerMm)
 
 				return {
 					id: node.id,
 					color: node.color,
 					title: `Узел ${node.displayIndex}`,
-					subtitle: width != null && height != null ? `${formatMm(width)} × ${formatMm(height)}` : null,
+					subtitle,
 					badge: `TI-RADS ${node.type}`,
 					muted: !node.onPage,
-					hint: node.onPage ? undefined : 'На этом кадре контура нет',
+					hint:
+						[node.onPage ? undefined : 'На этом кадре контура нет', sizeHint].filter(Boolean).join('. ') || undefined,
 				}
 			}),
 			...(structuresVisible
@@ -112,7 +125,7 @@ const UziStudyViewer = ({
 					)
 				: []),
 		],
-		[uniqueNodes, displaySegments, pxPerMm, structuresVisible, structureItems],
+		[uniqueNodes, displaySegments, editedNodeIds, pxPerMm, structuresVisible, structureItems],
 	)
 
 	return (
@@ -150,6 +163,30 @@ const UziStudyViewer = ({
 			}
 		/>
 	)
+}
+
+function legendNodeSize(
+	segment: DisplaySegment | undefined,
+	edited: boolean,
+	pxPerMm: number | null,
+): { subtitle: string | null; sizeHint?: string } {
+	const dimensions = edited ? [] : noduleDimensions(segment?.details)
+	if (dimensions.length === 2) {
+		const [first, second] = dimensions
+		return {
+			subtitle: `${formatNoduleMm(first.mm)} × ${formatNoduleMm(second.mm)} мм`,
+			sizeHint: `${first.label} × ${second.label}, как в заключении`,
+		}
+	}
+
+	const size = contourGroupSizePx(segment?.data)
+	const width = size ? pxToMm(size.widthPx, pxPerMm) : null
+	const height = size ? pxToMm(size.heightPx, pxPerMm) : null
+	if (width == null || height == null) return { subtitle: null }
+	return {
+		subtitle: `≈ ${formatNoduleMm(width)} × ${formatNoduleMm(height)} мм`,
+		sizeHint: 'Габариты контура на экране, приблизительно',
+	}
 }
 
 export default UziStudyViewer
