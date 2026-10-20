@@ -110,9 +110,15 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
 	// Описание узлов по разметке — сразу текстом в поле, а не фоновой
 	// подстановкой.
+	const nodulesDescription = model.nodulesDescription
+	const focalChangesEdited = extras.focalChanges != null && extras.focalChanges !== extras.focalChangesAuto
 	useEffect(() => {
-		if (open && extras.focalChanges == null) patch({ focalChanges: model.nodulesDescription })
-	}, [open, extras.focalChanges, model.nodulesDescription, patch])
+		if (!open || focalChangesEdited || extras.focalChanges === nodulesDescription) return
+		patch({ focalChanges: nodulesDescription, focalChangesAuto: nodulesDescription })
+	}, [open, focalChangesEdited, extras.focalChanges, nodulesDescription, patch])
+	// Врач правил текст, а разметка с тех пор изменилась.
+	const focalChangesOutdated =
+		focalChangesEdited && extras.focalChangesAuto != null && extras.focalChangesAuto !== nodulesDescription
 
 	/** Значение поля формы исследования. */
 	const fv = useCallback((name: string) => (values[name] ?? '') as string | number, [values])
@@ -316,7 +322,11 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					<SectionTitle>Очаговые изменения и окружение</SectionTitle>
 					<Field
 						label='Очаговые изменения'
-						hint='Заполнено по разметке узлов — проверьте и при необходимости исправьте'
+						hint={
+							focalChangesOutdated
+								? 'Разметка узлов изменилась после правки текста — при необходимости заполните заново'
+								: 'Заполнено по разметке узлов — проверьте и при необходимости исправьте'
+						}
 					>
 						<Input.TextArea
 							rows={3}
@@ -327,8 +337,8 @@ const ReportModal: React.FC<ReportModalProps> = ({
 							type='link'
 							size='small'
 							style={{ paddingInline: 0 }}
-							disabled={extras.focalChanges === model.nodulesDescription}
-							onClick={() => patch({ focalChanges: model.nodulesDescription })}
+							disabled={extras.focalChanges === nodulesDescription}
+							onClick={() => patch({ focalChanges: nodulesDescription, focalChangesAuto: nodulesDescription })}
 						>
 							Заполнить заново по разметке
 						</Button>
