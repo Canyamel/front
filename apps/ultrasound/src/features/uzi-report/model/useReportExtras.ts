@@ -37,6 +37,8 @@ function read(uziId: string): ReportExtras {
 			}
 		}
 
+		if (!('focalChangesAuto' in parsed)) next.focalChangesAuto = next.focalChanges
+
 		return next
 	} catch {
 		return EMPTY_REPORT_EXTRAS

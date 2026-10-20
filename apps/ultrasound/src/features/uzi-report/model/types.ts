@@ -14,6 +14,7 @@ export interface ReportExtras {
 	vascularDescription: string
 	structureDescription: string
 	focalChanges: string | null
+	focalChangesAuto: string | null
 	parathyroidDescription: string
 	parathyroidMassesFound: boolean
 
@@ -35,6 +36,7 @@ export const EMPTY_REPORT_EXTRAS: ReportExtras = {
 	vascularDescription: '',
 	structureDescription: '',
 	focalChanges: null,
+	focalChangesAuto: null,
 	parathyroidDescription: '',
 	parathyroidMassesFound: false,
 
