@@ -16,6 +16,7 @@ import {
 } from '@medml/patient_create'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
+import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
 import {
 	useCreateMedPatientCardMutation,
 	useCreateMedPatientMutation,
@@ -60,45 +61,50 @@ export default function UploadPhotoRoute() {
 		const birth_date = dayjs(values.birthDate).format('YYYY-MM-DD')
 		const policy = stripPolicyDigits(values.policy)
 
-		if (isThyroidBackend()) {
-			const created = await createThyroidPatient({
-				doctorId,
-				surname: values.surname.trim(),
-				name: values.name.trim(),
-				patronymic: (values.patronymic ?? '').trim(),
-				email: (values.email ?? '').trim(),
-				policy,
-				active: values.active,
-				malignancy: values.malignancy,
-				birth_date,
-				diagnosis: values.diagnosis.trim(),
-			}).unwrap()
+		try {
+			if (isThyroidBackend()) {
+				const created = await createThyroidPatient({
+					doctorId,
+					surname: values.surname.trim(),
+					name: values.name.trim(),
+					patronymic: (values.patronymic ?? '').trim(),
+					email: (values.email ?? '').trim(),
+					policy,
+					active: values.active,
+					malignancy: values.malignancy,
+					birth_date,
+					diagnosis: values.diagnosis.trim(),
+				}).unwrap()
 
-			if (!created.id) {
-				message.error('Сервер не вернул идентификатор пациента')
-				return
+				if (!created.id) {
+					message.error('Сервер не вернул идентификатор пациента')
+					return
+				}
+			} else {
+				const created = await createMedPatient({
+					email: (values.email ?? '').trim(),
+					fullname: buildFullNameUzi(values),
+					policy,
+					active: values.active,
+					malignancy: values.malignancy,
+					birth_date,
+				}).unwrap()
+
+				const patientId = typeof created === 'object' && created?.id ? String(created.id) : ''
+				if (!patientId) {
+					message.error('Сервер не вернул идентификатор пациента')
+					return
+				}
+
+				await createMedCard({
+					patient_id: patientId,
+					doctor_id: doctorId,
+					diagnosis: values.diagnosis.trim(),
+				}).unwrap()
 			}
-		} else {
-			const created = await createMedPatient({
-				email: (values.email ?? '').trim(),
-				fullname: buildFullNameUzi(values),
-				policy,
-				active: values.active,
-				malignancy: values.malignancy,
-				birth_date,
-			}).unwrap()
-
-			const patientId = typeof created === 'object' && created?.id ? String(created.id) : ''
-			if (!patientId) {
-				message.error('Сервер не вернул идентификатор пациента')
-				return
-			}
-
-			await createMedCard({
-				patient_id: patientId,
-				doctor_id: doctorId,
-				diagnosis: values.diagnosis.trim(),
-			}).unwrap()
+		} catch (error) {
+			message.error(getRtkErrorMessage(error))
+			return
 		}
 
 		message.success('Пациент создан')
