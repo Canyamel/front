@@ -10,6 +10,25 @@ function messageFromData(data: unknown): string | null {
 	if (Array.isArray(msg) && msg.length && typeof msg[0] === 'string') return msg.join(' ')
 	const detail = d.detail
 	if (typeof detail === 'string' && detail.trim()) return detail
+	return firstFieldError(data)
+}
+
+/** Ошибки полей DRF: `{ patient: { email: ["..."] } }` → первая строка. */
+function firstFieldError(data: unknown): string | null {
+	if (typeof data === 'string') return data.trim() || null
+	if (Array.isArray(data)) {
+		for (const item of data) {
+			const found = firstFieldError(item)
+			if (found) return found
+		}
+		return null
+	}
+	if (data && typeof data === 'object') {
+		for (const value of Object.values(data as Record<string, unknown>)) {
+			const found = firstFieldError(value)
+			if (found) return found
+		}
+	}
 	return null
 }
 

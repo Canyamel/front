@@ -22,6 +22,7 @@ import { useGetUziDevicesQuery } from '@/api/uziApi'
 import { useDoctorId } from '@/api/hooks/useDoctorId'
 import { useCurrentDoctor } from '@/api/hooks/useCurrentDoctor'
 import { isThyroidBackend } from '@/lib/apiBackend'
+import { getRtkErrorMessage } from '@/lib/rtkErrorMessage'
 import { useUziStudyColumns } from './patientProfile/uziStudyColumns'
 
 // Карточка: радиус, тень и бордер приходят из темы antd (токены дизайн-системы).
@@ -148,7 +149,7 @@ export default function PatientProfileRoute() {
 			setEditOpen(false)
 		} catch (error: any) {
 			console.error('Error updating patient:', error)
-			message.error(error?.data?.detail || 'Не удалось сохранить изменения')
+			message.error(getRtkErrorMessage(error))
 		}
 	}
 
