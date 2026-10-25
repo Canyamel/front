@@ -40,6 +40,7 @@ export interface UseUziContoursResult {
 	onChange: (change: ViewerAnnotationChange<UziAnnotationData>) => void
 	style: ViewerAnnotationStyleFn<UziAnnotationData>
 	createData: () => UziAnnotationData
+	brushTargetId: string | null
 	displaySegments: DisplaySegment[]
 	uniqueNodes: UniqueNode[]
 	structureItems: StructureLegendItem[]
@@ -142,6 +143,12 @@ export function useUziContours({
 		[structuresVisible, thyroidStructures, currentPage, annotationsVisible, pageAnnotations],
 	)
 
+	const brushTargetId = useMemo(() => {
+		if (currentGroup == null) return null
+		const group = String(currentGroup)
+		return (pageAnnotations[currentPage] ?? []).find(item => item.data?.group === group)?.id ?? null
+	}, [pageAnnotations, currentPage, currentGroup])
+
 	// Легенда — все узлы; отмечаем, какие есть на текущем кадре.
 	const uniqueNodes = useMemo(() => buildUniqueNodes(displaySegments, currentPage), [displaySegments, currentPage])
 	const structureItems = useMemo(
@@ -153,7 +160,17 @@ export function useUziContours({
 		[thyroidStructures],
 	)
 
-	return { annotations, onChange, style, createData, displaySegments, uniqueNodes, structureItems, hasStructures }
+	return {
+		annotations,
+		onChange,
+		style,
+		createData,
+		brushTargetId,
+		displaySegments,
+		uniqueNodes,
+		structureItems,
+		hasStructures,
+	}
 }
 
 /** Точки контура со всех кадров, где точки кадра `page` заменены на `pagePoints`. */

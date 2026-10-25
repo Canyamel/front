@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ViewerStatus } from '@medml/viewers'
 import UziStudyViewer from '../viewer/UziStudyViewer'
 import GalleryToolbar from './GalleryToolbar'
 import NoImageState from './NoImageState'
 import { useGalleryImageSource } from './useGalleryImageSource'
 import type { GalleryProps } from './types'
+import { isNewNodeId } from '../model/nodeEdits'
+import { isClassSetByDoctor } from '../model/noduleClass'
 
 const Gallery = ({
 	link1,
@@ -22,8 +24,22 @@ const Gallery = ({
 	thyroidStructures,
 }: GalleryProps) => {
 	const [pickedGroup, setPickedGroup] = useState<string | number | undefined>()
-	const selectedGroup = currentGroup ?? pickedGroup ?? segments[0]?.id
+	// Выбранного узла может уже не быть: новый узел после сохранения получает
+	// id сервера, отменённый — исчезает.
+	const pickedExists = pickedGroup != null && segments.some(segment => String(segment.id) === String(pickedGroup))
+	const selectedGroup = currentGroup ?? (pickedExists ? pickedGroup : undefined) ?? segments[0]?.id
+	const selectedType = segments.find(segment => String(segment.id) === String(selectedGroup))?.details?.nodule_type
 
+	const handleAddNode = useCallback(
+		(type: number) => setPickedGroup(contourEditor.addNode(type)),
+		[contourEditor],
+	)
+	const handleChangeType = useCallback(
+		(type: number) => {
+			if (selectedGroup != null) contourEditor.setNodeType(Number(selectedGroup), type)
+		},
+		[contourEditor, selectedGroup],
+	)
 
 	const { isLoading, imageSource, slidesUnavailable } = useGalleryImageSource({
 		link1,
@@ -36,7 +52,12 @@ const Gallery = ({
 		() =>
 			segments.map((segment, index) => ({
 				value: segment.id,
-				label: `Узел ${index + 1} · TI-RADS ${segment.details?.nodule_type ?? '-'}`,
+				label: [
+					`Узел ${index + 1} · TI-RADS ${segment.details?.nodule_type ?? '-'}`,
+					isNewNodeId(segment.id) ? '(новый)' : isClassSetByDoctor(segment) ? '(специалист)' : null,
+				]
+					.filter(Boolean)
+					.join(' '),
 			})),
 		[segments],
 	)
@@ -65,11 +86,14 @@ const Gallery = ({
 				currentGroup={selectedGroup}
 				segmentOptions={segmentOptions}
 				onSelectGroup={setPickedGroup}
+				currentType={selectedType}
+				onChangeType={handleChangeType}
+				onAddNode={handleAddNode}
 				onStartEdit={contourEditor.start}
 				onSave={contourEditor.save}
 				onCancel={contourEditor.cancel}
 				isSaving={contourEditor.isSaving}
-				hasUnsavedChanges={contourEditor.drafts.hasChanges}
+				hasUnsavedChanges={contourEditor.hasChanges}
 			/>
 
 			<UziStudyViewer

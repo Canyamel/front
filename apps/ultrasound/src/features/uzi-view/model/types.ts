@@ -28,6 +28,8 @@ export interface SegmentDetails {
 
 	// узел: TI-RADS и вероятности классов
 	nodule_type?: number | null
+	/** Класс, который предсказала модель, — если врач его изменил. */
+	ai_nodule_type?: number | null
 	nodule_2?: number
 	nodule_3?: number
 	nodule_2_3?: number

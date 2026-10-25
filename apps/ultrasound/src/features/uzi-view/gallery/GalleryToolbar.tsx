@@ -1,6 +1,8 @@
 import React from 'react'
-import { Button, Select, Space, Typography } from 'antd'
+import { Button, Dropdown, Select, Space, Typography } from 'antd'
+import { PlusOutlined } from '@ant-design/icons'
 import type { GalleryToolbarProps } from './types'
+import { TIRADS_OPTIONS } from '../model/nodeEdits'
 import { getAccentOutlineButtonStyle } from '@/styles/uiPatterns'
 
 const GalleryToolbar: React.FC<GalleryToolbarProps> = ({
@@ -8,6 +10,9 @@ const GalleryToolbar: React.FC<GalleryToolbarProps> = ({
 	currentGroup,
 	segmentOptions = [],
 	onSelectGroup,
+	currentType,
+	onChangeType,
+	onAddNode,
 	onStartEdit,
 	onSave,
 	onCancel,
@@ -24,8 +29,8 @@ const GalleryToolbar: React.FC<GalleryToolbarProps> = ({
 				{isEditMode ? (
 					<>
 						<Typography.Text type='secondary'>
-							Редактируйте точки полигона или обведите контур заново для
-							выбранного узла.
+							Выберите узел: кисть расширяет его контур, ластик подрезает,
+							«Контур» обводит заново.
 						</Typography.Text>
 
 						{segmentOptions.length > 0 && (
@@ -36,6 +41,29 @@ const GalleryToolbar: React.FC<GalleryToolbarProps> = ({
 								style={{ minWidth: 220 }}
 								placeholder='Выберите узел'
 							/>
+						)}
+
+						{currentGroup != null && onChangeType && (
+							<Select
+								value={TIRADS_OPTIONS.some(option => option.value === currentType) ? currentType : undefined}
+								onChange={value => onChangeType(value)}
+								options={TIRADS_OPTIONS}
+								style={{ minWidth: 130 }}
+								placeholder='Класс узла'
+								aria-label='Класс TI-RADS выбранного узла'
+							/>
+						)}
+
+						{onAddNode && (
+							<Dropdown
+								trigger={['click']}
+								menu={{
+									items: TIRADS_OPTIONS.map(option => ({ key: String(option.value), label: option.label })),
+									onClick: ({ key }) => onAddNode(Number(key)),
+								}}
+							>
+								<Button icon={<PlusOutlined />}>Новый узел</Button>
+							</Dropdown>
 						)}
 
 						<Button type='primary' onClick={onSave} loading={isSaving}>

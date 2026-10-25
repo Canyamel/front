@@ -59,17 +59,26 @@ const UziStudyViewer = ({
 		}))
 	}, [image, imageid])
 
-	const { annotations, onChange, style, createData, displaySegments, uniqueNodes, structureItems, hasStructures } =
-		useUziContours({
-			images,
-			segments,
-			drafts: readOnly ? undefined : drafts,
-			currentPage,
-			annotationsVisible,
-			structuresVisible,
-			currentGroup,
-			thyroidStructures,
-		})
+	const {
+		annotations,
+		onChange,
+		style,
+		createData,
+		brushTargetId,
+		displaySegments,
+		uniqueNodes,
+		structureItems,
+		hasStructures,
+	} = useUziContours({
+		images,
+		segments,
+		drafts: readOnly ? undefined : drafts,
+		currentPage,
+		annotationsVisible,
+		structuresVisible,
+		currentGroup,
+		thyroidStructures,
+	})
 
 	useEffect(() => {
 		if (images.length < 2) return
@@ -81,6 +90,8 @@ const UziStudyViewer = ({
 			}
 		}
 	}, [images, currentPage])
+
+	const brushTarget = useMemo(() => (readOnly ? undefined : { annotationId: brushTargetId }), [readOnly, brushTargetId])
 
 	// Узлы с несохранёнными правками контуров: размеры бэкенда для них уже
 	// устарели, считаем по контуру на экране.
@@ -106,10 +117,16 @@ const UziStudyViewer = ({
 					color: node.color,
 					title: `Узел ${node.displayIndex}`,
 					subtitle,
-					badge: `TI-RADS ${node.type}`,
+					badge: `TI-RADS ${node.type}${node.typeByDoctor ? ' · специалист' : ''}`,
 					muted: !node.onPage,
 					hint:
-						[node.onPage ? undefined : 'На этом кадре контура нет', sizeHint].filter(Boolean).join('. ') || undefined,
+						[
+							node.onPage ? undefined : 'На этом кадре контура нет',
+							node.typeByDoctor ? 'Категорию поставил специалист' : undefined,
+							sizeHint,
+						]
+							.filter(Boolean)
+							.join('. ') || undefined,
 				}
 			}),
 			...(structuresVisible
@@ -138,6 +155,8 @@ const UziStudyViewer = ({
 			annotationApiRef={annotationApiRef}
 			// Новый контур некуда сохранить, пока не выбран узел.
 			canDraw={currentGroup != null}
+			// Кисть и ластик правят контур выбранного узла на кадре.
+			brushTarget={brushTarget}
 			renderAnnotationPopup={context => <UziContourCard {...context} nodes={uniqueNodes} />}
 			tools={UZI_VIEWER_TOOLS}
 			readOnly={readOnly}

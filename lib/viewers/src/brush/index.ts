@@ -3,6 +3,7 @@ export {
 	isMaskEmpty,
 	paintCircle,
 	paintStroke,
+	fillPolygon,
 	traceOuterContour,
 	simplifyContour,
 	maskToPolygon,

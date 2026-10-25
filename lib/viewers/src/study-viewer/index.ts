@@ -35,5 +35,6 @@ export type {
 	ViewerLegendItem,
 	ViewerStatus,
 	ViewerPixelSpacing,
+	ViewerBrushTarget,
 	AnnotatedStudyViewerProps,
 } from './types'

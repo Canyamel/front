@@ -42,6 +42,11 @@ export interface GalleryToolbarProps {
 	currentGroup?: string | number
 	segmentOptions?: Array<{ value: string | number; label: string }>
 	onSelectGroup?: (value: string | number) => void
+	/** Класс TI-RADS выбранного узла. */
+	currentType?: number | null
+	onChangeType?: (type: number) => void
+	/** Добавить узел заданного класса. */
+	onAddNode?: (type: number) => void
 	onStartEdit?: () => void
 	onSave?: () => void | Promise<void>
 	onCancel?: () => void

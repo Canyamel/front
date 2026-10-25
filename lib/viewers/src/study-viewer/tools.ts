@@ -83,7 +83,7 @@ export const VIEWER_TOOL_META: Record<ViewerToolId, ViewerToolMeta> = {
 	[BRUSH_TOOL]: {
 		id: BRUSH_TOOL,
 		label: 'Кисть',
-		hint: 'Закрасить область, затем «Подтвердить»',
+		hint: 'Закрасить область кистью или подрезать ластиком',
 	},
 	[RULER_TOOL]: {
 		id: RULER_TOOL,

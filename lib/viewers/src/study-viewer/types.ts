@@ -31,6 +31,11 @@ export interface ViewerPixelSpacing {
 	vertical: number | null
 }
 
+/** Контур, который правит кисть*/
+export interface ViewerBrushTarget {
+	annotationId: string | null
+}
+
 export interface ViewerStatus {
 	kind: 'loading' | 'error' | 'empty'
 	title?: string
@@ -52,6 +57,7 @@ export interface AnnotatedStudyViewerProps<D = unknown> {
 	 * без выбранного типа сегмента контур некуда сохранить.
 	 */
 	canDraw?: boolean
+	brushTarget?: ViewerBrushTarget
 	/** Карточка выделенного контура; вьюер привязывает её к контуру сам. */
 	renderAnnotationPopup?: ViewerAnnotationPopupRenderer<D>
 	/** Действия над разметкой снаружи — например, досохранить правку перед отправкой. */

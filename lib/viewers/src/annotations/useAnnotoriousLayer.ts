@@ -58,8 +58,8 @@ export interface AnnotoriousLayer<D> {
 	layer: ViewerAnnotationLayer
 	selected: ViewerAnnotation<D> | null
 	setTool: (tool: ViewerToolId, enabled: boolean) => void
-	/** Готовый контур не от Annotorious (кисть). `false` — сохранить некуда. */
-	addPolygon: (points: PlanePoint[]) => boolean
+	addPolygon: (points: PlanePoint[]) => string | null
+	replacePolygon: (id: string, points: PlanePoint[]) => boolean
 	remove: (id: string) => void
 	commitSelection: () => Promise<void>
 }
@@ -291,7 +291,7 @@ export function useAnnotoriousLayer<D>({
 	const addPolygon = useCallback(
 		(points: PlanePoint[]) => {
 			const anno = annoRef.current
-			if (!anno || points.length < 3 || readOnlyRef.current || !canDrawRef.current) return false
+			if (!anno || points.length < 3 || readOnlyRef.current || !canDrawRef.current) return null
 
 			const annotation: ViewerAnnotation<D> = {
 				id: makeDraftId(),
@@ -302,9 +302,35 @@ export function useAnnotoriousLayer<D>({
 				anno.state.store.addAnnotation(toStoredAnnotation(annotation) as ImageAnnotation, REMOTE)
 			} catch (error) {
 				console.error('Не удалось добавить контур:', error)
-				return false
+				return null
 			}
 			emit({ type: 'create', annotation })
+			return annotation.id
+		},
+		[emit],
+	)
+
+	const replacePolygon = useCallback(
+		(id: string, points: PlanePoint[]) => {
+			const anno = annoRef.current
+			if (!anno || points.length < 3 || readOnlyRef.current) return false
+
+			const stored = anno.state.store.getAnnotation(id) as StoredAnnotation<D> | undefined
+			if (!stored) return false
+
+			const annotation: ViewerAnnotation<D> = {
+				...fromStoredAnnotation(stored),
+				points: points.map(point => ({ x: Math.round(point.x), y: Math.round(point.y) })),
+			}
+			try {
+				// Незаконченная правка вершин этого контура иначе перезаписала бы мазок.
+				if (anno.getSelected().some(item => item.id === id)) anno.cancelSelected()
+				anno.state.store.updateAnnotation(toStoredAnnotation(annotation) as ImageAnnotation, REMOTE)
+			} catch (error) {
+				console.error('Не удалось изменить контур:', error)
+				return false
+			}
+			emit({ type: 'update', annotation })
 			return true
 		},
 		[emit],
@@ -335,5 +361,5 @@ export function useAnnotoriousLayer<D>({
 
 	const layer = useMemo<ViewerAnnotationLayer>(() => ({ attach, detach }), [attach, detach])
 
-	return { layer, selected, setTool, addPolygon, remove, commitSelection }
+	return { layer, selected, setTool, addPolygon, replacePolygon, remove, commitSelection }
 }
