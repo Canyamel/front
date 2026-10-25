@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, us
 import { InputNumber, Modal, Typography, message } from 'antd'
 
 import UziViewer from '../uzi-viewer/UziViewer'
-import type { ViewerInstance } from '../uzi-viewer/types'
-import { BrushCanvasOverlay, createMask, isMaskEmpty, maskToPolygon, type BrushMask } from '../brush'
+import type { ViewerImage, ViewerInstance } from '../uzi-viewer/types'
+import type { PlanePoint } from '../geometry'
+import { BrushCanvasOverlay, createMask, fillPolygon, isMaskEmpty, maskToPolygon, type BrushMask } from '../brush'
 import {
 	RulerOverlay,
 	calcPxPerMm,
@@ -55,6 +56,7 @@ function AnnotatedStudyViewer<D = unknown>({
 	onAnnotationChange,
 	newAnnotationData,
 	canDraw = true,
+	brushTarget,
 	renderAnnotationPopup,
 	annotationApiRef,
 	tools = DEFAULT_VIEWER_TOOLS,
@@ -138,7 +140,14 @@ function AnnotatedStudyViewer<D = unknown>({
 		createData: newAnnotationData,
 		onChange: onAnnotationChange,
 	})
-	const { layer, setTool: setLayerTool, addPolygon, remove: removeAnnotation, commitSelection } = annotationLayer
+	const {
+		layer,
+		setTool: setLayerTool,
+		addPolygon,
+		replacePolygon,
+		remove: removeAnnotation,
+		commitSelection,
+	} = annotationLayer
 
 	useImperativeHandle(annotationApiRef, () => ({ commitSelection }), [commitSelection])
 
@@ -160,11 +169,24 @@ function AnnotatedStudyViewer<D = unknown>({
 
 	const brushActive = !readOnly && activeTool === BRUSH_TOOL && availableTools.includes(BRUSH_TOOL)
 
+	// Кисть правит готовый контур (`brushTarget`), а не рисует набросок.
+	const liveBrush = brushTarget !== undefined
+	const brushTargetId = brushTarget?.annotationId ?? null
+	const brushTargetPoints = useMemo(
+		() => (liveBrush && brushTargetId ? (annotations?.find(item => item.id === brushTargetId)?.points ?? null) : null),
+		[liveBrush, brushTargetId, annotations],
+	)
+	const brushTargetShape = useMemo(
+		() => (brushTargetPoints ? polygonShape(brushTargetPoints) : null),
+		[brushTargetPoints],
+	)
+
 	// Набросок привязан к кадру: при переходе на другой кадр он теряет смысл.
 	useEffect(() => {
+		if (liveBrush) return
 		setMask(null)
 		setSketchVersion(v => v + 1)
-	}, [images, currentPage])
+	}, [liveBrush, images, currentPage])
 
 	/**
 	 * Маску создаём только когда врач взял кисть, и держим до смены кадра —
@@ -177,14 +199,57 @@ function AnnotatedStudyViewer<D = unknown>({
 	 * (Сам растр вдобавок ограничен по размеру — см. `createMask`.)
 	 */
 	useEffect(() => {
-		if (!brushActive) return
+		if (!brushActive || liveBrush) return
 
 		const frame = images[currentPage]
 		const { width, height } = frame ?? {}
 		if (!width || !height) return
 
 		setMask(prev => prev ?? createMask(width, height))
-	}, [brushActive, images, currentPage])
+	}, [brushActive, liveBrush, images, currentPage])
+
+	const brushSeedRef = useRef<{ images: ViewerImage[]; page: number; id: string | null; shape: string | null } | null>(
+		null,
+	)
+	const brushWriteRef = useRef<{ id: string; shape: string } | null>(null)
+	// Контур, который правят мазки. Сразу после создания приложение ещё не
+	// вернуло его в `brushTarget`, поэтому id держим и здесь.
+	const liveTargetRef = useRef<string | null>(brushTargetId)
+
+	useEffect(() => {
+		liveTargetRef.current = brushTargetId
+	}, [brushTargetId])
+
+	useEffect(() => {
+		if (!brushActive || !liveBrush) {
+			brushSeedRef.current = null
+			return
+		}
+
+		const frame = images[currentPage]
+		const { width, height } = frame ?? {}
+		if (!width || !height) return
+
+		const seed = brushSeedRef.current
+		const sameFrame = seed != null && seed.images === images && seed.page === currentPage
+		const unchanged = sameFrame && seed.id === brushTargetId && seed.shape === brushTargetShape
+		const written = brushWriteRef.current
+		const ownWrite = sameFrame && written != null && written.id === brushTargetId && written.shape === brushTargetShape
+		brushSeedRef.current = { images, page: currentPage, id: brushTargetId, shape: brushTargetShape }
+		if (unchanged || ownWrite) return
+
+		const next = createMask(width, height)
+		if (brushTargetPoints) fillPolygon(next, brushTargetPoints)
+		brushWriteRef.current = null
+		setMask(next)
+		setSketchVersion(v => v + 1)
+	}, [brushActive, liveBrush, images, currentPage, brushTargetId, brushTargetShape, brushTargetPoints])
+
+	// Маркеры правки вершин мешают кисти, а незаконченная правка вершин
+	// перезаписала бы мазок — снимаем выделение, когда берут кисть.
+	useEffect(() => {
+		if (brushActive) void commitSelection()
+	}, [brushActive, commitSelection])
 
 	useEffect(() => {
 		setLayerTool(activeTool, drawingEnabled)
@@ -227,6 +292,41 @@ function AnnotatedStudyViewer<D = unknown>({
 
 		message.warning('Контур не сохранён: разметку сейчас некуда добавить')
 	}, [mask, hasAnnotations, addPolygon, handleClearSketch])
+
+	/** Мазок закончен. В режиме правки контура он сразу меняет контур. */
+	const handleStrokeEnd = useCallback(() => {
+		setSketchVersion(v => v + 1)
+		if (!liveBrush || !mask) return
+
+		const target = liveTargetRef.current
+		const polygon = maskToPolygon(mask, 2)
+
+		if (!polygon) {
+			if (target && isMaskEmpty(mask)) {
+				removeAnnotation(target)
+				liveTargetRef.current = null
+				brushWriteRef.current = null
+				message.info('Контур на этом кадре стёрт')
+			} else if (!isMaskEmpty(mask)) {
+				message.warning('Область слишком мала для контура')
+			}
+			return
+		}
+
+		if (target) {
+			if (replacePolygon(target, polygon)) brushWriteRef.current = { id: target, shape: polygonShape(polygon) }
+			else message.warning('Контур не изменён: включите показ разметки на снимке')
+			return
+		}
+
+		const id = addPolygon(polygon)
+		if (id) {
+			liveTargetRef.current = id
+			brushWriteRef.current = { id, shape: polygonShape(polygon) }
+		} else {
+			message.warning('Контур некуда добавить: выберите, к чему он относится')
+		}
+	}, [liveBrush, mask, removeAnnotation, replacePolygon, addPolygon])
 
 	const calibrating = activeTool === CALIBRATE_TOOL
 
@@ -330,6 +430,13 @@ function AnnotatedStudyViewer<D = unknown>({
 					onBrushModeChange={setBrushMode}
 					brushRadius={brushRadius}
 					onBrushRadiusChange={setBrushRadius}
+					brushLiveHint={
+						liveBrush
+							? brushTargetId
+								? 'Кисть расширяет контур, ластик подрезает — изменения сразу на снимке'
+								: 'На этом кадре контура нет — закрасьте область, и он появится'
+							: undefined
+					}
 					hasSketch={hasSketch}
 					onConfirmSketch={handleConfirmSketch}
 					onClearSketch={handleClearSketch}
@@ -371,7 +478,7 @@ function AnnotatedStudyViewer<D = unknown>({
 								mask={mask}
 								radius={brushRadius}
 								erasing={brushMode === 'erase'}
-								onStrokeEnd={() => setSketchVersion(v => v + 1)}
+								onStrokeEnd={handleStrokeEnd}
 							/>
 						)}
 
@@ -442,5 +549,10 @@ function AnnotatedStudyViewer<D = unknown>({
 }
 
 const EMPTY_ANNOTATIONS: never[] = []
+
+/** Форма контура с точностью до пикселя — чтобы узнать свою же запись. */
+function polygonShape(points: PlanePoint[]): string {
+	return points.map(point => `${Math.round(point.x)},${Math.round(point.y)}`).join(' ')
+}
 
 export default AnnotatedStudyViewer

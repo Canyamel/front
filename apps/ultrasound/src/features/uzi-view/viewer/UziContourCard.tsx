@@ -57,6 +57,7 @@ const UziContourCard: React.FC<UziContourCardProps> = ({ annotation, nodes, read
 	const node = props?.group != null ? nodes.find(item => String(item.id) === String(props.group)) : undefined
 	const displayIndex = props?.displayIndex ?? node?.displayIndex
 	const tirads = props?.tirads ?? node?.type
+	const tiradsByDoctor = props?.tiradsByDoctor ?? node?.typeByDoctor ?? false
 	const color = props?.color ?? node?.color ?? '#FF0000'
 	const probabilities = Object.entries(props?.probabilities ?? {}).filter(([, value]) => value !== '—')
 	// Контуры с сервера всегда несут номер узла; у нарисованного или
@@ -82,6 +83,7 @@ const UziContourCard: React.FC<UziContourCardProps> = ({ annotation, nodes, read
 						}}
 					>
 						TI-RADS {tirads}
+						{tiradsByDoctor && ' · специалист'}
 					</span>
 				)}
 			</div>
@@ -104,8 +106,27 @@ const UziContourCard: React.FC<UziContourCardProps> = ({ annotation, nodes, read
 				{isDraft ? 'Не сохранён' : props?.isAi ? 'Найден ассистентом' : 'Отмечен врачом'}
 			</Text>
 
+			{tiradsByDoctor && props?.isAi && (
+				<Text type='secondary' style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+					Категорию изменил специалист
+				</Text>
+			)}
+
+			{probabilities.length > 0 && tiradsByDoctor && (
+				<Text type='secondary' style={{ display: 'block', fontSize: 11, marginTop: 6 }}>
+					Оценка ассистента:
+				</Text>
+			)}
+
 			{probabilities.length > 0 && (
-				<div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: 'auto auto', gap: '2px 12px' }}>
+				<div
+					style={{
+						marginTop: tiradsByDoctor ? 2 : 6,
+						display: 'grid',
+						gridTemplateColumns: 'auto auto',
+						gap: '2px 12px',
+					}}
+				>
 					{probabilities.map(([label, value]) => (
 						<React.Fragment key={label}>
 							<Text type='secondary' style={{ fontSize: 12 }}>

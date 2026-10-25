@@ -20,7 +20,7 @@ export interface ViewerToolPanelProps {
 	brushRadius: number
 	onBrushRadiusChange: (radius: number) => void
 
-	/** Есть незакоммиченный набросок кистью. */
+	brushLiveHint?: string
 	hasSketch: boolean
 	onConfirmSketch: () => void
 	onClearSketch: () => void
@@ -73,6 +73,7 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 	onBrushModeChange,
 	brushRadius,
 	onBrushRadiusChange,
+	brushLiveHint,
 	hasSketch,
 	onConfirmSketch,
 	onClearSketch,
@@ -142,14 +143,18 @@ const ViewerToolPanel: React.FC<ViewerToolPanelProps> = ({
 						/>
 					</Space>
 
-					<Space size={8} wrap>
-						<Button onClick={onClearSketch} disabled={!hasSketch}>
-							Очистить набросок
-						</Button>
-						<Button type='primary' onClick={onConfirmSketch} disabled={!hasSketch}>
-							Подтвердить
-						</Button>
-					</Space>
+					{brushLiveHint ? (
+						<Typography.Text type='secondary'>{brushLiveHint}</Typography.Text>
+					) : (
+						<Space size={8} wrap>
+							<Button onClick={onClearSketch} disabled={!hasSketch}>
+								Очистить набросок
+							</Button>
+							<Button type='primary' onClick={onConfirmSketch} disabled={!hasSketch}>
+								Подтвердить
+							</Button>
+						</Space>
+					)}
 				</div>
 			)}
 

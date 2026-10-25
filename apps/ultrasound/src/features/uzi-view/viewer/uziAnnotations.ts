@@ -3,6 +3,7 @@ import type { Segment, SegmentContour, SegmentDetails, SegmentPoint, UziContourD
 import { getStructureFrame, type ThyroidStructureJson } from '../structures'
 import { STRUCTURE_KEY_SEPARATOR } from '../model/segmentation'
 import { NODE_COLORS } from './constants'
+import { isClassSetByDoctor } from '../model/noduleClass'
 
 export function formatProbability(value?: number): string {
 	return typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : '—'
@@ -45,6 +46,7 @@ export interface UziAnnotationData {
 	group?: string
 	displayIndex?: number
 	tirads?: string | number
+	tiradsByDoctor?: boolean
 	isAi?: boolean
 	contourId?: string
 	page?: number
@@ -211,6 +213,7 @@ export function buildSegmentAnnotationsByPage(
 			group: segment.id.toString(),
 			displayIndex: segmentIndex + 1,
 			tirads: segment.details?.nodule_type ?? undefined,
+			tiradsByDoctor: isClassSetByDoctor(segment),
 		}
 		const probabilities = {
 			'TI-RADS 2': formatProbability(getProbabilityValue(segment, ['nodule_2', 'tirads_2'])),
@@ -303,6 +306,7 @@ export interface UniqueNode {
 	id: number
 	displayIndex: number
 	type: number | string
+	typeByDoctor: boolean
 	color: string
 	onPage: boolean
 }
@@ -326,6 +330,7 @@ export function buildUniqueNodes(segments: DisplaySegment[] | undefined, pageInd
 		id: segment.id,
 		displayIndex: index + 1,
 		type: segment.details?.nodule_type ?? '-',
+		typeByDoctor: isClassSetByDoctor(segment),
 		color: NODE_COLORS[index % NODE_COLORS.length],
 		onPage: pageIndex == null || segmentHasContourOnPage(segment, pageIndex),
 	}))

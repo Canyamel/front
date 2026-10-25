@@ -3,6 +3,7 @@ import type { FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query'
 
 import { isThyroidBackend } from '@/lib/apiBackend'
 import type { ThyroidUziApiResponse, UziContourDraft } from '@/features/uzi-view/model/types'
+import type { NewUziNode, UziNodeTypeChange } from '@/features/uzi-view/model/nodeEdits'
 
 function normalizeListResults<T>(response: unknown): T[] {
 	if (Array.isArray(response)) return response as T[]
@@ -163,9 +164,27 @@ export interface UziContourDraftEntry {
 	draft: UziContourDraft
 }
 
+export interface SaveUziContourDraftsArgs {
+	uziId: string
+	imageId?: number
+	drafts: UziContourDraftEntry[]
+	nodeTypes?: UziNodeTypeChange[]
+	newNodes?: readonly NewUziNode[]
+	/** Узлы, у которых не осталось контуров: удаляются после сохранения контуров. */
+	deleteNodes?: number[]
+}
+
 export interface SaveUziContourDraftsResult {
+	/** Ключи сохранённых правок контуров. */
 	saved: string[]
 	failed: Array<{ key: string; message: string }>
+	/** Узлы, у которых сохранён новый класс. */
+	savedTypes: number[]
+	createdNodes: Array<{ tempId: number; id: number }>
+	/** Новые узлы без единого контура — на сервер не отправлялись. */
+	skippedNodes: number[]
+	/** Удалённые узлы без контуров. */
+	deletedNodes: number[]
 }
 
 /**
@@ -175,15 +194,74 @@ export interface SaveUziContourDraftsResult {
  */
 export const uziContourApi = uziApi.injectEndpoints({
 	endpoints: builder => ({
-		saveUziContourDrafts: builder.mutation<
-			SaveUziContourDraftsResult,
-			{ uziId: string; drafts: UziContourDraftEntry[] }
-		>({
-			async queryFn({ uziId, drafts }, api, _extraOptions, baseQuery) {
+		saveUziContourDrafts: builder.mutation<SaveUziContourDraftsResult, SaveUziContourDraftsArgs>({
+			async queryFn(
+				{ uziId, imageId, drafts, nodeTypes = [], newNodes = [], deleteNodes = [] },
+				api,
+				_extraOptions,
+				baseQuery,
+			) {
 				const saved: string[] = []
 				const failed: SaveUziContourDraftsResult['failed'] = []
+				const savedTypes: number[] = []
+				const createdNodes: SaveUziContourDraftsResult['createdNodes'] = []
+				const skippedNodes: number[] = []
+				const deletedNodes: number[] = []
 
-				const send = async ({ key, draft }: UziContourDraftEntry) => {
+				// 1. Новые узлы. Без контура узел не нужен — такие пропускаем.
+				const drawnGroups = new Set(
+					drafts.filter(entry => entry.draft.kind === 'create').map(entry => String(entry.draft.data?.group)),
+				)
+				const realGroup = new Map<string, number>()
+				for (const node of newNodes) {
+					if (!drawnGroups.has(String(node.id))) {
+						skippedNodes.push(node.id)
+						continue
+					}
+					if (imageId == null) {
+						failed.push({ key: `node:${node.id}`, message: 'Нет снимка, к которому добавить узел' })
+						continue
+					}
+					const result = await baseQuery({
+						url: `/uzi/segment/group/create/solo/${encodeURIComponent(imageId)}/`,
+						method: 'POST',
+						body: { details: { source_type: 'nodule', nodule_type: node.type } },
+					})
+					const id = (result.data as { id?: unknown } | undefined)?.id
+					if (result.error || typeof id !== 'number') {
+						failed.push({
+							key: `node:${node.id}`,
+							message: result.error ? formatSaveError(result.error) : 'Сервер не вернул id узла',
+						})
+						continue
+					}
+					realGroup.set(String(node.id), id)
+					createdNodes.push({ tempId: node.id, id })
+				}
+
+				// 2. Классы TI-RADS. PATCH: остальные поля `details` (вероятности
+				// модели, размеры) сервер должен оставить как есть.
+				await Promise.all(
+					nodeTypes.map(async ({ id, type, aiType }) => {
+						const result = await baseQuery({
+							url: `/uzi/segment/group/update/${encodeURIComponent(id)}/`,
+							method: 'PATCH',
+							body: { details: { nodule_type: type, ...(aiType != null ? { ai_nodule_type: aiType } : {}) } },
+						})
+						if (result.error) failed.push({ key: `type:${id}`, message: formatSaveError(result.error) })
+						else savedTypes.push(id)
+					}),
+				)
+
+				// 3. Контуры. Контуры новых узлов перевешиваем на id с сервера.
+				const send = async ({ key, draft: original }: UziContourDraftEntry) => {
+					const group = original.data?.group
+					const mapped = group != null ? realGroup.get(String(group)) : undefined
+					const draft = mapped != null ? { ...original, data: { ...original.data, group: mapped } } : original
+					if (draft.data?.group != null && Number(draft.data.group) < 0) {
+						failed.push({ key, message: 'Узел для контура не создан' })
+						return
+					}
 					const request = contourDraftRequest(key, draft)
 					if (typeof request === 'string') {
 						failed.push({ key, message: request })
@@ -197,7 +275,25 @@ export const uziContourApi = uziApi.injectEndpoints({
 				await Promise.all(drafts.filter(entry => entry.draft.kind !== 'delete').map(send))
 				await Promise.all(drafts.filter(entry => entry.draft.kind === 'delete').map(send))
 
-				if (saved.length > 0) {
+				// 4. Узлы без контуров. Если какой-то контур узла не сохранился, на
+				// сервере у узла контур ещё есть — узел не трогаем.
+				const failedKeys = new Set(failed.map(item => item.key))
+				await Promise.all(
+					deleteNodes.map(async id => {
+						const pending = drafts.some(
+							entry => failedKeys.has(entry.key) && String(entry.draft.data?.group) === String(id),
+						)
+						if (pending) return
+						const result = await baseQuery({
+							url: `/uzi/segment/group/update/${encodeURIComponent(id)}/`,
+							method: 'DELETE',
+						})
+						if (result.error) failed.push({ key: `node-delete:${id}`, message: formatSaveError(result.error) })
+						else deletedNodes.push(id)
+					}),
+				)
+
+				if (saved.length > 0 || savedTypes.length > 0 || createdNodes.length > 0 || deletedNodes.length > 0) {
 					const fresh = await baseQuery(`/uzi/${encodeURIComponent(uziId)}/?format=json`)
 					if (fresh.data) {
 						await api.dispatch(
@@ -208,7 +304,7 @@ export const uziContourApi = uziApi.injectEndpoints({
 					}
 				}
 
-				return { data: { saved, failed } }
+				return { data: { saved, failed, savedTypes, createdNodes, skippedNodes, deletedNodes } }
 			},
 		}),
 	}),

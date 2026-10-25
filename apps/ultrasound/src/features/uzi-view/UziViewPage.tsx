@@ -13,8 +13,13 @@ import { toSameOriginMediaUrl, toSameOriginMediaUrls } from '@/lib/mediaUrl'
 
 import { Gallery } from './gallery'
 import { ActionButtons, NoduleTypesSection, PatientInfoSection, StudyDataSection } from './sidebar'
-import { anatomyToStructureJson, splitSegmentation, useUziContourEditor, useUziStudyForm } from './model'
-import type { Segment } from './model/types'
+import {
+	anatomyToStructureJson,
+	applyNodeEdits,
+	splitSegmentation,
+	useUziContourEditor,
+	useUziStudyForm,
+} from './model'
 import { positiveNumber } from './model/thyroidDimensions'
 
 /**
@@ -45,7 +50,13 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 
 	const reportData = useMemo(() => (data ? { ...data, segmentation: nodules } : data), [data, nodules])
 
-	const contourEditor = useUziContourEditor({ uziId })
+	const contourEditor = useUziContourEditor({ uziId, imageId: data?.image.id, nodules })
+	// На снимке — узлы с несохранёнными правками: новый класс и новые узлы.
+	const { isEditing, nodeEdits } = contourEditor
+	const viewerNodules = useMemo(
+		() => (isEditing ? applyNodeEdits(nodules, nodeEdits) : nodules),
+		[isEditing, nodules, nodeEdits],
+	)
 	const studyForm = useUziStudyForm({ uziId, data, devices })
 
 	const focus = useStudyFocusMode()
@@ -99,14 +110,6 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 	const handleOpenReport = useCallback(() => setReportOpen(true), [])
 	const handleCloseReport = useCallback(() => setReportOpen(false), [])
 
-	const { aiTypes, doctorTypes } = useMemo(
-		() => ({
-			aiTypes: nodules.filter((s: Segment) => s.is_ai === true),
-			doctorTypes: nodules.filter((s: Segment) => s.is_ai === false),
-		}),
-		[nodules],
-	)
-
 	if (isLoading) {
 		return (
 			<div style={{ padding: '40px', textAlign: 'center' }}>
@@ -134,7 +137,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 				focus={focus}
 				overviewTitle='Основная информация'
 				overviewPrimary={<PatientInfoSection patient={patient} date={data.info.diagnos_date} />}
-				overviewSecondary={<NoduleTypesSection aiTypes={aiTypes} doctorTypes={doctorTypes} />}
+				overviewSecondary={<NoduleTypesSection nodules={viewerNodules} />}
 				viewerTitle='Редактор/просмотр изображения'
 				viewer={
 					<Gallery
@@ -142,7 +145,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 						image_count={data.info.image_count ?? 1}
 						slide_template={toSameOriginMediaUrls(data.image.slide_template)}
 						slide_urls={toSameOriginMediaUrls(data.image.slide_urls)}
-						segments={nodules}
+						segments={viewerNodules}
 						imageid={data.image.id}
 						contourEditor={contourEditor}
 						viewerHeight={focus.viewerHeight}

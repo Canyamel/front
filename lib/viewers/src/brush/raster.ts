@@ -1,31 +1,7 @@
 import type { PlanePoint } from '../geometry'
 
 /**
- * Растровая маска кисти и её превращение в векторный контур.
- *
- * Снаружи модуль работает только в координатах снимка: и штрихи, и готовый
- * полигон. Внутри маска может быть мельче снимка (см. `MAX_MASK_PIXELS`) —
- * пересчёт спрятан в `imageToMask` / `maskToImage`.
- *
- * Доменного здесь ничего нет: на выходе — полигон в координатах снимка,
- * который каждый контур сохраняет своим способом (узел в УЗИ, сегмент
- * в цитологии).
- */
-
-/**
- * Предел размера растра маски — 4 млн пикселей (4 МБ `Uint8Array`).
- *
- * Маску нельзя делать «один в один» со снимком: цитология открывает
- * whole-slide изображения в десятки тысяч пикселей по стороне, и
- * `new Uint8Array(width * height)` на них падает с
- * `RangeError: Array buffer allocation failed`. Для таких снимков маска
- * берётся пропорционально мельче — кисть становится грубее, зато работает.
- * Снимки УЗИ в этот предел укладываются целиком, для них `scale === 1`.
- *
- * Предел именно такой, а не «сколько влезет»: под растр заводится ещё и
- * внеэкранный канвас того же размера (4 байта на пиксель), а у браузеров
- * есть ограничение на площадь канваса — у Safari около 16 млн пикселей.
- */
+ * Растровая маска кисти и её превращение в векторный контур.*/
 const MAX_MASK_PIXELS = 4_000_000
 
 export interface BrushMask {
@@ -52,9 +28,7 @@ function maskToImage(mask: BrushMask, point: PlanePoint): PlanePoint {
 	return { x: point.x / mask.scale, y: point.y / mask.scale }
 }
 
-/**
- * Маска под снимок заданного размера.
- */
+/** Маска под снимок заданного размера.*/
 export function createMask(imageWidth: number, imageHeight: number): BrushMask {
 	const safeWidth = Math.max(0, Math.floor(imageWidth))
 	const safeHeight = Math.max(0, Math.floor(imageHeight))
@@ -80,15 +54,9 @@ export function isMaskEmpty(mask: BrushMask): boolean {
 }
 
 /**
- * Круглый штрих кисти. `value` = 1 рисует, 0 стирает — ластик это тот же
- * штрих с нулём, отдельного алгоритма не нужно.
- *
- * Центр и радиус — в пикселях снимка.
- */
+ * Круглый штрих кисти. `value` = 1 рисует, 0 стирает. Центр и радиус — в пикселях снимка. */
 export function paintCircle(mask: BrushMask, imageX: number, imageY: number, imageRadius: number, value: 0 | 1): void {
 	const { x: cx, y: cy } = imageToMask(mask, { x: imageX, y: imageY })
-	// Радиус тоже в координатах снимка: на уменьшенной маске мазок должен
-	// остаться того же размера относительно изображения.
 	const r = Math.max(0.5, imageRadius * mask.scale)
 	const minX = Math.max(0, Math.floor(cx - r))
 	const maxX = Math.min(mask.width - 1, Math.ceil(cx + r))
@@ -108,8 +76,7 @@ export function paintCircle(mask: BrushMask, imageX: number, imageY: number, ima
 }
 
 /**
- * Штрих между двумя точками (в координатах снимка): мышь двигается рывками,
- * и без интерполяции на быстром движении оставались бы разрывы.
+ * Штрих между двумя точками (в координатах снимка).
  */
 export function paintStroke(mask: BrushMask, from: Point2D, to: Point2D, radius: number, value: 0 | 1): void {
 	// Плотность промежуточных кругов считаем в пикселях растра: дыры могут
@@ -121,6 +88,43 @@ export function paintStroke(mask: BrushMask, from: Point2D, to: Point2D, radius:
 	for (let i = 0; i <= steps; i++) {
 		const t = i / steps
 		paintCircle(mask, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, radius, value)
+	}
+}
+
+/** Закрашивает многоугольник. Так в маску переносится уже готовый контур: кисть его расширяет, ластик подрезает. */
+export function fillPolygon(mask: BrushMask, points: Point2D[], value: 0 | 1 = 1): void {
+	if (points.length < 3 || mask.width === 0 || mask.height === 0) return
+
+	const polygon = points.map(point => imageToMask(mask, point))
+	const ys = polygon.map(point => point.y)
+	const minY = Math.max(0, Math.floor(Math.min(...ys)))
+	const maxY = Math.min(mask.height - 1, Math.ceil(Math.max(...ys)))
+	const crossings: number[] = []
+
+	for (let y = minY; y <= maxY; y++) {
+		const centerY = y + 0.5
+		crossings.length = 0
+
+		for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+			const a = polygon[i]
+			const b = polygon[j]
+			if (a.y > centerY !== b.y > centerY) {
+				crossings.push(a.x + ((centerY - a.y) / (b.y - a.y)) * (b.x - a.x))
+			}
+		}
+
+		crossings.sort((left, right) => left - right)
+
+		for (let k = 0; k + 1 < crossings.length; k += 2) {
+			const from = Math.max(0, Math.ceil(crossings[k] - 0.5))
+			const to = Math.min(mask.width - 1, Math.ceil(crossings[k + 1] - 0.5) - 1)
+			for (let x = from; x <= to; x++) mask.data[y * mask.width + x] = value
+		}
+	}
+
+	const edgeRadius = 0.5 / mask.scale
+	for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+		paintStroke(mask, points[j], points[i], edgeRadius, value)
 	}
 }
 
@@ -175,25 +179,56 @@ const MOORE_OFFSETS: Array<[number, number]> = [
 ]
 
 /**
- * Внешний контур закрашенной области — трассировка соседей по Муру
- * с критерием остановки Якоба.
- *
- * Берётся одна (первая найденная) область: врач обводит один узел, а
- * случайные отдельные мазки в контур попадать не должны.
+ * Первый (при обходе сверху вниз) пиксель самой крупной закрашенной области;
+ * области связны по восьми соседям — так же, как идёт трассировка.
  */
+function largestRegionStart(mask: BrushMask): Point2D | null {
+	const { width, height, data } = mask
+	const visited = new Uint8Array(width * height)
+	const stack: number[] = []
+	let best: { start: number; size: number } | null = null
+
+	for (let index = 0; index < data.length; index++) {
+		if (data[index] !== 1 || visited[index] === 1) continue
+
+		visited[index] = 1
+		stack.push(index)
+		let size = 0
+
+		while (stack.length > 0) {
+			const current = stack.pop() as number
+			size++
+			const cx = current % width
+			const cy = (current - cx) / width
+
+			for (const [dx, dy] of MOORE_OFFSETS) {
+				const nx = cx + dx
+				const ny = cy + dy
+				if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+				const next = ny * width + nx
+				if (data[next] === 1 && visited[next] === 0) {
+					visited[next] = 1
+					stack.push(next)
+				}
+			}
+		}
+
+		if (!best || size > best.size) best = { start: index, size }
+	}
+
+	if (!best) return null
+	return { x: best.start % width, y: Math.floor(best.start / width) }
+}
+
+/**
+ * Внешний контур закрашенной области — трассировка соседей по Муру
+ * с критерием остановки Якоба.*/
 export function traceOuterContour(mask: BrushMask): Point2D[] {
 	if (mask.width === 0 || mask.height === 0) return []
 
-	// Стартовая точка: первый закрашенный пиксель при обходе сверху вниз.
-	let start: Point2D | null = null
-	for (let y = 0; y < mask.height && !start; y++) {
-		for (let x = 0; x < mask.width; x++) {
-			if (isFilled(mask, x, y)) {
-				start = { x, y }
-				break
-			}
-		}
-	}
+	// Стартовая точка: первый пиксель самой крупной области при обходе сверху
+	// вниз — слева от него пусто, откуда и начинается обход.
+	const start = largestRegionStart(mask)
 	if (!start) return []
 
 	const contour: Point2D[] = [start]
