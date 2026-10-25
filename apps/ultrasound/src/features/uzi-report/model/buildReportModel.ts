@@ -144,6 +144,33 @@ function highestTirads(nodules: ReportNodule[]): number | undefined {
 	return values.length ? Math.max(...values) : undefined
 }
 
+/** Вывод по разметке узлов — подставляется в графу «Заключение» */
+function buildNodulesConclusion(nodules: ReportNodule[], hasNodules: boolean): string {
+	const tirads = highestTirads(nodules)
+	if (tirads != null) {
+		return `Выявлены узловые изменения щитовидной железы, наибольшая категория TI-RADS ${tirads}.`
+	}
+	return hasNodules ? 'Выявлены узловые изменения щитовидной железы.' : 'Узловые изменения щитовидной железы не выявлены.'
+}
+
+const NODULES_CONCLUSION_RE =
+	/Выявлены узловые изменения щитовидной железы(?:, наибольшая категория TI-RADS \d+)?\.|Узловые изменения щитовидной железы не выявлены\./
+
+/** Вывод по разметке, уже записанный в текст заключения */
+export function findNodulesConclusion(text: string): string | undefined {
+	return NODULES_CONCLUSION_RE.exec(text)?.[0]
+}
+
+/**
+ * Текст заключения с актуальным выводом по разметке: прежний вариант
+ * вывода заменяется, а если его нет — вывод дописывается отдельным абзацем
+ */
+export function withNodulesConclusion(text: string, conclusion: string): string {
+	const previous = findNodulesConclusion(text)
+	if (previous) return text.replace(previous, conclusion)
+	return text.trim() ? `${text.trimEnd()}\n${conclusion}` : conclusion
+}
+
 /** Возраст на дату исследования из даты рождения в формате `ДД.ММ.ГГГГ`. */
 function ageFromDisplayDate(birthDisplay: string | undefined, studyIso: string | undefined): string {
 	const parsed = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(String(birthDisplay ?? '').trim())
@@ -299,9 +326,10 @@ export function buildReportModel({
 
 		nodules,
 		nodulesDescription,
-		highestTirads: highestTirads(nodules),
-		hasNodules: Boolean(values.shortResult) || nodules.length > 0,
+		nodulesConclusion: buildNodulesConclusion(nodules, Boolean(values.shortResult) || nodules.length > 0),
 
+		// Печатаем графу «Заключение» как есть: вывод по разметке подставлен
+		// в неё заранее, и врач мог его исправить.
 		conclusion: text(values.diagnosis, ''),
 		recommendations: text(extras.recommendations, ''),
 	}

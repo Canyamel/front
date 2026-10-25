@@ -171,6 +171,7 @@ const UziViewPage: React.FC<UziViewPageProps> = ({ uziId }) => {
 			/>
 
 			<ReportModal
+				key={uziId}
 				open={reportOpen}
 				onClose={handleCloseReport}
 				data={reportData ?? data}

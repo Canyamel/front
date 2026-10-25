@@ -88,33 +88,14 @@ function dimensionsDetails(model: ThyroidReportModel): string {
 }
 
 /**
- * Заключение — два абзаца: текст врача (по умолчанию это диагноз из карты
- * пациента) и под ним вывод по разметке узлов.
+ * Заключение — содержимое графы «Заключение» как есть, по абзацу на строку.
+ * Вывод по разметке узлов подставлен в неё заранее (см. `ReportModal`).
  */
 function conclusionParagraphs(model: ThyroidReportModel): string[] {
-	const own = clean(model.conclusion)
-	const auto = nodulesConclusion(model)
-	if (!own) return [auto]
-	return normalizeText(own).includes(normalizeText(auto)) ? [own] : [own, auto]
-}
-
-/** Вывод, который следует из разметки узлов. */
-function nodulesConclusion(model: ThyroidReportModel): string {
-	if (model.highestTirads != null) {
-		return `Выявлены узловые изменения щитовидной железы, наибольшая категория TI-RADS ${model.highestTirads}.`
-	}
-	return model.hasNodules
-		? 'Выявлены узловые изменения щитовидной железы.'
-		: 'Узловые изменения щитовидной железы не выявлены.'
-}
-
-/** Для сравнения текстов: без регистра, лишних пробелов и точки в конце. */
-function normalizeText(value: string): string {
-	return value
-		.toLowerCase()
-		.replace(/\s+/g, ' ')
-		.replace(/[.\s]+$/, '')
-		.trim()
+	return model.conclusion
+		.split('\n')
+		.map(paragraph => paragraph.trim())
+		.filter(Boolean)
 }
 
 const STYLES = `
