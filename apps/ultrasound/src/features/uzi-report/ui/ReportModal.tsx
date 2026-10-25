@@ -7,7 +7,12 @@ import type { DoctorProfile } from '@/api/doctorApi'
 import type { Segment, ThyroidUziApiResponse } from '@/features/uzi-view/model/types'
 import { MISSING_SCALE_WARNING } from '@/features/uzi-view/model/thyroidDimensions'
 
-import { buildReportModel, needsScaleCalibration } from '../model/buildReportModel'
+import {
+	buildReportModel,
+	findNodulesConclusion,
+	needsScaleCalibration,
+	withNodulesConclusion,
+} from '../model/buildReportModel'
 import type { ReportExtras } from '../model/types'
 import { renderReportHtml } from './reportHtml'
 import { useDebouncedValue } from '@medml/shared'
@@ -123,6 +128,32 @@ const ReportModal: React.FC<ReportModalProps> = ({
 	/** Значение поля формы исследования. */
 	const fv = useCallback((name: string) => (values[name] ?? '') as string | number, [values])
 	const setFv = useCallback((name: string, value: unknown) => form.setFieldValue(name, value), [form])
+
+	// Вывод по разметке узлов — тоже текстом в графу «Заключение», чтобы врач
+	// мог его исправить. В печать идёт только содержимое графы.
+	const nodulesConclusion = model.nodulesConclusion
+	// Вывод, который уже был в графе в этом сеансе: если врач его удалил или
+	// переписал, обратно не подставляем.
+	const seenConclusionRef = useRef<string | null>(null)
+	useEffect(() => {
+		// Пока стор формы не прочитан, графа выглядит пустой — не трогаем её.
+		if (!open || !watched) return
+		const current = String(form.getFieldValue('diagnosis') ?? '')
+		const seen = seenConclusionRef.current
+		if (!current.includes(nodulesConclusion)) {
+			const previous = findNodulesConclusion(current)
+			// Разметка изменилась, а врач прежний вывод не правил — обновляем.
+			const stale = previous != null && (seen == null || previous === seen)
+			if (!stale && seen != null) return
+			form.setFieldValue('diagnosis', withNodulesConclusion(current, nodulesConclusion))
+		}
+		seenConclusionRef.current = nodulesConclusion
+	}, [open, watched, form, nodulesConclusion])
+	const conclusionMissing = !String(values.diagnosis ?? '').includes(nodulesConclusion)
+	const restoreConclusion = useCallback(() => {
+		seenConclusionRef.current = nodulesConclusion
+		form.setFieldValue('diagnosis', withNodulesConclusion(String(form.getFieldValue('diagnosis') ?? ''), nodulesConclusion))
+	}, [form, nodulesConclusion])
 
 	const formColSpan = showPreview ? 11 : 24
 
@@ -370,8 +401,24 @@ const ReportModal: React.FC<ReportModalProps> = ({
 					</Field>
 
 					<SectionTitle>Итог</SectionTitle>
-					<Field label='Заключение'>
+					<Field
+						label='Заключение'
+						hint={
+							conclusionMissing
+								? `Вывод по разметке узлов удалён или изменён. Актуальный: «${nodulesConclusion}»`
+								: 'Вывод по разметке узлов подставлен автоматически — проверьте и при необходимости исправьте'
+						}
+					>
 						<Input.TextArea rows={3} value={fv('diagnosis')} onChange={e => setFv('diagnosis', e.target.value)} />
+						<Button
+							type='link'
+							size='small'
+							style={{ paddingInline: 0 }}
+							disabled={!conclusionMissing}
+							onClick={restoreConclusion}
+						>
+							Подставить вывод по разметке
+						</Button>
 					</Field>
 					<Field label='Рекомендации'>
 						<Input.TextArea

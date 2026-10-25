@@ -113,8 +113,7 @@ export interface ThyroidReportModel {
 
 	nodules: ReportNodule[]
 	nodulesDescription: string
-	highestTirads?: number
-	hasNodules: boolean
+	nodulesConclusion: string
 
 	conclusion: string
 	recommendations: string
